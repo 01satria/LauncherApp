@@ -42,6 +42,13 @@ const App = () => {
         keyExtractor={(item) => item.packageName}
         contentContainerStyle={styles.listContainer}
 
+        ListEmptyComponent={
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 }}>
+            <Text style={{ color: 'white' }}>Loading Apps...</Text>
+            <Text style={{ color: 'gray', fontSize: 10 }}>({apps.length} found)</Text>
+          </View>
+        }
+
         // --- TAMBAHAN OPTIMASI RAM ---
         removeClippedSubviews={true} // Hapus item yang keluar layar dari memori (PENTING!)
         initialNumToRender={12}      // Cuma render 12 biji pas awal buka
