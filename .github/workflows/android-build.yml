@@ -15,8 +15,8 @@ jobs:
           cache: 'npm'
       - run: npm install
       - run: cd android && chmod +x gradlew
-      - run: cd android && ./gradlew assembleDebug
+      - run: cd android && ./gradlew assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: launcher-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk

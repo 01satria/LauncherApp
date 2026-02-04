@@ -28,7 +28,7 @@ const App = () => {
   const openApp = (packageName: string) => {
     try {
       LauncherKit.launchApplication(packageName);
-    } catch(e) {
+    } catch (e) {
       console.error("Could not open app", e);
     }
   };
@@ -41,11 +41,19 @@ const App = () => {
         numColumns={4}
         keyExtractor={(item) => item.packageName}
         contentContainerStyle={styles.listContainer}
+
+        // --- TAMBAHAN OPTIMASI RAM ---
+        removeClippedSubviews={true} // Hapus item yang keluar layar dari memori (PENTING!)
+        initialNumToRender={12}      // Cuma render 12 biji pas awal buka
+        maxToRenderPerBatch={8}      // Render 8 biji aja tiap scroll (biar enteng)
+        windowSize={5}               // Jaga memori render area tetap kecil
+        // -----------------------------
+
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.item} onPress={() => openApp(item.packageName)}>
-            <Image 
-              source={{ uri: `data:image/png;base64,${item.icon}` }} 
-              style={styles.icon} 
+            <Image
+              source={{ uri: `data:image/png;base64,${item.icon}` }}
+              style={styles.icon}
             />
             <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
           </TouchableOpacity>
