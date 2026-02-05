@@ -23,8 +23,9 @@ interface AppData {
 }
 
 const { width } = Dimensions.get('window');
-const ITEM_WIDTH = width / 4 - 20; // Slightly more spacing for modern feel
-const ITEM_HEIGHT = 90; // Slightly taller for better touch targets
+// UBAH 1: Lebar item dibagi 4 pas, tanpa dikurangi angka aneh-aneh
+const ITEM_WIDTH = width / 4; 
+const ITEM_HEIGHT = 100;
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   const colors = ['#FF3B30', '#FF2D55', '#AF52DE', '#007AFF', '#34C759', '#FF9500', '#FFCC00', '#5AC8FA', '#4CD964', '#5856D6'];
@@ -35,7 +36,7 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
     <TouchableOpacity 
       style={styles.item} 
       onPress={() => onPress(item.packageName, item.label)}
-      activeOpacity={0.6} // Smoother press feedback
+      activeOpacity={0.6}
     >
       <View style={[styles.iconBox, { backgroundColor: bgColor }]}>
         <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
@@ -114,7 +115,7 @@ const App = () => {
         numColumns={4}
         keyExtractor={(item) => item.packageName}
         renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={styles.list} // Style list diperbaiki
         getItemLayout={getItemLayout}
         initialNumToRender={10}
         maxToRenderPerBatch={10}
@@ -128,20 +129,30 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' }, // Keep dark for consistency, but modernized
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
-  list: { padding: 16, paddingBottom: 32 }, // More padding for airy feel
+  container: { flex: 1, backgroundColor: '#00000000' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#00000000' },
+  
+  // UBAH 2: Padding horizontal dihapus agar ITEM_WIDTH bisa pas 100%
+  list: { 
+    paddingTop: 32, // Padding atas biar ga nempel status bar
+    paddingBottom: 32, 
+    // paddingHorizontal dihapus
+  }, 
+
+  // UBAH 3: Item menjadi container kolom yang presisi
   item: { 
-    width: ITEM_WIDTH,
+    width: ITEM_WIDTH, // Lebar pas 25% layar
     height: ITEM_HEIGHT,
-    alignItems: 'center', 
-    marginHorizontal: 10,
-    marginVertical: 8,
+    alignItems: 'center', // Konten di tengah kolom
+    justifyContent: 'flex-start',
+    // marginHorizontal dihapus agar tidak menggeser grid
+    marginBottom: 10,
   },
+  
   iconBox: {
     width: 60,
     height: 60,
-    borderRadius: 20, // More rounded like iOS icons
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
@@ -159,14 +170,15 @@ const styles = StyleSheet.create({
   },
   initial: {
     color: 'white',
-    fontSize: 26, // Larger for modern look
-    fontWeight: '600', // Semi-bold like iOS
+    fontSize: 26,
+    fontWeight: '600',
   },
   label: { 
-    color: '#eee', // Brighter white for contrast
-    fontSize: 12, // Standard iOS label size
+    color: '#eee',
+    fontSize: 12,
     textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif', // iOS-like font
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    paddingHorizontal: 4, // Supaya teks panjang ga nempel pinggir
   },
 });
 
