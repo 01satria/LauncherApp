@@ -34,6 +34,7 @@ const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/41
 
 // Path custom untuk simpan avatar
 const CUSTOM_AVATAR_PATH = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher/asist.jpg`;
+const CUSTOM_AVATAR_DIR = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher`;
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   return (
@@ -157,16 +158,26 @@ const AssistantDock = () => {
 
               if (result.didCancel) {
                 console.log('User cancelled image picker');
+                return;
               } else if (result.errorCode) {
                 console.error('ImagePicker Error: ', result.errorMessage);
+                ToastAndroid.show('Gagal memilih foto.', ToastAndroid.SHORT);
+                return;
               } else if (result.assets && result.assets.length > 0) {
                 const selectedUri = result.assets[0].uri;
                 if (selectedUri) {
-                  // Buat folder jika belum ada
-                  const dirPath = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher`;
-                  await RNFS.mkdir(dirPath);
+                  // Buat folder jika belum ada (mkdir aman jika sudah ada)
+                  await RNFS.mkdir(CUSTOM_AVATAR_DIR);
 
-                  // Copy file ke custom path
+                  // Periksa apakah file sudah ada
+                  const exists = await RNFS.exists(CUSTOM_AVATAR_PATH);
+                  if (exists) {
+                    // Jika ada, hapus dulu untuk replace
+                    await RNFS.unlink(CUSTOM_AVATAR_PATH);
+                    console.log('Existing file deleted for replacement');
+                  }
+
+                  // Copy file baru ke path (akan create jika belum ada)
                   await RNFS.copyFile(selectedUri, CUSTOM_AVATAR_PATH);
                   ToastAndroid.show('Foto asisten berhasil diubah!', ToastAndroid.SHORT);
 
