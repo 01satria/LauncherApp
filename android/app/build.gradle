@@ -44,7 +44,7 @@ react {
     // extraPackagerArgs = []
 
     /* Hermes Commands */  // Tambahan: Optimasi flags Hermes untuk size lebih kecil
-    hermesFlags = ["-O", "-output-source-map", "-dump-ir"]  // Tambah ini untuk optimasi lebih lanjut
+    hermesFlags = ["-O", "-output-source-map"]  // Tambah ini untuk optimasi lebih lanjut
 }
 
 /**
