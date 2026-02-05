@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,91 +11,90 @@ import {
   Alert,
   NativeModules,
   ToastAndroid,
+  Dimensions,
 } from 'react-native';
 
-import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit'; // Tambah import RNLauncherKitHelper
+import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 
 interface AppData {
   label: string;
   packageName: string;
 }
 
+const { width } = Dimensions.get('window');
+const ITEM_WIDTH = width / 4 - 16; // Adjust for margins
+const ITEM_HEIGHT = 80; // Fixed height: icon 50 + label 20 + margins
+
+const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
+  const colors = ['#C62828', '#AD1457', '#6A1B9A', '#4527A0', '#283593', '#1565C0', '#00695C', '#2E7D32', '#EF6C00', '#D84315'];
+  const colorIndex = item.label ? item.label.charCodeAt(0) % colors.length : 0;
+  const bgColor = colors[colorIndex];
+
+  return (
+    <TouchableOpacity 
+      style={styles.item} 
+      onPress={() => onPress(item.packageName, item.label)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.iconBox, { backgroundColor: bgColor }]}>
+        <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
+      </View>
+      <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
+    </TouchableOpacity>
+  );
+});
+
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    const loadApps = async () => {
+      try {
+        setLoading(true);
+        const result = await InstalledApps.getApps();
+        
+        const lightData = result
+          .map(app => ({
+            label: app.label || 'Unnamed',
+            packageName: app.packageName,
+          }))
+          .filter(app => app.packageName) // Filter invalid
+          .sort((a, b) => a.label.localeCompare(b.label));
+        
+        if (isMounted) {
+          setApps(lightData);
+          setLoading(false);
+        }
+      } catch (e) {
+        if (isMounted) {
+          setLoading(false);
+          Alert.alert("Error Load Apps", String(e));
+        }
+      }
+    };
+
     loadApps();
+
+    return () => { isMounted = false; };
   }, []);
-
-  const loadApps = async () => {
-    try {
-      setLoading(true);
-      // Ambil data aplikasi
-      const result = await InstalledApps.getApps();
-      
-      // PENTING: Kita HAPUS data icon (base64) dari memori agar RAM tidak meledak
-      // Kita cuma simpan Label dan PackageName
-      const lightData = result.map(app => ({
-        label: app.label,
-        packageName: app.packageName
-      }));
-
-      // Sortir A-Z
-      const sorted = lightData.sort((a, b) => (a.label || '').localeCompare(b.label || ''));
-      
-      setApps(sorted);
-      setLoading(false);
-    } catch (e) {
-      setLoading(false);
-      Alert.alert("Error Load Apps", String(e)); // Tambah alert untuk debug
-    }
-  };
 
   const launchApp = (packageName: string, label: string) => {
     try {
       ToastAndroid.show(`Membuka ${label}...`, ToastAndroid.SHORT);
-
-      // Gunakan RNLauncherKitHelper langsung seperti di dokumentasi resmi
-      if (RNLauncherKitHelper && typeof RNLauncherKitHelper.launchApplication === 'function') {
-        RNLauncherKitHelper.launchApplication(packageName);
-      } else {
-        // Fallback: Coba akses via NativeModules
-        const LauncherModule = NativeModules.RNLauncherKitHelper;
-        if (LauncherModule && LauncherModule.launchApplication) {
-          LauncherModule.launchApplication(packageName);
-        } else {
-          Alert.alert("Gagal", "Modul Launcher tidak ditemukan. Cek instalasi library.");
-        }
-      }
+      RNLauncherKitHelper.launchApplication(packageName);
     } catch (err) {
-      console.error('Launch error:', err); // Log ke console untuk debug
+      console.error('Launch error:', err);
       Alert.alert("Error Launch", `Gagal membuka ${label}: ${String(err)}`);
     }
   };
 
-  // Komponen Item Super Ringan (Cuma Teks & Kotak Warna)
-  const renderItem = ({ item }: { item: AppData }) => {
-    // Warna background acak berdasarkan huruf depan
-    const colors = ['#C62828', '#AD1457', '#6A1B9A', '#4527A0', '#283593', '#1565C0', '#00695C', '#2E7D32', '#EF6C00', '#D84315'];
-    const colorIndex = item.label ? item.label.charCodeAt(0) % colors.length : 0;
-    const bgColor = colors[colorIndex];
-
-    return (
-      <TouchableOpacity 
-        style={styles.item} 
-        onPress={() => launchApp(item.packageName, item.label)}
-        activeOpacity={0.7}
-      >
-        {/* Pengganti Icon: Kotak Warna dengan Inisial */}
-        <View style={[styles.iconBox, { backgroundColor: bgColor }]}>
-          <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
-        </View>
-        
-        <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
-      </TouchableOpacity>
-    );
-  };
+  const getItemLayout = (_: any, index: number) => ({
+    length: ITEM_HEIGHT,
+    offset: ITEM_HEIGHT * Math.floor(index / 4), // Adjust for numColumns=4
+    index,
+  });
 
   if (loading) {
     return (
@@ -113,13 +112,15 @@ const App = () => {
         data={apps}
         numColumns={4}
         keyExtractor={(item) => item.packageName}
-        renderItem={renderItem}
+        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
         contentContainerStyle={styles.list}
-        // Optimasi FlatList biar scroll enteng
-        initialNumToRender={20}
-        maxToRenderPerBatch={20}
-        windowSize={10}
-        removeClippedSubviews={true}
+        getItemLayout={getItemLayout}
+        initialNumToRender={10}          // Mulai dengan 10 item saja
+        maxToRenderPerBatch={10}         // Batch kecil
+        windowSize={5}                   // Kurangi window untuk hemat RAM
+        updateCellsBatchingPeriod={100}  // Lebih lambat update, hemat resource
+        removeClippedSubviews={true}      // Hapus item off-screen
+        showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
   );
@@ -128,12 +129,12 @@ const App = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
-  list: { padding: 10 },
+  list: { padding: 10, paddingBottom: 20 },
   item: { 
-    flex: 1, 
+    width: ITEM_WIDTH,
+    height: ITEM_HEIGHT,
     alignItems: 'center', 
-    margin: 8, 
-    maxWidth: '25%' // Grid 4 kolom
+    margin: 8,
   },
   iconBox: {
     width: 50,

@@ -8,3 +8,9 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+# Tambahkan rules dasar untuk React Native
+-keep class com.facebook.react.bridge.** { *; }
+-keep class com.facebook.react.uimanager.** { *; }
+-keepclassmembers class *  { @com.facebook.react.uimanager.annotations.ReactProp *; }
+# Tambah rules custom jika ada library lain, misal launcher-kit
+-keep class com.reactnativelauncherkit.** { *; }  // Untuk library react-native-launcher-kit
