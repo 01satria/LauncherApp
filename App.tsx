@@ -10,280 +10,265 @@ import {
   ActivityIndicator,
   ToastAndroid,
   Dimensions,
-  Image,
-  BackHandler,
-  TextInput,
-  Alert,
+  Image, // Tambahan Image untuk foto asisten
 } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// --- DATA AVATAR (Gambar Online) ---
-const AVATARS = [
-  { id: '1', uri: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png', name: 'Girl' },
-  { id: '2', uri: 'https://cdn-icons-png.flaticon.com/512/4140/4140037.png', name: 'Boy' },
-  { id: '3', uri: 'https://cdn-icons-png.flaticon.com/512/4140/4140047.png', name: 'Old' },
-  { id: '4', uri: 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png', name: 'Robot' },
-  { id: '5', uri: 'https://cdn-icons-png.flaticon.com/512/1998/1998627.png', name: 'Cat' },
-];
+interface AppData {
+  label: string;
+  packageName: string;
+}
 
-interface AppData { label: string; packageName: string; }
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4; 
 const ITEM_HEIGHT = 100;
 
-// --- ITEM APLIKASI ---
-const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => (
-  <TouchableOpacity style={styles.item} onPress={() => onPress(item.packageName, item.label)} activeOpacity={0.7}>
-    <View style={styles.appIconBox}>
-      <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
-    </View>
-    <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
-  </TouchableOpacity>
-), (prev, next) => prev.item.packageName === next.item.packageName);
+// URL Foto Asisten (Bisa diganti dengan require('./assets/foto.png') kalau ada file lokal)
+// Saya pakai link gambar anime/avatar simple sebagai contoh
+const ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
-// --- SETUP SCREEN ---
-const SetupScreen = ({ onFinish }: { onFinish: (name: string, photo: string) => void }) => {
-  const [name, setName] = useState("");
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0].uri);
-
-  const saveSetup = async () => {
-    if (!name.trim()) {
-      ToastAndroid.show("Isi nama dulu bos!", ToastAndroid.SHORT);
-      return;
-    }
-    // Simpan data & Lanjut
-    try {
-        await AsyncStorage.setItem('user_name', name);
-        await AsyncStorage.setItem('user_photo', selectedAvatar);
-    } catch(e) {} // Ignore error, lanjut aja
-    onFinish(name, selectedAvatar);
-  };
-
+const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   return (
-    <View style={styles.setupContainer}>
-      {/* Background Abu Gelap (Bukan Hitam Pekat) biar ketahuan kalau layar nyala */}
-      <StatusBar hidden={false} barStyle="light-content" backgroundColor="#1a1a1a" />
-      
-      <Text style={styles.setupTitle}>👋 Halo!</Text>
-      <Text style={styles.setupSubtitle}>Siapa nama panggilanmu?</Text>
-
-      <TextInput 
-        style={styles.input}
-        placeholder="Nama..."
-        placeholderTextColor="#888"
-        value={name}
-        onChangeText={setName}
-      />
-
-      <Text style={styles.setupSubtitle}>Pilih Avatar:</Text>
-      <View style={styles.avatarList}>
-        {AVATARS.map((av) => (
-          <TouchableOpacity 
-            key={av.id} 
-            onPress={() => setSelectedAvatar(av.uri)}
-            style={[styles.avatarOption, selectedAvatar === av.uri && styles.avatarSelected]}
-          >
-            <Image source={{ uri: av.uri }} style={styles.avatarImg} />
-          </TouchableOpacity>
-        ))}
+    <TouchableOpacity 
+      style={styles.item} 
+      onPress={() => onPress(item.packageName, item.label)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.iconBox, { backgroundColor: '#000000' }]}>
+        <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
       </View>
-
-      <TouchableOpacity style={styles.saveButton} onPress={saveSetup}>
-        <Text style={styles.saveButtonText}>MASUK</Text>
-      </TouchableOpacity>
-    </View>
+      <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">{item.label}</Text>
+    </TouchableOpacity>
   );
-};
+}, (prev, next) => prev.item.packageName === next.item.packageName);
 
-// --- DOCK ASISTEN ---
-const AssistantDock = ({ userName, userPhoto }: { userName: string, userPhoto: string | null }) => {
+// KOMPONEN DOCK ASISTEN
+const AssistantDock = () => {
   const [message, setMessage] = useState("");
   
+  // Simulasi Notifikasi (Nanti bisa disambung ke library notifikasi kalau sudah siap)
+  // Biarkan array ini kosong [] jika ingin melihat pesan sapaan waktu
+  const [notifications, setNotifications] = useState<string[]>([]); 
+  // Contoh jika ada notif: const [notifications, setNotifications] = useState<string[]>(["WhatsApp", "Instagram"]); 
+
   useEffect(() => {
     const updateMessage = () => {
-      const h = new Date().getHours();
-      if (h >= 0 && h < 4) setMessage(`Tidur dong, ${userName} 😴`);
-      else if (h >= 4 && h < 11) setMessage(`Pagi, ${userName} ☀️`);
-      else if (h >= 11 && h < 15) setMessage(`Siang, ${userName} 🌤️`);
-      else if (h >= 15 && h < 18) setMessage(`Sore, ${userName} 🌇`);
-      else setMessage(`Malam, ${userName} 🌙`);
-    };
-    updateMessage();
-    const interval = setInterval(updateMessage, 60000);
-    return () => clearInterval(interval);
-  }, [userName]);
-
-  return (
-    <View style={styles.dockWrapper}>
-        <View style={styles.dockContainer}>
-          <Image source={{ uri: userPhoto || AVATARS[0].uri }} style={styles.dockAvatar} />
-          <View style={styles.messageContainer}>
-              <Text style={styles.assistantText}>{message}</Text>
-          </View>
-        </View>
-    </View>
-  );
-};
-
-// --- MAIN COMPONENT ---
-const App = () => {
-  const [apps, setApps] = useState<AppData[]>([]);
-  const [setupDone, setSetupDone] = useState(false);
-  const [userData, setUserData] = useState({ name: '', photo: '' });
-  
-  // State untuk mengontrol Loading Awal
-  // Default TRUE agar layar tidak nge-blink
-  const [isInitializing, setIsInitializing] = useState(true);
-
-  // 1. CEK USER DATA (DENGAN TIMEOUT)
-  useEffect(() => {
-    let isCancelled = false;
-
-    const checkData = async () => {
-      try {
-        // Coba baca memori
-        const n = await AsyncStorage.getItem('user_name');
-        const p = await AsyncStorage.getItem('user_photo');
-        
-        if (!isCancelled) {
-            if (n && p) {
-                setUserData({ name: n, photo: p });
-                setSetupDone(true);
-            } else {
-                setSetupDone(false); // Belum ada data -> Ke Setup
-            }
-            setIsInitializing(false); // Selesai loading
-        }
-      } catch (e) {
-        if (!isCancelled) {
-            setSetupDone(false); // Error baca -> Anggap user baru
-            setIsInitializing(false);
+      // 1. Cek apakah ada notifikasi?
+      if (notifications.length > 0) {
+        // Gabungkan nama aplikasi yang unik
+        const uniqueApps = [...new Set(notifications)];
+        const appNames = uniqueApps.join(", ");
+        setMessage(`Hai Satria... ada notifikasi dari ${appNames}.`);
+      } 
+      // 2. Jika tidak ada notif, tampilkan Sapaan Waktu
+      else {
+        const hour = new Date().getHours();
+        if (hour >= 0 && hour < 4) {
+          setMessage("Selamat tidur, Satria 😴 Jangan begadang ya.");
+        } else if (hour >= 4 && hour < 11) {
+          setMessage("Selamat pagi, Satria ☀️ Semangat aktivitas!");
+        } else if (hour >= 11 && hour < 15) {
+          setMessage("Selamat siang, Satria 🌤️ Jangan lupa makan.");
+        } else if (hour >= 15 && hour < 18) {
+          setMessage("Selamat sore, Satria 🌇");
+        } else {
+          setMessage("Selamat malam, Satria 🌙 Istirahatlah.");
         }
       }
     };
 
-    // JALANKAN CEK
-    checkData();
+    updateMessage();
+    // Update setiap 1 menit agar sapaan waktu berubah otomatis
+    const interval = setInterval(updateMessage, 60000);
+    return () => clearInterval(interval);
+  }, [notifications]);
 
-    // SAFETY NET: Kalau 2 detik loading masih belum kelar (Macet), PAKSA SELESAI
-    const timeout = setTimeout(() => {
-        if (!isCancelled && isInitializing) {
-            // Paksa masuk ke Setup kalau macet
-            setSetupDone(false);
-            setIsInitializing(false);
-        }
-    }, 2000);
+  return (
+    <View style={styles.dockContainer}>
+      {/* Bagian Kiri: Foto Asisten */}
+      <View style={styles.avatarContainer}>
+        <Image 
+          source={{ uri: ASSISTANT_AVATAR }} 
+          style={styles.avatar} 
+          resizeMode="cover"
+        />
+        {/* Indikator Online Hijau kecil */}
+        <View style={styles.onlineIndicator} />
+      </View>
 
-    return () => { isCancelled = true; clearTimeout(timeout); };
-  }, []); // Hanya jalan sekali saat app dibuka
+      {/* Bagian Kanan: Teks Pesan */}
+      <View style={styles.messageContainer}>
+        <Text style={styles.assistantText}>
+          {message}
+        </Text>
+      </View>
+    </View>
+  );
+};
 
-  // 2. MATIKAN TOMBOL BACK
+const App = () => {
+  const [apps, setApps] = useState<AppData[]>([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
-    return () => backHandler.remove();
-  }, []);
-
-  // 3. LOAD APLIKASI (Hanya jika setup sudah selesai)
-  useEffect(() => {
-    if (!setupDone) return;
+    let isMounted = true;
     
-    // Delay dikit biar transisi mulus
-    setTimeout(async () => {
-        try {
-            const res = await InstalledApps.getApps();
-            const data = res.map(a => ({ label: a.label || 'App', packageName: a.packageName }))
-                            .filter(a => a.packageName)
-                            .sort((a, b) => a.label.localeCompare(b.label));
-            setApps(data);
-        } catch(e) {}
+    const initLoad = setTimeout(async () => {
+      try {
+        const result = await InstalledApps.getApps();
+        const lightData = result
+          .map(app => ({
+            label: app.label || 'App',
+            packageName: app.packageName,
+          }))
+          .filter(app => app.packageName)
+          .sort((a, b) => a.label.localeCompare(b.label));
+        
+        if (isMounted) {
+          setApps(lightData);
+          setLoading(false);
+        }
+      } catch (e) {
+        if (isMounted) setLoading(false);
+      }
     }, 100);
-  }, [setupDone]);
 
-  const launch = useCallback((pkg: string, label: string) => {
-    try {
-        ToastAndroid.show(`Membuka ${label}...`, ToastAndroid.SHORT);
-        RNLauncherKitHelper.launchApplication(pkg);
-    } catch { ToastAndroid.show("Error", ToastAndroid.SHORT); }
+    return () => { 
+      isMounted = false; 
+      clearTimeout(initLoad);
+    };
   }, []);
 
-  // --- RENDER LOGIC ---
+  const launchApp = useCallback((packageName: string, label: string) => {
+    try {
+      ToastAndroid.show(`Opening ${label}...`, ToastAndroid.SHORT);
+      RNLauncherKitHelper.launchApplication(packageName);
+    } catch (err) {
+      ToastAndroid.show("Failed to launch app", ToastAndroid.SHORT);
+    }
+  }, []);
 
-  // TAMPILAN 1: LOADING SCREEN (Muncul maksimal 2 detik)
-  if (isInitializing) {
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: ITEM_HEIGHT,
+    offset: ITEM_HEIGHT * Math.floor(index / 4),
+    index,
+  }), []);
+
+  if (loading) {
     return (
-        <View style={styles.center}>
-            <ActivityIndicator size="large" color="#00ff00" />
-            <Text style={{color:'white', marginTop:10}}>Loading Launcher...</Text>
-        </View>
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#ffffff" />
+      </View>
     );
   }
 
-  // TAMPILAN 2: LAYAR SETUP (Jika User Baru / Reset)
-  if (!setupDone) {
-    return <SetupScreen onFinish={(n, p) => { setUserData({ name: n, photo: p }); setSetupDone(true); }} />;
-  }
-
-  // TAMPILAN 3: HOME SCREEN (Utama)
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent />
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
       
       <FlatList
         data={apps}
         numColumns={4}
-        keyExtractor={(i) => i.packageName}
-        renderItem={({ item }) => <MemoizedItem item={item} onPress={launch} />}
+        keyExtractor={(item) => item.packageName}
+        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
         contentContainerStyle={styles.list}
+        getItemLayout={getItemLayout}
         initialNumToRender={24}
+        maxToRenderPerBatch={8}
+        windowSize={3}
         removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
         showsVerticalScrollIndicator={false}
       />
-      
-      <AssistantDock userName={userData.name} userPhoto={userData.photo} />
+
+      {/* DOCK ASISTEN DITEMPEL DI SINI */}
+      <AssistantDock />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  // Center diganti warna abu gelap biar tidak dikira mati layar
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#111' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   
-  list: { paddingTop: 60, paddingBottom: 130 },
-  item: { width: ITEM_WIDTH, height: ITEM_HEIGHT, alignItems: 'center', marginBottom: 10 },
-  appIconBox: {
-    width: 58, height: 58, borderRadius: 18, justifyContent: 'center', alignItems: 'center',
-    marginBottom: 6, borderWidth: 1, borderColor: '#333', backgroundColor: '#000', elevation: 2,
+  // Padding Bawah dibesarkan agar icon paling bawah tidak ketutupan Dock
+  list: { 
+    paddingTop: 50, 
+    paddingBottom: 120, // <--- PENTING: Space untuk Dock
+  }, 
+
+  item: { 
+    width: ITEM_WIDTH, 
+    height: ITEM_HEIGHT,
+    alignItems: 'center', 
+    justifyContent: 'flex-start',
+    marginBottom: 10,
+  },
+  
+  iconBox: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#333333', 
+    backgroundColor: '#000000',
+    elevation: 2,
   },
   initial: { color: 'white', fontSize: 24, fontWeight: '700' },
   label: { color: '#eee', fontSize: 11, textAlign: 'center', paddingHorizontal: 2 },
 
-  // SETUP
-  setupContainer: { flex: 1, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  setupTitle: { color: 'white', fontSize: 32, fontWeight: 'bold', marginBottom: 10 },
-  setupSubtitle: { color: '#aaa', fontSize: 16, marginBottom: 20, marginTop: 10 },
-  input: {
-    width: '80%', backgroundColor: '#000', color: 'white', padding: 15, borderRadius: 12,
-    borderWidth: 1, borderColor: '#333', textAlign: 'center', fontSize: 18, marginBottom: 30
-  },
-  avatarList: { flexDirection: 'row', justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap' },
-  avatarOption: { margin: 8, padding: 4, borderRadius: 50, borderWidth: 2, borderColor: 'transparent' },
-  avatarSelected: { borderColor: '#4CD964', backgroundColor: '#333' },
-  avatarImg: { width: 50, height: 50 },
-  saveButton: { backgroundColor: 'white', paddingVertical: 15, paddingHorizontal: 50, borderRadius: 30 },
-  saveButtonText: { color: 'black', fontWeight: 'bold', fontSize: 16 },
-
-  // DOCK
-  dockWrapper: { position: 'absolute', bottom: 25, width: '100%', alignItems: 'center' },
+  // --- STYLE KHUSUS DOCK ---
   dockContainer: {
-    width: '90%', height: 75, backgroundColor: 'rgba(20, 20, 20, 0.95)', borderRadius: 40,
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, borderWidth: 1, borderColor: '#333',
+    position: 'absolute', // Melayang
+    bottom: 20,           // Jarak dari bawah layar
+    left: 20,
+    right: 20,
+    height: 70,
+    backgroundColor: 'rgba(20, 20, 20, 0.9)', // Hitam agak transparan (Glassmorphism)
+    borderRadius: 35,     // Rounded banget biar lonjong
+    flexDirection: 'row', // Foto di kiri, Teks di kanan
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)', // Garis tipis biar elegan
+    elevation: 10,        // Bayangan
   },
-  dockAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#333' },
-  messageContainer: { flex: 1, justifyContent: 'center', paddingLeft: 15 },
-  assistantText: { color: '#ffffff', fontSize: 13, fontWeight: '500' },
+  avatarContainer: {
+    position: 'relative',
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25, // Lingkaran penuh
+    backgroundColor: '#333',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#4CD964', // Hijau Online iOS
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+  },
+  messageContainer: {
+    flex: 1, // Ambil sisa ruang yang ada
+    marginLeft: 15,
+    justifyContent: 'center',
+  },
+  assistantText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+    opacity: 0.9,
+  }
 });
 
 export default App;
