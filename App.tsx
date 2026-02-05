@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
+import RNFS from 'react-native-fs'; // Tambahkan import ini untuk akses file system
 
 interface AppData {
   label: string;
@@ -24,9 +25,8 @@ const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4; 
 const ITEM_HEIGHT = 100;
 
-// URL Foto Asisten (Bisa diganti dengan require('./assets/foto.png') kalau ada file lokal)
-// Saya pakai link gambar anime/avatar simple sebagai contoh
-const ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
+// URL Default Foto Asisten
+const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   return (
@@ -46,6 +46,7 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
 // KOMPONEN DOCK ASISTEN
 const AssistantDock = () => {
   const [message, setMessage] = useState("");
+  const [avatarSource, setAvatarSource] = useState<string | null>(null); // State baru untuk source avatar
   
   // Simulasi Notifikasi (Nanti bisa disambung ke library notifikasi kalau sudah siap)
   // Biarkan array ini kosong [] jika ingin melihat pesan sapaan waktu
@@ -84,12 +85,46 @@ const AssistantDock = () => {
     return () => clearInterval(interval);
   }, [notifications]);
 
+  // Effect baru untuk memeriksa dan load avatar custom
+  useEffect(() => {
+    const checkCustomAvatar = async () => {
+      // Path ke file custom di Android storage (sesuaikan dengan root external storage)
+      const customPath = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher/asist.jpg`;
+      
+      try {
+        const exists = await RNFS.exists(customPath);
+        if (exists) {
+          // Jika ada, gunakan URI file lokal
+          setAvatarSource(`file://${customPath}`);
+        } else {
+          // Jika tidak ada, fallback ke default URL
+          setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
+        }
+      } catch (error) {
+        console.error('Error checking custom avatar:', error);
+        // Jika error (misal permission), fallback ke default
+        setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
+      }
+    };
+
+    checkCustomAvatar();
+  }, []);
+
+  // Jika avatarSource masih null (sedang loading), tampilkan placeholder atau spinner (opsional)
+  if (!avatarSource) {
+    return (
+      <View style={styles.dockContainer}>
+        <ActivityIndicator size="small" color="#ffffff" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.dockContainer}>
       {/* Bagian Kiri: Foto Asisten */}
       <View style={styles.avatarContainer}>
         <Image 
-          source={{ uri: ASSISTANT_AVATAR }} 
+          source={{ uri: avatarSource }} 
           style={styles.avatar} 
           resizeMode="cover"
         />
