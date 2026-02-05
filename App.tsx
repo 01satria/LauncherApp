@@ -11,6 +11,7 @@ import {
   ToastAndroid,
   Dimensions,
   Image, // Tambahan Image untuk foto asisten
+  PermissionsAndroid, // Tambahan untuk request permission
 } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
@@ -85,29 +86,49 @@ const AssistantDock = () => {
     return () => clearInterval(interval);
   }, [notifications]);
 
-  // Effect baru untuk memeriksa dan load avatar custom
+  // Effect untuk request permission dan load avatar
   useEffect(() => {
-    const checkCustomAvatar = async () => {
-      // Path ke file custom di Android storage (sesuaikan dengan root external storage)
-      const customPath = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher/asist.jpg`;
-      
+    const requestPermissionAndLoadAvatar = async () => {
       try {
-        const exists = await RNFS.exists(customPath);
-        if (exists) {
-          // Jika ada, gunakan URI file lokal
-          setAvatarSource(`file://${customPath}`);
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+          {
+            title: 'Izin Baca Storage',
+            message: 'App butuh akses storage untuk load avatar custom.',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('Permission granted');
+          // Lanjut check custom avatar
+          const customPath = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher/asist.jpg`;
+          
+          try {
+            const exists = await RNFS.exists(customPath);
+            if (exists) {
+              // Jika ada, gunakan URI file lokal
+              setAvatarSource(`file://${customPath}`);
+            } else {
+              // Jika tidak ada, fallback ke default URL
+              setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
+            }
+          } catch (error) {
+            console.error('Error checking custom avatar:', error);
+            // Jika error, fallback ke default
+            setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
+          }
         } else {
-          // Jika tidak ada, fallback ke default URL
+          console.log('Permission denied');
+          // Fallback ke default jika permission ditolak
           setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
         }
-      } catch (error) {
-        console.error('Error checking custom avatar:', error);
-        // Jika error (misal permission), fallback ke default
+      } catch (err) {
+        console.error('Error requesting permission:', err);
         setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
       }
     };
 
-    checkCustomAvatar();
+    requestPermissionAndLoadAvatar();
   }, []);
 
   // Jika avatarSource masih null (sedang loading), tampilkan placeholder atau spinner (opsional)
@@ -127,6 +148,7 @@ const AssistantDock = () => {
           source={{ uri: avatarSource }} 
           style={styles.avatar} 
           resizeMode="cover"
+          onError={(e) => console.error('Image load error:', e.nativeEvent.error)} // Tambahan untuk debug error load image
         />
         {/* Indikator Online Hijau kecil */}
         <View style={styles.onlineIndicator} />
