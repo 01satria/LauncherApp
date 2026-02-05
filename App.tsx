@@ -10,14 +10,10 @@ import {
   ActivityIndicator,
   ToastAndroid,
   Dimensions,
-  Image,
-  BackHandler, // Tambahan untuk handle back button
-  TextInput, // Untuk input nama di setup
-  Button, // Untuk tombol di setup
+  Image, // Tambahan Image untuk foto asisten
 } from 'react-native';
+
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Tambahan untuk simpan data local
-import * as ImagePicker from 'react-native-image-picker'; // Tambahan untuk pilih foto (pastikan install library ini: npm i react-native-image-picker)
 
 interface AppData {
   label: string;
@@ -25,120 +21,17 @@ interface AppData {
 }
 
 const { width } = Dimensions.get('window');
-const ITEM_WIDTH = width / 4;
+const ITEM_WIDTH = width / 4; 
 const ITEM_HEIGHT = 100;
 
-// KOMPONEN SETUP SCREEN
-const SetupScreen = ({ onSetupComplete }: { onSetupComplete: (name: string, photo: string) => void }) => {
-  const [userName, setUserName] = useState('');
-  const [assistantPhoto, setAssistantPhoto] = useState<string | null>(null);
-
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibrary({
-      mediaType: 'photo',
-      quality: 1,
-    });
-    if (!result.didCancel && result.assets && result.assets[0].uri) {
-      setAssistantPhoto(result.assets[0].uri);
-    }
-  };
-
-  const handleSubmit = () => {
-    if (userName && assistantPhoto) {
-      onSetupComplete(userName, assistantPhoto);
-    } else {
-      ToastAndroid.show('Mohon isi nama dan pilih foto asisten.', ToastAndroid.SHORT);
-    }
-  };
-
-  return (
-    <View style={styles.setupContainer}>
-      <Text style={styles.setupTitle}>Selamat Datang!</Text>
-      <Text style={styles.setupSubtitle}>Masukkan nama panggilan Anda:</Text>
-      <TextInput
-        style={styles.input}
-        value={userName}
-        onChangeText={setUserName}
-        placeholder="Nama panggilan (misal: Satria)"
-        placeholderTextColor="#aaa"
-      />
-      <Text style={styles.setupSubtitle}>Pilih foto asisten:</Text>
-      {assistantPhoto && <Image source={{ uri: assistantPhoto }} style={styles.previewImage} />}
-      <Button title="Pilih Foto" onPress={pickImage} color="#007AFF" />
-      <View style={styles.submitButton}>
-        <Button title="Simpan dan Lanjut" onPress={handleSubmit} color="#4CD964" />
-      </View>
-    </View>
-  );
-};
-
-// KOMPONEN DOCK ASISTEN
-const AssistantDock = ({ userName }: { userName: string }) => {
-  const [message, setMessage] = useState('');
-  
-  // Simulasi Notifikasi (Nanti bisa disambung ke library notifikasi kalau sudah siap)
-  // Biarkan array ini kosong [] jika ingin melihat pesan sapaan waktu
-  const [notifications, setNotifications] = useState<string[]>([]);
-  // Contoh jika ada notif: const [notifications, setNotifications] = useState<string[]>(["WhatsApp", "Instagram"]);
-
-  useEffect(() => {
-    const updateMessage = () => {
-      // 1. Cek apakah ada notifikasi?
-      if (notifications.length > 0) {
-        // Gabungkan nama aplikasi yang unik
-        const uniqueApps = [...new Set(notifications)];
-        const appNames = uniqueApps.join(", ");
-        setMessage(`Hai ${userName}... ada notifikasi dari ${appNames}.`);
-      }
-      // 2. Jika tidak ada notif, tampilkan Sapaan Waktu
-      else {
-        const hour = new Date().getHours();
-        if (hour >= 0 && hour < 4) {
-          setMessage(`Selamat tidur, ${userName} 😴 Jangan begadang ya.`);
-        } else if (hour >= 4 && hour < 11) {
-          setMessage(`Selamat pagi, ${userName} ☀️ Semangat aktivitas!`);
-        } else if (hour >= 11 && hour < 15) {
-          setMessage(`Selamat siang, ${userName} 🌤️ Jangan lupa makan.`);
-        } else if (hour >= 15 && hour < 18) {
-          setMessage(`Selamat sore, ${userName} 🌇`);
-        } else {
-          setMessage(`Selamat malam, ${userName} 🌙 Istirahatlah.`);
-        }
-      }
-    };
-    updateMessage();
-    // Update setiap 1 menit agar sapaan waktu berubah otomatis
-    const interval = setInterval(updateMessage, 60000);
-    return () => clearInterval(interval);
-  }, [notifications, userName]);
-
-  return (
-    <View style={styles.dockContainer}>
-      {/* Grup Avatar dan Teks, Rata Tengah */}
-      <View style={styles.dockContent}>
-        {/* Foto Asisten */}
-        <View style={styles.avatarContainer}>
-          <Image
-            source={{ uri: ASSISTANT_AVATAR }}
-            style={styles.avatar}
-            resizeMode="cover"
-          />
-          {/* Indikator Online Hijau kecil */}
-          <View style={styles.onlineIndicator} />
-        </View>
-        {/* Teks Pesan */}
-        <Text style={styles.assistantText}>
-          {message}
-        </Text>
-      </View>
-    </View>
-  );
-};
+// URL Foto Asisten (Bisa diganti dengan require('./assets/foto.png') kalau ada file lokal)
+// Saya pakai link gambar anime/avatar simple sebagai contoh
+const ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   return (
-    <TouchableOpacity
-      style={styles.item}
+    <TouchableOpacity 
+      style={styles.item} 
       onPress={() => onPress(item.packageName, item.label)}
       activeOpacity={0.7}
     >
@@ -150,49 +43,75 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
   );
 }, (prev, next) => prev.item.packageName === next.item.packageName);
 
+// KOMPONEN DOCK ASISTEN
+const AssistantDock = () => {
+  const [message, setMessage] = useState("");
+  
+  // Simulasi Notifikasi (Nanti bisa disambung ke library notifikasi kalau sudah siap)
+  // Biarkan array ini kosong [] jika ingin melihat pesan sapaan waktu
+  const [notifications, setNotifications] = useState<string[]>([]); 
+  // Contoh jika ada notif: const [notifications, setNotifications] = useState<string[]>(["WhatsApp", "Instagram"]); 
+
+  useEffect(() => {
+    const updateMessage = () => {
+      // 1. Cek apakah ada notifikasi?
+      if (notifications.length > 0) {
+        // Gabungkan nama aplikasi yang unik
+        const uniqueApps = [...new Set(notifications)];
+        const appNames = uniqueApps.join(", ");
+        setMessage(`Hai Satria... ada notifikasi dari ${appNames}.`);
+      } 
+      // 2. Jika tidak ada notif, tampilkan Sapaan Waktu
+      else {
+        const hour = new Date().getHours();
+        if (hour >= 0 && hour < 4) {
+          setMessage("Selamat tidur, Satria 😴 Jangan begadang ya.");
+        } else if (hour >= 4 && hour < 11) {
+          setMessage("Selamat pagi, Satria ☀️ Semangat aktivitas!");
+        } else if (hour >= 11 && hour < 15) {
+          setMessage("Selamat siang, Satria 🌤️ Jangan lupa makan.");
+        } else if (hour >= 15 && hour < 18) {
+          setMessage("Selamat sore, Satria 🌇");
+        } else {
+          setMessage("Selamat malam, Satria 🌙 Istirahatlah.");
+        }
+      }
+    };
+
+    updateMessage();
+    // Update setiap 1 menit agar sapaan waktu berubah otomatis
+    const interval = setInterval(updateMessage, 60000);
+    return () => clearInterval(interval);
+  }, [notifications]);
+
+  return (
+    <View style={styles.dockContainer}>
+      {/* Bagian Kiri: Foto Asisten */}
+      <View style={styles.avatarContainer}>
+        <Image 
+          source={{ uri: ASSISTANT_AVATAR }} 
+          style={styles.avatar} 
+          resizeMode="cover"
+        />
+        {/* Indikator Online Hijau kecil */}
+        <View style={styles.onlineIndicator} />
+      </View>
+
+      {/* Bagian Kanan: Teks Pesan */}
+      <View style={styles.messageContainer}>
+        <Text style={styles.assistantText}>
+          {message}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSetupDone, setIsSetupDone] = useState(false);
-  const [userName, setUserName] = useState('Satria'); // Default jika belum setup
-  const [assistantAvatar, setAssistantAvatar] = useState("https://cdn-icons-png.flaticon.com/512/4140/4140048.png"); // Default
 
   useEffect(() => {
-    const checkSetup = async () => {
-      try {
-        const setupDone = await AsyncStorage.getItem('setupDone');
-        if (setupDone === 'true') {
-          const storedName = await AsyncStorage.getItem('userName');
-          const storedPhoto = await AsyncStorage.getItem('assistantPhoto');
-          if (storedName) setUserName(storedName);
-          if (storedPhoto) setAssistantAvatar(storedPhoto);
-          setIsSetupDone(true);
-        } else {
-          setIsSetupDone(false);
-        }
-      } catch (e) {
-        console.error('Error checking setup:', e);
-      }
-    };
-    checkSetup();
-  }, []);
-
-  const handleSetupComplete = async (name: string, photo: string) => {
-    try {
-      await AsyncStorage.setItem('setupDone', 'true');
-      await AsyncStorage.setItem('userName', name);
-      await AsyncStorage.setItem('assistantPhoto', photo);
-      setUserName(name);
-      setAssistantAvatar(photo);
-      setIsSetupDone(true);
-    } catch (e) {
-      console.error('Error saving setup:', e);
-    }
-  };
-
-  useEffect(() => {
-    if (!isSetupDone) return; // Tunggu setup selesai baru load apps
-
     let isMounted = true;
     
     const initLoad = setTimeout(async () => {
@@ -214,23 +133,11 @@ const App = () => {
         if (isMounted) setLoading(false);
       }
     }, 100);
-    return () => {
-      isMounted = false;
+
+    return () => { 
+      isMounted = false; 
       clearTimeout(initLoad);
     };
-  }, [isSetupDone]);
-
-  // Handle Back Button untuk cegah reload/exit (bisa minimize app atau ignore)
-  useEffect(() => {
-    const backAction = () => {
-      // Di sini bisa minimize app atau return true untuk ignore back
-      // Untuk minimize: BackHandler.exitApp(); tapi jika ingin cegah exit, return true
-      return true; // Cegah default behavior (exit/reload)
-    };
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-
-    return () => backHandler.remove();
   }, []);
 
   const launchApp = useCallback((packageName: string, label: string) => {
@@ -248,10 +155,6 @@ const App = () => {
     index,
   }), []);
 
-  if (!isSetupDone) {
-    return <SetupScreen onSetupComplete={handleSetupComplete} />;
-  }
-
   if (loading) {
     return (
       <View style={styles.center}>
@@ -262,10 +165,7 @@ const App = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* StatusBar diubah: background hitam, light-content, dan translucent false untuk non-transparan */}
-      {/* Untuk fullscreen/hide navigation bar, bisa tambah immersive mode via AndroidManifest atau library */}
-      {/* Catatan: Untuk hide navigation bar sepenuhnya, tambah di AndroidManifest.xml: android:windowSoftInputMode="adjustResize" dan gunakan SystemNavigationBar dari react-native-system-navigation-bar jika perlu */}
-      <StatusBar backgroundColor="#000000" barStyle="light-content" translucent={false} />
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
       
       <FlatList
         data={apps}
@@ -281,25 +181,27 @@ const App = () => {
         updateCellsBatchingPeriod={50}
         showsVerticalScrollIndicator={false}
       />
-      {/* DOCK ASISTEN DITEMPEL DI SINI, dengan userName */}
-      <AssistantDock userName={userName} />
+
+      {/* DOCK ASISTEN DITEMPEL DI SINI */}
+      <AssistantDock />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' }, // Ubah bg ke hitam non-transparan
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   
   // Padding Bawah dibesarkan agar icon paling bawah tidak ketutupan Dock
-  list: {
-    paddingTop: 50,
+  list: { 
+    paddingTop: 50, 
     paddingBottom: 120, // <--- PENTING: Space untuk Dock
-  },
-  item: {
-    width: ITEM_WIDTH,
+  }, 
+
+  item: { 
+    width: ITEM_WIDTH, 
     height: ITEM_HEIGHT,
-    alignItems: 'center',
+    alignItems: 'center', 
     justifyContent: 'flex-start',
     marginBottom: 10,
   },
@@ -312,34 +214,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: '#333333', 
     backgroundColor: '#000000',
     elevation: 2,
   },
   initial: { color: 'white', fontSize: 24, fontWeight: '700' },
   label: { color: '#eee', fontSize: 11, textAlign: 'center', paddingHorizontal: 2 },
+
   // --- STYLE KHUSUS DOCK ---
   dockContainer: {
     position: 'absolute', // Melayang
-    bottom: 20, // Jarak dari bawah layar
+    bottom: 20,           // Jarak dari bawah layar
     left: 20,
     right: 20,
     height: 70,
     backgroundColor: 'rgba(20, 20, 20, 0.9)', // Hitam agak transparan (Glassmorphism)
-    borderRadius: 35, // Rounded banget biar lonjong
-    alignItems: 'center', // Rata tengah vertikal
-    justifyContent: 'center', // Rata tengah horizontal
+    borderRadius: 35,     // Rounded banget biar lonjong
+    flexDirection: 'row', // Foto di kiri, Teks di kanan
+    alignItems: 'center',
+    paddingHorizontal: 15,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)', // Garis tipis biar elegan
-    elevation: 10, // Bayangan
-  },
-  dockContent: {
-    flexDirection: 'row', // Avatar dan teks sejajar
-    alignItems: 'center', // Rata tengah vertikal
+    elevation: 10,        // Bayangan
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 10, // Jarak antara avatar dan teks
   },
   avatar: {
     width: 50,
@@ -358,52 +257,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#1a1a1a',
   },
+  messageContainer: {
+    flex: 1, // Ambil sisa ruang yang ada
+    marginLeft: 15,
+    justifyContent: 'center',
+  },
   assistantText: {
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '500',
     lineHeight: 18,
     opacity: 0.9,
-    flexShrink: 1, // Agar teks wrap jika terlalu panjang
-  },
-  // --- STYLE SETUP SCREEN ---
-  setupContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000000',
-    padding: 20,
-  },
-  setupTitle: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  setupSubtitle: {
-    color: '#ffffff',
-    fontSize: 16,
-    marginBottom: 10,
-  },
-  input: {
-    width: '80%',
-    height: 40,
-    backgroundColor: '#333',
-    color: '#ffffff',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    marginBottom: 20,
-  },
-  previewImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 10,
-  },
-  submitButton: {
-    marginTop: 20,
-    width: '80%',
-  },
+  }
 });
 
 export default App;
