@@ -216,7 +216,7 @@ const AssistantDock = () => {
               }
             } catch (error) {
               console.error('Error changing avatar:', error);
-              ToastAndroid.show('Gagal mengubah foto. Cek console untuk detail.' + error, ToastAndroid.SHORT);
+              ToastAndroid.show('!' + error, ToastAndroid.SHORT);
             }
           },
         },
