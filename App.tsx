@@ -24,18 +24,14 @@ const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4; 
 const ITEM_HEIGHT = 100;
 
-// HAPUS ARRAY COLORS KARENA SUDAH TIDAK DIPAKAI
-// const COLORS = [...]; 
-
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
-  // Tidak perlu hitung warna lagi, langsung render
   return (
     <TouchableOpacity 
       style={styles.item} 
       onPress={() => onPress(item.packageName, item.label)}
       activeOpacity={0.7}
     >
-      {/* UBAH: backgroundColor langsung di-hardcode jadi hitam (#000000) */}
+      {/* Icon Hitam Pekat */}
       <View style={[styles.iconBox, { backgroundColor: '#000000' }]}>
         <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
       </View>
@@ -80,10 +76,11 @@ const App = () => {
 
   const launchApp = useCallback((packageName: string, label: string) => {
     try {
-      ToastAndroid.show(`${label} dibuka`, ToastAndroid.SHORT);
+      // Toast dalam Bahasa Inggris
+      ToastAndroid.show(`Opening ${label}...`, ToastAndroid.SHORT);
       RNLauncherKitHelper.launchApplication(packageName);
     } catch (err) {
-      Alert.alert("Gagal", "Tidak bisa membuka aplikasi.");
+      ToastAndroid.show("Failed to launch app", ToastAndroid.SHORT);
     }
   }, []);
 
@@ -103,7 +100,13 @@ const App = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent />
+      {/* Status Bar Transparan & Translucent agar menyatu dengan wallpaper */}
+      <StatusBar 
+        backgroundColor="transparent" 
+        barStyle="light-content" 
+        translucent={true} 
+      />
+      
       <FlatList
         data={apps}
         numColumns={4}
@@ -123,12 +126,14 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
+  // Container transparan penuh
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   
+  // Padding ditambahkan agar list tidak tertutup Status Bar & Navigation Bar
   list: { 
-    paddingTop: 40, 
-    paddingBottom: 40, 
+    paddingTop: 50,  // Jarak dari Status Bar atas
+    paddingBottom: 50, // Jarak dari Navigation Bar bawah
   }, 
 
   item: { 
@@ -146,8 +151,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
-    // Kita tambahkan border tipis warna abu-abu gelap 
-    // supaya kotak hitamnya tetap kelihatan kalau wallpapermu juga gelap/hitam
     borderWidth: 1,
     borderColor: '#333333', 
     elevation: 2,
