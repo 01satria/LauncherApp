@@ -8,9 +8,9 @@ import {
   StatusBar,
   SafeAreaView,
   ActivityIndicator,
-  Alert,
   ToastAndroid,
   Dimensions,
+  Image, // Tambahan Image untuk foto asisten
 } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
@@ -24,6 +24,10 @@ const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4; 
 const ITEM_HEIGHT = 100;
 
+// URL Foto Asisten (Bisa diganti dengan require('./assets/foto.png') kalau ada file lokal)
+// Saya pakai link gambar anime/avatar simple sebagai contoh
+const ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
+
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   return (
     <TouchableOpacity 
@@ -31,7 +35,6 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
       onPress={() => onPress(item.packageName, item.label)}
       activeOpacity={0.7}
     >
-      {/* Icon Hitam Pekat */}
       <View style={[styles.iconBox, { backgroundColor: '#000000' }]}>
         <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
       </View>
@@ -39,6 +42,70 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
     </TouchableOpacity>
   );
 }, (prev, next) => prev.item.packageName === next.item.packageName);
+
+// KOMPONEN DOCK ASISTEN
+const AssistantDock = () => {
+  const [message, setMessage] = useState("");
+  
+  // Simulasi Notifikasi (Nanti bisa disambung ke library notifikasi kalau sudah siap)
+  // Biarkan array ini kosong [] jika ingin melihat pesan sapaan waktu
+  const [notifications, setNotifications] = useState<string[]>([]); 
+  // Contoh jika ada notif: const [notifications, setNotifications] = useState<string[]>(["WhatsApp", "Instagram"]); 
+
+  useEffect(() => {
+    const updateMessage = () => {
+      // 1. Cek apakah ada notifikasi?
+      if (notifications.length > 0) {
+        // Gabungkan nama aplikasi yang unik
+        const uniqueApps = [...new Set(notifications)];
+        const appNames = uniqueApps.join(", ");
+        setMessage(`Hai Satria... ada notifikasi dari ${appNames}.`);
+      } 
+      // 2. Jika tidak ada notif, tampilkan Sapaan Waktu
+      else {
+        const hour = new Date().getHours();
+        if (hour >= 0 && hour < 4) {
+          setMessage("Selamat tidur, Satria 😴 Jangan begadang ya.");
+        } else if (hour >= 4 && hour < 11) {
+          setMessage("Selamat pagi, Satria ☀️ Semangat aktivitas!");
+        } else if (hour >= 11 && hour < 15) {
+          setMessage("Selamat siang, Satria 🌤️ Jangan lupa makan.");
+        } else if (hour >= 15 && hour < 18) {
+          setMessage("Selamat sore, Satria 🌇");
+        } else {
+          setMessage("Selamat malam, Satria 🌙 Istirahatlah.");
+        }
+      }
+    };
+
+    updateMessage();
+    // Update setiap 1 menit agar sapaan waktu berubah otomatis
+    const interval = setInterval(updateMessage, 60000);
+    return () => clearInterval(interval);
+  }, [notifications]);
+
+  return (
+    <View style={styles.dockContainer}>
+      {/* Bagian Kiri: Foto Asisten */}
+      <View style={styles.avatarContainer}>
+        <Image 
+          source={{ uri: ASSISTANT_AVATAR }} 
+          style={styles.avatar} 
+          resizeMode="cover"
+        />
+        {/* Indikator Online Hijau kecil */}
+        <View style={styles.onlineIndicator} />
+      </View>
+
+      {/* Bagian Kanan: Teks Pesan */}
+      <View style={styles.messageContainer}>
+        <Text style={styles.assistantText}>
+          {message}
+        </Text>
+      </View>
+    </View>
+  );
+};
 
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
@@ -50,7 +117,6 @@ const App = () => {
     const initLoad = setTimeout(async () => {
       try {
         const result = await InstalledApps.getApps();
-        
         const lightData = result
           .map(app => ({
             label: app.label || 'App',
@@ -76,7 +142,6 @@ const App = () => {
 
   const launchApp = useCallback((packageName: string, label: string) => {
     try {
-      // Toast dalam Bahasa Inggris
       ToastAndroid.show(`Opening ${label}...`, ToastAndroid.SHORT);
       RNLauncherKitHelper.launchApplication(packageName);
     } catch (err) {
@@ -100,12 +165,7 @@ const App = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Status Bar Transparan & Translucent agar menyatu dengan wallpaper */}
-      <StatusBar 
-        backgroundColor="transparent" 
-        barStyle="light-content" 
-        translucent={true} 
-      />
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
       
       <FlatList
         data={apps}
@@ -121,19 +181,21 @@ const App = () => {
         updateCellsBatchingPeriod={50}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* DOCK ASISTEN DITEMPEL DI SINI */}
+      <AssistantDock />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  // Container transparan penuh
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
   
-  // Padding ditambahkan agar list tidak tertutup Status Bar & Navigation Bar
+  // Padding Bawah dibesarkan agar icon paling bawah tidak ketutupan Dock
   list: { 
-    paddingTop: 50,  // Jarak dari Status Bar atas
-    paddingBottom: 50, // Jarak dari Navigation Bar bawah
+    paddingTop: 50, 
+    paddingBottom: 120, // <--- PENTING: Space untuk Dock
   }, 
 
   item: { 
@@ -153,19 +215,60 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     borderWidth: 1,
     borderColor: '#333333', 
+    backgroundColor: '#000000',
     elevation: 2,
   },
-  initial: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: '700',
+  initial: { color: 'white', fontSize: 24, fontWeight: '700' },
+  label: { color: '#eee', fontSize: 11, textAlign: 'center', paddingHorizontal: 2 },
+
+  // --- STYLE KHUSUS DOCK ---
+  dockContainer: {
+    position: 'absolute', // Melayang
+    bottom: 20,           // Jarak dari bawah layar
+    left: 20,
+    right: 20,
+    height: 70,
+    backgroundColor: 'rgba(20, 20, 20, 0.9)', // Hitam agak transparan (Glassmorphism)
+    borderRadius: 35,     // Rounded banget biar lonjong
+    flexDirection: 'row', // Foto di kiri, Teks di kanan
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)', // Garis tipis biar elegan
+    elevation: 10,        // Bayangan
   },
-  label: { 
-    color: '#eee',
-    fontSize: 11,
-    textAlign: 'center',
-    paddingHorizontal: 2,
+  avatarContainer: {
+    position: 'relative',
   },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25, // Lingkaran penuh
+    backgroundColor: '#333',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#4CD964', // Hijau Online iOS
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+  },
+  messageContainer: {
+    flex: 1, // Ambil sisa ruang yang ada
+    marginLeft: 15,
+    justifyContent: 'center',
+  },
+  assistantText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+    opacity: 0.9,
+  }
 });
 
 export default App;
