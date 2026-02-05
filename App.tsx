@@ -9,11 +9,11 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
-  NativeModules, // Kita pakai NativeModules langsung biar stabil
+  NativeModules,
   ToastAndroid,
 } from 'react-native';
 
-import { InstalledApps } from 'react-native-launcher-kit';
+import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit'; // Tambah import RNLauncherKitHelper
 
 interface AppData {
   label: string;
@@ -48,6 +48,7 @@ const App = () => {
       setLoading(false);
     } catch (e) {
       setLoading(false);
+      Alert.alert("Error Load Apps", String(e)); // Tambah alert untuk debug
     }
   };
 
@@ -55,24 +56,21 @@ const App = () => {
     try {
       ToastAndroid.show(`Membuka ${label}...`, ToastAndroid.SHORT);
 
-      // --- METODE ANTI-CRASH ---
-      // Kita cari modul Native Android-nya secara manual
-      const Launcher = NativeModules.LauncherKit 
-                    || NativeModules.RNLauncherKitHelper 
-                    || NativeModules.RNLauncherKit;
-
-      if (Launcher && Launcher.launchApplication) {
-        Launcher.launchApplication(packageName);
+      // Gunakan RNLauncherKitHelper langsung seperti di dokumentasi resmi
+      if (RNLauncherKitHelper && typeof RNLauncherKitHelper.launchApplication === 'function') {
+        RNLauncherKitHelper.launchApplication(packageName);
       } else {
-        // Fallback terakhir: Coba pakai InstalledApps (kalau library versi lama)
-        if (InstalledApps && typeof (InstalledApps as any).launchApplication === 'function') {
-          (InstalledApps as any).launchApplication(packageName);
+        // Fallback: Coba akses via NativeModules
+        const LauncherModule = NativeModules.RNLauncherKitHelper;
+        if (LauncherModule && LauncherModule.launchApplication) {
+          LauncherModule.launchApplication(packageName);
         } else {
-          Alert.alert("Gagal", "Modul Launcher tidak ditemukan di HP ini.");
+          Alert.alert("Gagal", "Modul Launcher tidak ditemukan. Cek instalasi library.");
         }
       }
     } catch (err) {
-      Alert.alert("Error", "Gagal membuka aplikasi.");
+      console.error('Launch error:', err); // Log ke console untuk debug
+      Alert.alert("Error Launch", `Gagal membuka ${label}: ${String(err)}`);
     }
   };
 
