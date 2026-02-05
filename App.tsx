@@ -1,4 +1,4 @@
-import React, { useEffect, useState, memo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,33 +9,17 @@ import {
   StatusBar,
   SafeAreaView,
   ActivityIndicator,
-  Dimensions,
 } from 'react-native';
 
+// Perhatikan: importnya biasanya InstalledApps, bukan LauncherKit langsung
 import { InstalledApps } from 'react-native-launcher-kit';
 
 interface AppData {
   label: string;
   packageName: string;
-  icon: string; // base64
+  icon: string; // base64 string
+  // opsional: versionName?: string; accentColor?: string;
 }
-
-const { width } = Dimensions.get('window');
-const ITEM_WIDTH = width / 4;
-const ITEM_HEIGHT = 100; // estimasi tetap: icon 58 + label + margin
-
-const MemoizedAppItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string) => void }) => (
-  <TouchableOpacity style={styles.item} onPress={() => onPress(item.packageName)}>
-    <Image
-      source={{ uri: `data:image/png;base64,${item.icon}` }}
-      style={styles.icon}
-      resizeMode="contain"
-    />
-    <Text style={styles.label} numberOfLines={2} ellipsizeMode="tail">
-      {item.label}
-    </Text>
-  </TouchableOpacity>
-));
 
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
@@ -43,102 +27,105 @@ const App = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadApps = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const allApps: AppData[] = await InstalledApps.getApps();
-
-        if (!allApps || !Array.isArray(allApps)) {
-          throw new Error('Data aplikasi tidak valid');
-        }
-
-        const sorted = allApps
-          .filter(app => app.label && app.packageName && app.icon)
-          .sort((a, b) => a.label.localeCompare(b.label));
-
-        if (isMounted) {
-          setApps(sorted);
-          setLoading(false);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(
-            'Gagal memuat aplikasi.\n\n' +
-              'Pastikan:\n' +
-              '• Permission QUERY_ALL_PACKAGES ada\n' +
-              '• Library terinstall & rebuild\n' +
-              `Detail: ${err?.message || 'Unknown error'}`
-          );
-          setLoading(false);
-        }
-      }
-    };
-
     loadApps();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
-  const openApp = (packageName: string) => {
-    InstalledApps.launchApplication(packageName).catch(err => {
-      console.log('Gagal buka app:', err);
-    });
+  const loadApps = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Cek apakah module tersedia
+      if (!InstalledApps) {
+        throw new Error('InstalledApps module tidak ditemukan. Pastikan library terinstall & terlink dengan benar.');
+      }
+
+      // Ambil semua aplikasi
+      const allApps: AppData[] = await InstalledApps.getApps({
+        // Opsional: tambahkan ini jika ingin info tambahan (performa sedikit lebih lambat)
+        // includeVersion: true,
+        // includeAccentColor: true,
+      });
+
+      if (!allApps || !Array.isArray(allApps)) {
+        throw new Error('getApps() mengembalikan data tidak valid');
+      }
+
+      // Sort berdasarkan nama aplikasi
+      const sortedApps = allApps
+        .filter(app => app.label && app.packageName) // filter yang invalid
+        .sort((a, b) => a.label.localeCompare(b.label));
+
+      setApps(sortedApps);
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Gagal load apps:', err);
+      setError(
+        err.message ||
+        'Gagal memuat daftar aplikasi.\n\n' +
+          'Pastikan:\n' +
+          '1. Library react-native-launcher-kit sudah diinstall\n' +
+          '2. Sudah di-rebuild (cd android && ./gradlew clean)\n' +
+          '3. App punya permission QUERY_ALL_PACKAGES (Android 11+)\n' +
+          '4. Anda sedang test di device Android (bukan emulator/iOS)'
+      );
+      setLoading(false);
+    }
   };
 
-  const getItemLayout = (_: any, index: number) => ({
-    length: ITEM_HEIGHT,
-    offset: ITEM_HEIGHT * index,
-    index,
-  });
+  const openApp = async (packageName: string) => {
+    try {
+      await InstalledApps.launchApplication(packageName);
+    } catch (err) {
+      console.error('Gagal membuka aplikasi:', err);
+      setError(`Gagal membuka ${packageName}: ${err.message || 'Unknown error'}`);
+    }
+  };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#000" />
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#fff" />
-          <Text style={styles.loadingText}>Memuat aplikasi...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#000" />
-        <View style={styles.center}>
-          <Text style={styles.errorTitle}>Error</Text>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const renderItem = ({ item }: { item: AppData }) => (
+    <TouchableOpacity style={styles.item} onPress={() => openApp(item.packageName)}>
+      <Image
+        source={{ uri: `data:image/png;base64,${item.icon}` }}
+        style={styles.icon}
+        resizeMode="contain"
+      />
+      <Text style={styles.label} numberOfLines={2} ellipsizeMode="tail">
+        {item.label}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      <FlatList
-        data={apps}
-        numColumns={4}
-        keyExtractor={item => item.packageName}
-        renderItem={({ item }) => <MemoizedAppItem item={item} onPress={openApp} />}
-        getItemLayout={getItemLayout}
-        initialNumToRender={12}           // mulai kecil
-        maxToRenderPerBatch={8}           // batch kecil
-        windowSize={9}                    // ~2 layar di atas & bawah
-        updateCellsBatchingPeriod={50}    // lebih hemat
-        removeClippedSubviews={false}     // matikan, kadang bermasalah
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={styles.loadingText}>Memuat daftar aplikasi...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorTitle}>ERROR</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadApps}>
+            <Text style={styles.retryText}>Coba Lagi</Text>
+          </TouchableOpacity>
+        </View>
+      ) : apps.length === 0 ? (
+        <View style={styles.centerContainer}>
+          <Text style={styles.emptyText}>Tidak ada aplikasi ditemukan</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={apps}
+          numColumns={4}
+          keyExtractor={(item) => item.packageName}
+          contentContainerStyle={styles.listContent}
+          renderItem={renderItem}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -146,9 +133,13 @@ const App = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#0f0f0f',
   },
-  center: {
+  listContent: {
+    padding: 12,
+    paddingBottom: 40,
+  },
+  centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -160,7 +151,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   errorTitle: {
-    color: '#ff5555',
+    color: '#ff4444',
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 12,
@@ -171,14 +162,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  list: {
-    padding: 8,
-    paddingBottom: 40,
+  retryButton: {
+    marginTop: 24,
+    backgroundColor: '#333',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  emptyText: {
+    color: '#888',
+    fontSize: 18,
   },
   item: {
-    width: ITEM_WIDTH,
+    flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
+    margin: 6,
+    maxWidth: '25%',
   },
   icon: {
     width: 58,
@@ -187,7 +190,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   label: {
-    color: '#ddd',
+    color: '#e0e0e0',
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 14,
