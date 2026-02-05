@@ -33,8 +33,8 @@ const ITEM_HEIGHT = 100;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 // Path custom untuk simpan avatar
-const DEFAULT_AVATAR_PATH = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher/asist.jpg`;
 const CUSTOM_AVATAR_DIR = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher`;
+const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   return (
@@ -216,7 +216,7 @@ const AssistantDock = () => {
               }
             } catch (error) {
               console.error('Error changing avatar:', error);
-              ToastAndroid.show('Gagal mengubah foto. Cek console untuk detail.', ToastAndroid.SHORT);
+              ToastAndroid.show('Gagal mengubah foto. Cek console untuk detail.' + error, ToastAndroid.SHORT);
             }
           },
         },
