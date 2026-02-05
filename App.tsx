@@ -33,7 +33,7 @@ const ITEM_HEIGHT = 100;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 // Path custom untuk simpan avatar
-const CUSTOM_AVATAR_PATH = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher/asist.jpg`;
+const DEFAULT_AVATAR_PATH = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher/asist.jpg`;
 const CUSTOM_AVATAR_DIR = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher`;
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
@@ -90,12 +90,15 @@ const AssistantDock = () => {
   const loadAvatar = async () => {
     try {
       const exists = await RNFS.exists(CUSTOM_AVATAR_PATH);
+      console.log('Load avatar - File exists:', exists);
       if (exists) {
         const fileData = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
         const base64Uri = `data:image/jpeg;base64,${fileData}`;
         setAvatarSource(base64Uri);
+        console.log('Avatar loaded from custom path');
       } else {
         setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
+        console.log('Using default avatar');
       }
     } catch (error) {
       console.error('Error loading avatar:', error);
@@ -107,23 +110,30 @@ const AssistantDock = () => {
   useEffect(() => {
     const requestPermissions = async () => {
       try {
-        // Request READ_EXTERNAL_STORAGE / READ_MEDIA_IMAGES
+        // Request READ_MEDIA_IMAGES untuk gallery dan read file
         let readPermission = PermissionsAndroid.RESULTS.GRANTED;
-        if (Platform.OS === 'android') {
-          if (Platform.Version < 33) {
-            readPermission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
-          } else {
-            readPermission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES);
-          }
+        if (Platform.OS === 'android' && Platform.Version >= 33) {
+          readPermission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES);
+        } else if (Platform.OS === 'android') {
+          readPermission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE);
         }
 
-        // Request WRITE_EXTERNAL_STORAGE jika diperlukan (untuk simpan file)
+        // Request WRITE_EXTERNAL_STORAGE jika < Android 13
         let writePermission = PermissionsAndroid.RESULTS.GRANTED;
-        if (Platform.OS === 'android' && Platform.Version < 33) { // WRITE dibutuhkan untuk < Android 13
+        if (Platform.OS === 'android' && Platform.Version < 33) {
           writePermission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);
         }
 
+        console.log('Read permission:', readPermission);
+        console.log('Write permission:', writePermission);
+
         if (readPermission === PermissionsAndroid.RESULTS.GRANTED && writePermission === PermissionsAndroid.RESULTS.GRANTED) {
+          // Buat folder awal jika belum ada
+          const dirExists = await RNFS.exists(CUSTOM_AVATAR_DIR);
+          if (!dirExists) {
+            await RNFS.mkdir(CUSTOM_AVATAR_DIR);
+            console.log('Created directory:', CUSTOM_AVATAR_DIR);
+          }
           await loadAvatar();
         } else {
           setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
@@ -159,35 +169,54 @@ const AssistantDock = () => {
               if (result.didCancel) {
                 console.log('User cancelled image picker');
                 return;
-              } else if (result.errorCode) {
+              }
+              if (result.errorCode) {
                 console.error('ImagePicker Error: ', result.errorMessage);
                 ToastAndroid.show('Gagal memilih foto.', ToastAndroid.SHORT);
                 return;
-              } else if (result.assets && result.assets.length > 0) {
-                const selectedUri = result.assets[0].uri;
-                if (selectedUri) {
-                  // Buat folder jika belum ada (mkdir aman jika sudah ada)
-                  await RNFS.mkdir(CUSTOM_AVATAR_DIR);
+              }
+              if (!result.assets || result.assets.length === 0) {
+                console.log('No image selected');
+                return;
+              }
 
-                  // Periksa apakah file sudah ada
-                  const exists = await RNFS.exists(CUSTOM_AVATAR_PATH);
-                  if (exists) {
-                    // Jika ada, hapus dulu untuk replace
-                    await RNFS.unlink(CUSTOM_AVATAR_PATH);
-                    console.log('Existing file deleted for replacement');
-                  }
+              const selectedUri = result.assets[0].uri;
+              if (!selectedUri) {
+                console.log('No URI for selected image');
+                return;
+              }
 
-                  // Copy file baru ke path (akan create jika belum ada)
-                  await RNFS.copyFile(selectedUri, CUSTOM_AVATAR_PATH);
-                  ToastAndroid.show('Foto asisten berhasil diubah!', ToastAndroid.SHORT);
+              console.log('Selected image URI:', selectedUri);
 
-                  // Reload avatar
-                  await loadAvatar();
-                }
+              // Buat folder jika belum ada (mkdir aman jika sudah ada)
+              const dirExists = await RNFS.exists(CUSTOM_AVATAR_DIR);
+              if (!dirExists) {
+                await RNFS.mkdir(CUSTOM_AVATAR_DIR);
+                console.log('Created directory:', CUSTOM_AVATAR_DIR);
+              }
+
+              // Periksa apakah file sudah ada, jika ya hapus untuk replace
+              const fileExists = await RNFS.exists(CUSTOM_AVATAR_PATH);
+              if (fileExists) {
+                await RNFS.unlink(CUSTOM_AVATAR_PATH);
+                console.log('Existing file deleted');
+              }
+
+              // Copy file baru
+              await RNFS.copyFile(selectedUri, CUSTOM_AVATAR_PATH);
+              console.log('File copied to:', CUSTOM_AVATAR_PATH);
+
+              // Verifikasi setelah copy
+              const copiedExists = await RNFS.exists(CUSTOM_AVATAR_PATH);
+              if (copiedExists) {
+                ToastAndroid.show('Foto asisten berhasil diubah!', ToastAndroid.SHORT);
+                await loadAvatar();
+              } else {
+                throw new Error('Failed to verify copied file');
               }
             } catch (error) {
               console.error('Error changing avatar:', error);
-              ToastAndroid.show('Gagal mengubah foto.', ToastAndroid.SHORT);
+              ToastAndroid.show('Gagal mengubah foto. Cek console untuk detail.', ToastAndroid.SHORT);
             }
           },
         },
