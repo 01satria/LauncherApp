@@ -11,36 +11,54 @@ import {
   ActivityIndicator,
   Dimensions,
   Alert,
+  NativeModules, // Import NativeModules untuk bypass
 } from 'react-native';
 
-// UPDATE IMPORT: Ambil LauncherKit (Objek Utama)
-import LauncherKit, { InstalledApps } from 'react-native-launcher-kit';
+import { InstalledApps } from 'react-native-launcher-kit';
 
 interface AppData {
   label: string;
   packageName: string;
-  icon: string; // base64
+  icon: string;
 }
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4;
 const ITEM_HEIGHT = 100;
 
-// Component Item yang Lebih Pintar
-const MemoizedAppItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string) => void }) => {
+// --- FIX 1: FUNGSI PEMBERSIH ICON ---
+const getIconSource = (base64Icon: string) => {
+  if (!base64Icon) return null;
   
-  // LOGIC FIX ICON: Cek apakah icon sudah punya header 'data:image...' atau belum
-  const iconSource = item.icon.startsWith('data:image')
-    ? { uri: item.icon } // Kalau sudah ada, pakai langsung
-    : { uri: `data:image/png;base64,${item.icon}` }; // Kalau belum, tambahkan
+  // Hapus spasi/newline yang mungkin merusak gambar
+  let cleanIcon = base64Icon.trim().replace(/[\n\r]/g, '');
+
+  // Cek apakah sudah ada header data:image
+  if (cleanIcon.startsWith('data:image')) {
+    return { uri: cleanIcon };
+  } else {
+    // Tambahkan header manual jika belum ada
+    return { uri: `data:image/png;base64,${cleanIcon}` };
+  }
+};
+
+const MemoizedAppItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string) => void }) => {
+  const iconSource = getIconSource(item.icon);
 
   return (
     <TouchableOpacity style={styles.item} onPress={() => onPress(item.packageName)}>
-      <Image
-        source={iconSource}
-        style={styles.icon}
-        resizeMode="contain"
-      />
+      {/* Tambahkan background abu-abu sementara biar ketahuan area iconnya */}
+      <View style={styles.iconContainer}>
+        {iconSource ? (
+          <Image
+            source={iconSource}
+            style={styles.icon}
+            resizeMode="cover" // Ganti ke cover biar full
+          />
+        ) : (
+          <View style={[styles.icon, { backgroundColor: '#333' }]} /> // Kotak abu jika icon rusak
+        )}
+      </View>
       <Text style={styles.label} numberOfLines={2} ellipsizeMode="tail">
         {item.label}
       </Text>
@@ -51,51 +69,46 @@ const MemoizedAppItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg:
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // --- FIX 2: TEMBAK LANGSUNG NATIVE MODULE ---
+  // Kita cari modul aslinya, namanya bisa 'LauncherKit' atau 'RNLauncherKit'
+  const NativeLauncher = NativeModules.LauncherKit || NativeModules.RNLauncherKit;
 
   useEffect(() => {
     let isMounted = true;
-
     const loadApps = async () => {
       try {
         setLoading(true);
-        
-        // Menggunakan InstalledApps untuk mengambil data
         const allApps = await InstalledApps.getApps();
-
         if (isMounted) {
+          // Sortir dan pastikan icon ada isinya
           const sorted = allApps
+            .filter(app => app.packageName) // Buang yang corrupt
             .sort((a, b) => (a.label || '').localeCompare(b.label || ''));
           setApps(sorted);
           setLoading(false);
         }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err?.message || 'Gagal memuat aplikasi');
-          setLoading(false);
-        }
+      } catch (err) {
+        if (isMounted) setLoading(false);
       }
     };
-
     loadApps();
-
     return () => { isMounted = false; };
   }, []);
 
   const openApp = (packageName: string) => {
-    try {
-      // FIX CRASH: Gunakan LauncherKit.launchApplication, bukan InstalledApps
-      // Jika LauncherKit undefined, coba fallback ke InstalledApps (untuk jaga-jaga)
-      if (LauncherKit && typeof LauncherKit.launchApplication === 'function') {
-        LauncherKit.launchApplication(packageName);
-      } else if (typeof InstalledApps.launchApplication === 'function') {
-        InstalledApps.launchApplication(packageName);
-      } else {
-        Alert.alert("Error", "Fungsi launchApplication tidak ditemukan di library ini.");
-      }
-    } catch (err) {
-      console.log('Gagal buka app:', err);
-      Alert.alert("Gagal", "Tidak bisa membuka aplikasi ini.");
+    // Logic Launch yang Lebih Kuat
+    if (NativeLauncher && NativeLauncher.launchApplication) {
+      NativeLauncher.launchApplication(packageName);
+    } else if (InstalledApps && typeof (InstalledApps as any).launchApplication === 'function') {
+      (InstalledApps as any).launchApplication(packageName);
+    } else {
+      Alert.alert(
+        "Gagal Membuka", 
+        "Modul Launcher tidak ditemukan.\nCoba restart HP atau install ulang app."
+      );
+      // Debugging: Cek isi NativeModules di Console kalau masih gagal
+      console.log("NativeLauncher is:", NativeLauncher);
     }
   };
 
@@ -104,7 +117,7 @@ const App = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#fff" />
-          <Text style={styles.loadingText}>Memuat aplikasi...</Text>
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
@@ -118,10 +131,8 @@ const App = () => {
         numColumns={4}
         keyExtractor={(item) => item.packageName}
         renderItem={({ item }) => <MemoizedAppItem item={item} onPress={openApp} />}
-        initialNumToRender={12}
-        maxToRenderPerBatch={8}
-        windowSize={5}
-        removeClippedSubviews={true} 
+        initialNumToRender={20}
+        removeClippedSubviews={false} // Matikan dulu biar icon tidak kedip
         contentContainerStyle={styles.list}
       />
     </SafeAreaView>
@@ -133,8 +144,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: '#aaa', marginTop: 16 },
   list: { padding: 8, paddingBottom: 40 },
-  item: { width: ITEM_WIDTH, alignItems: 'center', paddingVertical: 10, height: ITEM_HEIGHT },
-  icon: { width: 50, height: 50, marginBottom: 8, borderRadius: 10 },
+  item: { width: ITEM_WIDTH, alignItems: 'center', paddingVertical: 12, height: ITEM_HEIGHT },
+  iconContainer: { marginBottom: 8 },
+  icon: { width: 52, height: 52, borderRadius: 12, backgroundColor: 'transparent' }, // Transparan default
   label: { color: '#ddd', fontSize: 11, textAlign: 'center', width: '90%' },
 });
 
