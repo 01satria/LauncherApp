@@ -11,7 +11,6 @@ import {
   Alert,
   ToastAndroid,
   Dimensions,
-  Platform,
 } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
@@ -25,27 +24,25 @@ const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4; 
 const ITEM_HEIGHT = 100;
 
-// OPTIMASI 1: Pindahkan array warna keluar agar tidak dibuat berulang-ulang (Hemat CPU)
-const COLORS = ['#FF3B30', '#FF2D55', '#AF52DE', '#007AFF', '#34C759', '#FF9500', '#FFCC00', '#5AC8FA', '#4CD964', '#5856D6'];
+// HAPUS ARRAY COLORS KARENA SUDAH TIDAK DIPAKAI
+// const COLORS = [...]; 
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
-  // Kalkulasi warna sangat ringan
-  const colorIndex = item.label ? item.label.charCodeAt(0) % COLORS.length : 0;
-  const bgColor = COLORS[colorIndex];
-
+  // Tidak perlu hitung warna lagi, langsung render
   return (
     <TouchableOpacity 
       style={styles.item} 
       onPress={() => onPress(item.packageName, item.label)}
-      activeOpacity={0.7} // Sedikit lebih transparan saat disentuh
+      activeOpacity={0.7}
     >
-      <View style={[styles.iconBox, { backgroundColor: bgColor }]}>
+      {/* UBAH: backgroundColor langsung di-hardcode jadi hitam (#000000) */}
+      <View style={[styles.iconBox, { backgroundColor: '#000000' }]}>
         <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
       </View>
       <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">{item.label}</Text>
     </TouchableOpacity>
   );
-}, (prev, next) => prev.item.packageName === next.item.packageName); // Custom comparator biar super efisien
+}, (prev, next) => prev.item.packageName === next.item.packageName);
 
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
@@ -54,12 +51,10 @@ const App = () => {
   useEffect(() => {
     let isMounted = true;
     
-    // Gunakan setTimeout agar UI muncul dulu, baru load data berat (Interaction Manager versi manual)
     const initLoad = setTimeout(async () => {
       try {
         const result = await InstalledApps.getApps();
         
-        // Mapping data se-minimal mungkin
         const lightData = result
           .map(app => ({
             label: app.label || 'App',
@@ -83,10 +78,9 @@ const App = () => {
     };
   }, []);
 
-  // OPTIMASI 2: useCallback agar fungsi tidak dire-create
   const launchApp = useCallback((packageName: string, label: string) => {
     try {
-      ToastAndroid.show(`${label} dibuka untukmu 😉`, ToastAndroid.SHORT);
+      ToastAndroid.show(`${label} dibuka`, ToastAndroid.SHORT);
       RNLauncherKitHelper.launchApplication(packageName);
     } catch (err) {
       Alert.alert("Gagal", "Tidak bisa membuka aplikasi.");
@@ -117,15 +111,11 @@ const App = () => {
         renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
         contentContainerStyle={styles.list}
         getItemLayout={getItemLayout}
-        
-        // --- SETTINGAN PERFORMANCE EKSTREM ---
-        initialNumToRender={24}       // Render pas satu layar penuh aja (biar start cepat)
-        maxToRenderPerBatch={8}       // Render sedikit-sedikit saat scroll (biar FPS tinggi)
-        windowSize={3}                // HAPUS item yang jauh dari layar dari memori (RAM super hemat)
-        removeClippedSubviews={true}  // Pastikan item di luar layar tidak dirender
+        initialNumToRender={24}
+        maxToRenderPerBatch={8}
+        windowSize={3}
+        removeClippedSubviews={true}
         updateCellsBatchingPeriod={50}
-        // -------------------------------------
-        
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
@@ -150,22 +140,26 @@ const styles = StyleSheet.create({
   },
   
   iconBox: {
-    width: 58,  // Sedikit diperkecil agar terlihat lebih rapi
+    width: 58,
     height: 58,
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
-    elevation: 2, // Shadow dikurangi biar render lebih enteng
+    // Kita tambahkan border tipis warna abu-abu gelap 
+    // supaya kotak hitamnya tetap kelihatan kalau wallpapermu juga gelap/hitam
+    borderWidth: 1,
+    borderColor: '#333333', 
+    elevation: 2,
   },
   initial: {
     color: 'white',
     fontSize: 24,
-    fontWeight: '700', // Lebih tebal dikit
+    fontWeight: '700',
   },
   label: { 
     color: '#eee',
-    fontSize: 11, // Font size dikecilkan dikit agar muat banyak
+    fontSize: 11,
     textAlign: 'center',
     paddingHorizontal: 2,
   },
