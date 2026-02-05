@@ -11,64 +11,53 @@ import {
   ToastAndroid,
   Dimensions,
   Image,
-  BackHandler, // Untuk cegah reload saat back
+  BackHandler,
   TextInput,
   Alert,
 } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { launchImageLibrary } from 'react-native-image-picker';
 
-interface AppData {
-  label: string;
-  packageName: string;
-}
+// --- DATA AVATAR PRESET (ANTI-CRASH) ---
+// Kita pakai gambar online yang ringan biar tidak perlu akses galeri yang bikin crash
+const AVATARS = [
+  { id: '1', uri: 'https://cdn-icons-png.flaticon.com/512/4140/4140048.png', name: 'Girl' },
+  { id: '2', uri: 'https://cdn-icons-png.flaticon.com/512/4140/4140037.png', name: 'Boy' },
+  { id: '3', uri: 'https://cdn-icons-png.flaticon.com/512/4140/4140047.png', name: 'Old' },
+  { id: '4', uri: 'https://cdn-icons-png.flaticon.com/512/4712/4712109.png', name: 'Robot' },
+  { id: '5', uri: 'https://cdn-icons-png.flaticon.com/512/1998/1998627.png', name: 'Cat' },
+];
 
-const { width, height } = Dimensions.get('window');
+interface AppData { label: string; packageName: string; }
+const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4; 
 const ITEM_HEIGHT = 100;
 
-// --- KOMPONEN ITEM APLIKASI ---
-const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
-  return (
-    <TouchableOpacity 
-      style={styles.item} 
-      onPress={() => onPress(item.packageName, item.label)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.iconBox, { backgroundColor: '#000000' }]}>
-        <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
-      </View>
-      <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">{item.label}</Text>
-    </TouchableOpacity>
-  );
-}, (prev, next) => prev.item.packageName === next.item.packageName);
+// --- 1. ITEM APLIKASI ---
+const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => (
+  <TouchableOpacity style={styles.item} onPress={() => onPress(item.packageName, item.label)} activeOpacity={0.7}>
+    <View style={styles.appIconBox}>
+      <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
+    </View>
+    <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
+  </TouchableOpacity>
+), (prev, next) => prev.item.packageName === next.item.packageName);
 
-// --- KOMPONEN WELCOME SCREEN (SETUP) ---
+// --- 2. LAYAR WELCOME & SETUP (YANG KAMU MINTA) ---
 const SetupScreen = ({ onFinish }: { onFinish: (name: string, photo: string) => void }) => {
   const [name, setName] = useState("");
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-
-  const pickImage = async () => {
-    const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1 });
-    if (result.assets && result.assets.length > 0) {
-      setPhotoUri(result.assets[0].uri || null);
-    }
-  };
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0].uri);
 
   const saveSetup = async () => {
     if (!name.trim()) {
-      ToastAndroid.show("Masukkan nama panggilanmu dulu!", ToastAndroid.SHORT);
+      ToastAndroid.show("Isi nama panggilanmu dulu ya!", ToastAndroid.SHORT);
       return;
     }
-    // Simpan ke memori HP
     try {
       await AsyncStorage.setItem('user_name', name);
-      if (photoUri) await AsyncStorage.setItem('user_photo', photoUri);
-      else await AsyncStorage.setItem('user_photo', 'DEFAULT'); // Penanda pakai default
-      
-      onFinish(name, photoUri || "");
+      await AsyncStorage.setItem('user_photo', selectedAvatar);
+      onFinish(name, selectedAvatar);
     } catch (e) {
       Alert.alert("Error", "Gagal menyimpan data.");
     }
@@ -77,58 +66,52 @@ const SetupScreen = ({ onFinish }: { onFinish: (name: string, photo: string) => 
   return (
     <View style={styles.setupContainer}>
       <StatusBar hidden />
-      <Text style={styles.setupTitle}>Selamat Datang</Text>
-      <Text style={styles.setupSubtitle}>Mari kenalan dulu sebelum mulai.</Text>
-
-      {/* Input Foto */}
-      <TouchableOpacity onPress={pickImage} style={styles.avatarPicker}>
-        {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.avatarPreview} />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={{color:'#555', fontSize: 30}}>+</Text>
-            <Text style={{color:'#555', fontSize: 10}}>Foto</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-      <Text style={{color:'gray', marginBottom:20, fontSize:12}}>Ketuk lingkaran untuk pilih foto asisten</Text>
+      <Text style={styles.setupTitle}>Halo!</Text>
+      <Text style={styles.setupSubtitle}>Siapa nama panggilanmu?</Text>
 
       {/* Input Nama */}
       <TextInput 
         style={styles.input}
-        placeholder="Nama Panggilanmu..."
-        placeholderTextColor="#666"
+        placeholder="Ketik namamu..."
+        placeholderTextColor="#888"
         value={name}
         onChangeText={setName}
       />
 
+      <Text style={styles.setupSubtitle}>Pilih Asistenmu:</Text>
+      {/* Pilihan Avatar Horizontal */}
+      <View style={styles.avatarList}>
+        {AVATARS.map((av) => (
+          <TouchableOpacity 
+            key={av.id} 
+            onPress={() => setSelectedAvatar(av.uri)}
+            style={[styles.avatarOption, selectedAvatar === av.uri && styles.avatarSelected]}
+          >
+            <Image source={{ uri: av.uri }} style={styles.avatarImg} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <TouchableOpacity style={styles.saveButton} onPress={saveSetup}>
-        <Text style={styles.saveButtonText}>MULAI</Text>
+        <Text style={styles.saveButtonText}>SELESAI & MASUK</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
-// --- KOMPONEN DOCK ASISTEN ---
+// --- 3. DOCK ASISTEN (RATA TENGAH) ---
 const AssistantDock = ({ userName, userPhoto }: { userName: string, userPhoto: string | null }) => {
   const [message, setMessage] = useState("");
   
-  // Gunakan foto default jika user tidak upload
-  const avatarSource = userPhoto && userPhoto !== 'DEFAULT' 
-    ? { uri: userPhoto } 
-    : { uri: "https://cdn-icons-png.flaticon.com/512/4140/4140048.png" }; // Default online
-
   useEffect(() => {
     const updateMessage = () => {
-      const hour = new Date().getHours();
-      // Logic sapaan waktu
-      if (hour >= 0 && hour < 4) setMessage(`Selamat tidur, ${userName} 😴`);
-      else if (hour >= 4 && hour < 11) setMessage(`Selamat pagi, ${userName} ☀️`);
-      else if (hour >= 11 && hour < 15) setMessage(`Selamat siang, ${userName} 🌤️`);
-      else if (hour >= 15 && hour < 18) setMessage(`Selamat sore, ${userName} 🌇`);
+      const h = new Date().getHours();
+      if (h >= 0 && h < 4) setMessage(`Selamat tidur, ${userName} 😴`);
+      else if (h >= 4 && h < 11) setMessage(`Selamat pagi, ${userName} ☀️`);
+      else if (h >= 11 && h < 15) setMessage(`Selamat siang, ${userName} 🌤️`);
+      else if (h >= 15 && h < 18) setMessage(`Selamat sore, ${userName} 🌇`);
       else setMessage(`Selamat malam, ${userName} 🌙`);
     };
-
     updateMessage();
     const interval = setInterval(updateMessage, 60000);
     return () => clearInterval(interval);
@@ -137,150 +120,97 @@ const AssistantDock = ({ userName, userPhoto }: { userName: string, userPhoto: s
   return (
     <View style={styles.dockWrapper}>
         <View style={styles.dockContainer}>
-        {/* Foto Asisten */}
-        <Image source={avatarSource} style={styles.avatar} resizeMode="cover" />
-        
-        {/* Pesan (Rata Tengah Vertikal dengan Gambar) */}
-        <View style={styles.messageContainer}>
-            <Text style={styles.assistantText}>{message}</Text>
-        </View>
+          <Image source={{ uri: userPhoto || AVATARS[0].uri }} style={styles.dockAvatar} />
+          <View style={styles.messageContainer}>
+              <Text style={styles.assistantText}>{message}</Text>
+          </View>
         </View>
     </View>
   );
 };
 
+// --- 4. APLIKASI UTAMA ---
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // State untuk Setup
-  const [isSetupDone, setIsSetupDone] = useState(false);
-  const [userName, setUserName] = useState("User");
-  const [userPhoto, setUserPhoto] = useState<string | null>(null);
-  const [checkingSetup, setCheckingSetup] = useState(true);
+  const [setupDone, setSetupDone] = useState(false);
+  const [userData, setUserData] = useState({ name: '', photo: '' });
+  const [checking, setChecking] = useState(true);
 
-  // 1. CEK SETUP PERTAMA KALI
+  // Cek apakah user sudah pernah setup
   useEffect(() => {
-    const checkStorage = async () => {
+    const checkUser = async () => {
       try {
-        const storedName = await AsyncStorage.getItem('user_name');
-        const storedPhoto = await AsyncStorage.getItem('user_photo');
-        
-        if (storedName) {
-          setUserName(storedName);
-          setUserPhoto(storedPhoto);
-          setIsSetupDone(true);
-        } else {
-          setIsSetupDone(false);
+        const n = await AsyncStorage.getItem('user_name');
+        const p = await AsyncStorage.getItem('user_photo');
+        if (n && p) {
+          setUserData({ name: n, photo: p });
+          setSetupDone(true);
         }
       } catch (e) {
-        setIsSetupDone(false);
+        // Ignore error
       } finally {
-        setCheckingSetup(false);
+        setChecking(false);
       }
     };
-    checkStorage();
+    checkUser();
   }, []);
 
-  // 2. CEGAH RELOAD SAAT BACK (Hardware Back Button Handler)
+  // Matikan tombol Back
   useEffect(() => {
-    const backAction = () => {
-      // Return true artinya: "Saya sudah handle tombol back, sistem jangan lakukan apa-apa"
-      // Ini mencegah aplikasi keluar/reload.
-      return true; 
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      backAction,
-    );
-
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => backHandler.remove();
   }, []);
 
-  // 3. LOAD APLIKASI
+  // Load Aplikasi
   useEffect(() => {
-    if (!isSetupDone) return; // Jangan load app kalau belum setup
+    if (!setupDone) return;
+    setTimeout(async () => {
+        try {
+            const res = await InstalledApps.getApps();
+            const data = res.map(a => ({ label: a.label || 'App', packageName: a.packageName }))
+                            .filter(a => a.packageName)
+                            .sort((a, b) => a.label.localeCompare(b.label));
+            setApps(data);
+            setLoading(false);
+        } catch(e) { setLoading(false); }
+    }, 500);
+  }, [setupDone]);
 
-    let isMounted = true;
-    const initLoad = setTimeout(async () => {
-      try {
-        const result = await InstalledApps.getApps();
-        const lightData = result
-          .map(app => ({ label: app.label || 'App', packageName: app.packageName }))
-          .filter(app => app.packageName)
-          .sort((a, b) => a.label.localeCompare(b.label));
-        
-        if (isMounted) {
-          setApps(lightData);
-          setLoading(false);
-        }
-      } catch (e) {
-        if (isMounted) setLoading(false);
-      }
-    }, 500); // Delay dikit biar transisi enak
-
-    return () => { isMounted = false; clearTimeout(initLoad); };
-  }, [isSetupDone]);
-
-  const launchApp = useCallback((packageName: string, label: string) => {
+  const launch = useCallback((pkg: string, label: string) => {
     try {
-      ToastAndroid.show(`Opening ${label}...`, ToastAndroid.SHORT);
-      RNLauncherKitHelper.launchApplication(packageName);
-    } catch (err) {
-      ToastAndroid.show("Failed to launch app", ToastAndroid.SHORT);
-    }
+        ToastAndroid.show(`Membuka ${label}...`, ToastAndroid.SHORT);
+        RNLauncherKitHelper.launchApplication(pkg);
+    } catch { ToastAndroid.show("Gagal membuka", ToastAndroid.SHORT); }
   }, []);
 
-  const handleFinishSetup = (name: string, photo: string) => {
-    setUserName(name);
-    setUserPhoto(photo);
-    setIsSetupDone(true);
-  };
-
-  // --- RENDER ---
-
-  // Loading Screen Awal (Cek memori)
-  if (checkingSetup) {
-     return <View style={styles.center}><ActivityIndicator color="white"/></View>;
+  if (checking) return <View style={styles.center}><ActivityIndicator color="#fff"/></View>;
+  
+  // JIKA BELUM SETUP -> TAMPILKAN LAYAR WELCOME
+  if (!setupDone) {
+    return <SetupScreen onFinish={(n, p) => { setUserData({ name: n, photo: p }); setSetupDone(true); }} />;
   }
 
-  // Tampilkan Welcome Screen jika belum pernah setup
-  if (!isSetupDone) {
-    return <SetupScreen onFinish={handleFinishSetup} />;
-  }
-
-  // Tampilkan Loading App Icons
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#ffffff" />
-        <Text style={{color:'#fff', marginTop:10}}>Menyiapkan Launchermu...</Text>
-      </View>
-    );
-  }
-
-  // Tampilkan Home Screen Utama
   return (
     <SafeAreaView style={styles.container}>
-      {/* StatusBar Transparan (System UI sudah dihandle Native MainActivity) */}
-      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent />
       
-      <FlatList
-        data={apps}
-        numColumns={4}
-        keyExtractor={(item) => item.packageName}
-        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
-        contentContainerStyle={styles.list}
-        initialNumToRender={24}
-        maxToRenderPerBatch={8}
-        windowSize={3}
-        removeClippedSubviews={true}
-        showsVerticalScrollIndicator={false}
-      />
-
-      {/* DOCK ASISTEN */}
-      <AssistantDock userName={userName} userPhoto={userPhoto} />
+      {loading ? (
+        <View style={styles.center}><ActivityIndicator size="large" color="#fff"/></View>
+      ) : (
+        <FlatList
+          data={apps}
+          numColumns={4}
+          keyExtractor={(i) => i.packageName}
+          renderItem={({ item }) => <MemoizedItem item={item} onPress={launch} />}
+          contentContainerStyle={styles.list}
+          initialNumToRender={24}
+          removeClippedSubviews={true}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+      
+      <AssistantDock userName={userData.name} userPhoto={userData.photo} />
     </SafeAreaView>
   );
 };
@@ -288,78 +218,39 @@ const App = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
-  list: { paddingTop: 50, paddingBottom: 120 }, 
-
-  item: { 
-    width: ITEM_WIDTH, 
-    height: ITEM_HEIGHT,
-    alignItems: 'center', 
-    marginBottom: 10,
-  },
-  iconBox: {
-    width: 58, height: 58, borderRadius: 18,
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 6, borderWidth: 1, borderColor: '#333333', 
-    backgroundColor: '#000000', elevation: 2,
+  list: { paddingTop: 60, paddingBottom: 130 }, // Space buat dock
+  item: { width: ITEM_WIDTH, height: ITEM_HEIGHT, alignItems: 'center', marginBottom: 10 },
+  appIconBox: {
+    width: 58, height: 58, borderRadius: 18, justifyContent: 'center', alignItems: 'center',
+    marginBottom: 6, borderWidth: 1, borderColor: '#333', backgroundColor: '#000', elevation: 2,
   },
   initial: { color: 'white', fontSize: 24, fontWeight: '700' },
   label: { color: '#eee', fontSize: 11, textAlign: 'center', paddingHorizontal: 2 },
 
-  // --- STYLE DOCK (RATA TENGAH) ---
-  dockWrapper: {
-      position: 'absolute', bottom: 20, width: '100%',
-      alignItems: 'center', // Agar dock berada di tengah layar horizontal
-  },
-  dockContainer: {
-    width: '90%', // Lebar dock 90% dari layar
-    height: 70,
-    backgroundColor: 'rgba(20, 20, 20, 0.95)',
-    borderRadius: 35,
-    flexDirection: 'row',
-    alignItems: 'center', // Rata tengah vertikal
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: '#333',
-    elevation: 10,
-  },
-  avatar: {
-    width: 50, height: 50, borderRadius: 25,
-    backgroundColor: '#333', marginLeft: 5,
-  },
-  messageContainer: {
-    flex: 1,
-    height: '100%',
-    justifyContent: 'center', // Text rata tengah vertikal
-    paddingHorizontal: 15,
-  },
-  assistantText: {
-    color: '#ffffff', fontSize: 13, fontWeight: '500',
-  },
-
-  // --- STYLE SETUP SCREEN ---
-  setupContainer: {
-      flex: 1, backgroundColor: '#000',
-      justifyContent: 'center', alignItems: 'center', padding: 30
-  },
-  setupTitle: { color: 'white', fontSize: 28, fontWeight: 'bold', marginBottom: 10 },
-  setupSubtitle: { color: 'gray', fontSize: 14, marginBottom: 40 },
-  avatarPicker: {
-      width: 100, height: 100, borderRadius: 50,
-      backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center',
-      marginBottom: 10, borderWidth: 2, borderColor: '#333'
-  },
-  avatarPreview: { width: 96, height: 96, borderRadius: 48 },
-  avatarPlaceholder: { alignItems: 'center' },
+  // SETUP SCREEN STYLES
+  setupContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  setupTitle: { color: 'white', fontSize: 32, fontWeight: 'bold', marginBottom: 10 },
+  setupSubtitle: { color: '#aaa', fontSize: 16, marginBottom: 20, marginTop: 10 },
   input: {
-      width: '100%', backgroundColor: '#111', color: 'white',
-      padding: 15, borderRadius: 12, marginBottom: 30,
-      borderWidth: 1, borderColor: '#333', textAlign: 'center'
+    width: '80%', backgroundColor: '#111', color: 'white', padding: 15, borderRadius: 12,
+    borderWidth: 1, borderColor: '#333', textAlign: 'center', fontSize: 18, marginBottom: 30
   },
-  saveButton: {
-      backgroundColor: 'white', paddingVertical: 15, paddingHorizontal: 40,
-      borderRadius: 30, elevation: 5
+  avatarList: { flexDirection: 'row', justifyContent: 'center', marginBottom: 40 },
+  avatarOption: { margin: 8, padding: 2, borderRadius: 50, borderWidth: 2, borderColor: 'transparent' },
+  avatarSelected: { borderColor: '#4CD964' }, // Lingkaran hijau kalau dipilih
+  avatarImg: { width: 50, height: 50 },
+  saveButton: { backgroundColor: 'white', paddingVertical: 15, paddingHorizontal: 50, borderRadius: 30 },
+  saveButtonText: { color: 'black', fontWeight: 'bold', fontSize: 16 },
+
+  // DOCK STYLES
+  dockWrapper: { position: 'absolute', bottom: 25, width: '100%', alignItems: 'center' },
+  dockContainer: {
+    width: '90%', height: 75, backgroundColor: 'rgba(20, 20, 20, 0.95)', borderRadius: 40,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, borderWidth: 1, borderColor: '#333',
   },
-  saveButtonText: { color: 'black', fontWeight: 'bold' }
+  dockAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#333' },
+  messageContainer: { flex: 1, justifyContent: 'center', paddingLeft: 15 },
+  assistantText: { color: '#ffffff', fontSize: 13, fontWeight: '500' },
 });
 
 export default App;

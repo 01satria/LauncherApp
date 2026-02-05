@@ -14,7 +14,6 @@
     "react-native": "0.74.5",
     "react-native-launcher-kit": "^2.1.0",
     "@react-native-async-storage/async-storage": "^1.21.0",
-    "react-native-image-picker": "^7.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
