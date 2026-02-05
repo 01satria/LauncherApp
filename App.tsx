@@ -107,8 +107,8 @@ const App = () => {
   const attemptLaunch = (packageName: string) => {
     try {
       // CARA 1: Pakai Helper dari Library (Paling Standar)
-      if (typeof LauncherKit?.launchApplication === 'function') {
-        LauncherKit.launchApplication(packageName);
+      if (typeof (LauncherKit as any)?.launchApplication === 'function') {
+        (LauncherKit as any).launchApplication(packageName);
         return;
       }
 
