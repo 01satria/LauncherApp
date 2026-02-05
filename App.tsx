@@ -84,7 +84,7 @@ const App = () => {
 
   const launchApp = (packageName: string, label: string) => {
     try {
-      ToastAndroid.show(`Membuka ${label}...`, ToastAndroid.SHORT);
+      ToastAndroid.show(`${label} dibuka untukmu 😉`, ToastAndroid.SHORT);
       RNLauncherKitHelper.launchApplication(packageName);
     } catch (err) {
       console.error('Launch error:', err);
@@ -109,7 +109,7 @@ const App = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#000" barStyle="light-content" />
+      <StatusBar backgroundColor="#00000000" barStyle="light-content" />
       <FlatList
         data={apps}
         numColumns={4}
