@@ -15,7 +15,6 @@ import {
   Modal,
   TextInput,
   Switch,
-  AppState,
 } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
@@ -178,7 +177,6 @@ const App = () => {
   const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
-  const [previousPackages, setPreviousPackages] = useState<Set<string>>(new Set());
 
   const loadData = async () => {
     try {
@@ -223,57 +221,26 @@ const App = () => {
 
   const fetchApps = async () => {
     try {
-      setLoading(true);
       const result = await InstalledApps.getApps();
       const lightData = result
         .map(app => ({ label: app.label || 'App', packageName: app.packageName }))
         .filter(app => app.packageName)
         .sort((a, b) => a.label.localeCompare(b.label));
-
-      const currentPackages = new Set(lightData.map(app => app.packageName));
-      const newPackages = [...currentPackages].filter(pkg => !previousPackages.has(pkg));
-
-      if (newPackages.length > 0) {
-        const newApps = lightData.filter(app => newPackages.includes(app.packageName));
-        newApps.forEach(app => {
-          ToastAndroid.show(`Aplikasi baru terinstal: ${app.label} 🚀`, ToastAndroid.LONG);
-        });
-      }
-
       setAllApps(lightData);
-      setPreviousPackages(currentPackages);
-    } catch (e) {
-      console.error(e);
-    } finally {
       setLoading(false);
-    }
+    } catch (e) { setLoading(false); }
   };
 
   useEffect(() => {
-    const initialize = async () => {
-      await loadData();
-      await loadAvatar();
-      await fetchApps();
-    };
-    initialize();
+    loadData();
+    loadAvatar();
+    fetchApps();
   }, []);
 
   useEffect(() => {
     const updatedFiltered = allApps.filter(app => showHidden || !hiddenPackages.includes(app.packageName));
     setFilteredApps(updatedFiltered);
   }, [allApps, hiddenPackages, showHidden]);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active') {
-        fetchApps();
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [previousPackages]);
 
   const saveNames = async (newAssistantName: string, newUserName: string) => {
     if (newAssistantName.trim()) {
