@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
 
   dockContainer: {
     position: 'absolute', bottom: 30, left: 20, right: 20, height: 80,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)', borderRadius: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.94)', borderRadius: 40,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)'
   },
