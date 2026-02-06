@@ -131,7 +131,7 @@ const AssistantDock = ({
   return (
     <View style={styles.dockContainer}>
       <View style={styles.dockContent}>
-        <TouchableOpacity delayLongPress={4000} onLongPress={handleUpdateAssistant} activeOpacity={0.8}>
+        <TouchableOpacity delayLongPress={1500} onLongPress={handleUpdateAssistant} activeOpacity={0.8}>
           <View style={styles.avatarContainer}>
             <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
             <View style={styles.onlineIndicator} />
