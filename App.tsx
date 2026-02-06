@@ -14,7 +14,7 @@ import {
   Alert,
   Modal,
   TextInput,
-  AppRegistry, // Tambahkan import ini
+  AppRegistry,
 } from 'react-native';
 
 import RNAndroidNotificationListener, { RNAndroidNotificationListenerHeadlessJsName } from 'react-native-android-notification-listener';
@@ -38,7 +38,7 @@ const CUSTOM_NAME_PATH = `${CUSTOM_AVATAR_DIR}/name.txt`;
 const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
 const TEMP_NOTIF_PATH = `${RNFS.TemporaryDirectoryPath}/recent_notif.txt`; // Temp storage untuk notif dari headless
 
-const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
+const MemoizedItem = memo(({ item, onPress, hasNotification }: { item: AppData; onPress: (pkg: string, label: string) => void; hasNotification: boolean }) => {
   const getInitial = (label: string) => {
     if (!label) return "?";
     const words = label.trim().split(/\s+/);
@@ -54,11 +54,12 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
     <TouchableOpacity style={styles.item} onPress={() => onPress(item.packageName, item.label)} activeOpacity={0.7}>
       <View style={[styles.iconBox, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <Text style={styles.initial}>{getInitial(item.label)}</Text>
+        {hasNotification && <View style={styles.notificationBadge} />}
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </TouchableOpacity>
   );
-}, (prev, next) => prev.item.packageName === next.item.packageName);
+}, (prev, next) => prev.item.packageName === next.item.packageName && prev.hasNotification === next.hasNotification);
 
 const headlessNotificationListener = async (remoteMessage) => {
   // remoteMessage adalah object yang berisi notification data
@@ -76,12 +77,8 @@ const headlessNotificationListener = async (remoteMessage) => {
   return Promise.resolve();
 };
 
-const AssistantDock = () => {
+const AssistantDock = ({ userName, assistantName, currentHour }: { userName: string; assistantName: string; currentHour: number }) => {
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
-  const [assistantName, setAssistantName] = useState("Assistant");
-  const [userName, setUserName] = useState("User");
-  const [notifications, setNotifications] = useState<string[]>([]);
-  const [currentHour, setCurrentHour] = useState(new Date().getHours());
 
   const [isModalVisible, setModalVisible] = useState(false);
   const [tempAssistantName, setTempAssistantName] = useState("");
@@ -99,106 +96,32 @@ const AssistantDock = () => {
       } else {
         setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
       }
-
-      const nameExists = await RNFS.exists(CUSTOM_NAME_PATH);
-      if (nameExists) setAssistantName(await RNFS.readFile(CUSTOM_NAME_PATH, 'utf8'));
-
-      const userExists = await RNFS.exists(CUSTOM_USER_PATH);
-      if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
     } catch (error) {
       setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
     }
   };
 
-  // Fungsi untuk load recent notif dari temp file (dipanggil polling)
-  const loadNotifications = async () => {
-    try {
-      const exists = await RNFS.exists(TEMP_NOTIF_PATH);
-      if (exists) {
-        const app = await RNFS.readFile(TEMP_NOTIF_PATH, 'utf8');
-        if (app) {
-          setNotifications(prev => {
-            const updated = [app, ...prev].slice(0, 3);
-            return [...new Set(updated)];
-          });
-          // Hapus file temp setelah dibaca
-          await RNFS.unlink(TEMP_NOTIF_PATH);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-    }
-  };
-
-  // 1. INIT PERMISSION DAN LOAD DATA
   useEffect(() => {
     loadAssistantData();
-
-    const initNotificationListener = async () => {
-      const status = await RNAndroidNotificationListener.getPermissionStatus();
-      console.log('Permission status:', status); // Debug
-
-      if (status !== 'authorized') {
-        // Request jika belum
-        await RNAndroidNotificationListener.requestPermission();
-      }
-    };
-
-    initNotificationListener();
-
-    // Polling setiap 2 detik untuk cek notif baru dari headless
-    const interval = setInterval(loadNotifications, 2000);
-    return () => clearInterval(interval);
   }, []);
 
-  // Timeout to clear notifications after 10 seconds
-  useEffect(() => {
-    if (notifications.length > 0) {
-      const timer = setTimeout(() => setNotifications([]), 10000);
-      return () => clearTimeout(timer);
-    }
-  }, [notifications]);
-
-  // Update current hour every minute to refresh time-based messages if needed
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const newHour = new Date().getHours();
-      if (newHour !== currentHour) {
-        setCurrentHour(newHour);
-      }
-    }, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, [currentHour]);
-
   const getMessage = () => {
-    if (notifications.length > 0) {
-      const hasWA = notifications.some(n =>
-        n.includes('whatsapp') || n.includes('wa business')
-      );
-
-      if (hasWA) {
-        return `${userName}, someone's texting you on WhatsApp! 💌`;
-      } else {
-        return `Hey ${userName}, you've got updates from ${notifications[0]}! ✨`;
-      }
-    } else {
-      // SALAM WAKTU NORMAL
-      if (currentHour >= 22 || currentHour < 4) return `Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`;
-      else if (currentHour >= 4 && currentHour < 11) return `Good morning, ${userName}! ☀️ ${assistantName} is here.`;
-      else if (currentHour >= 11 && currentHour < 15) return `Good afternoon, ${userName} 🌤️ Don't forget lunch!`;
-      else if (currentHour >= 15 && currentHour < 18) return `Good afternoon, ${userName} 🌇 ${assistantName} is online.`;
-      else return `Good night, ${userName} 🌙 Recharge with ${assistantName}.`;
-    }
+    // SALAM WAKTU NORMAL
+    if (currentHour >= 22 || currentHour < 4) return `Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`;
+    else if (currentHour >= 4 && currentHour < 11) return `Good morning, ${userName}! ☀️ ${assistantName} is here.`;
+    else if (currentHour >= 11 && currentHour < 15) return `Good afternoon, ${userName} 🌤️ Don't forget lunch!`;
+    else if (currentHour >= 15 && currentHour < 18) return `Good afternoon, ${userName} 🌇 ${assistantName} is online.`;
+    else return `Good night, ${userName} 🌙 Recharge with ${assistantName}.`;
   };
 
   const saveSettings = async () => {
     if (tempAssistantName.trim()) {
       await RNFS.writeFile(CUSTOM_NAME_PATH, tempAssistantName, 'utf8');
-      setAssistantName(tempAssistantName);
+      // Note: Parent component should handle updating assistantName
     }
     if (tempUserName.trim()) {
       await RNFS.writeFile(CUSTOM_USER_PATH, tempUserName, 'utf8');
-      setUserName(tempUserName);
+      // Note: Parent component should handle updating userName
     }
     setModalVisible(false);
     ToastAndroid.show("Saved!", ToastAndroid.SHORT);
@@ -265,6 +188,29 @@ const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("User");
+  const [assistantName, setAssistantName] = useState("Assistant");
+  const [notifications, setNotifications] = useState<string[]>([]);
+  const [currentHour, setCurrentHour] = useState(new Date().getHours());
+
+  // Fungsi untuk load recent notif dari temp file (dipanggil polling)
+  const loadNotifications = async () => {
+    try {
+      const exists = await RNFS.exists(TEMP_NOTIF_PATH);
+      if (exists) {
+        const app = await RNFS.readFile(TEMP_NOTIF_PATH, 'utf8');
+        if (app) {
+          setNotifications(prev => {
+            const updated = [app, ...prev].slice(0, 3);
+            return [...new Set(updated)];
+          });
+          // Hapus file temp setelah dibaca
+          await RNFS.unlink(TEMP_NOTIF_PATH);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchApps = async () => {
@@ -280,16 +226,54 @@ const App = () => {
     };
     fetchApps();
 
-    const loadUserName = async () => {
+    const loadUserData = async () => {
       try {
         const userExists = await RNFS.exists(CUSTOM_USER_PATH);
         if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
+
+        const nameExists = await RNFS.exists(CUSTOM_NAME_PATH);
+        if (nameExists) setAssistantName(await RNFS.readFile(CUSTOM_NAME_PATH, 'utf8'));
       } catch (error) {
         // keep default
       }
     };
-    loadUserName();
+    loadUserData();
+
+    const initNotificationListener = async () => {
+      const status = await RNAndroidNotificationListener.getPermissionStatus();
+      console.log('Permission status:', status); // Debug
+
+      if (status !== 'authorized') {
+        // Request jika belum
+        await RNAndroidNotificationListener.requestPermission();
+      }
+    };
+
+    initNotificationListener();
+
+    // Polling setiap 2 detik untuk cek notif baru dari headless
+    const interval = setInterval(loadNotifications, 2000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Timeout to clear notifications after 10 seconds
+  useEffect(() => {
+    if (notifications.length > 0) {
+      const timer = setTimeout(() => setNotifications([]), 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [notifications]);
+
+  // Update current hour every minute to refresh time-based messages if needed
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newHour = new Date().getHours();
+      if (newHour !== currentHour) {
+        setCurrentHour(newHour);
+      }
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [currentHour]);
 
   const launchApp = useCallback((packageName: string, label: string) => {
     try {
@@ -323,11 +307,11 @@ const App = () => {
         data={apps}
         numColumns={4}
         keyExtractor={(item) => item.packageName}
-        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
+        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} hasNotification={notifications.includes(item.packageName.toLowerCase())} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
-      <AssistantDock />
+      <AssistantDock userName={userName} assistantName={assistantName} currentHour={currentHour} />
     </SafeAreaView>
   );
 };
@@ -340,6 +324,15 @@ const styles = StyleSheet.create({
   iconBox: { width: 60, height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   initial: { color: 'white', fontSize: 20, fontWeight: '700' },
   label: { color: '#fff', fontSize: 11, textAlign: 'center', textShadowColor: 'rgba(0, 0, 0, 0.75)', textShadowOffset: { width: -1, height: 1 }, textShadowRadius: 10 },
+  notificationBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'red',
+  },
 
   dockContainer: {
     position: 'absolute', bottom: 30, left: 20, right: 20, height: 80,
