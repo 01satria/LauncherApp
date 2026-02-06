@@ -153,7 +153,7 @@ const AssistantDock = ({
               <Switch value={showHidden} onValueChange={onToggleShowHidden} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
-              <TouchableOpacity onPress={onChangePhoto} style={{ marginLeft: 55 }}><Text style={{ color: '#aaa' }}>Change Photo</Text></TouchableOpacity>
+              <TouchableOpacity onPress={onChangePhoto} style={{ marginRight: 55 }}><Text style={{ color: '#aaa' }}>Change Photo</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}><Text style={{ color: '#aaa' }}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity onPress={saveSettings}><Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text></TouchableOpacity>
             </View>
