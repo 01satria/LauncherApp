@@ -11,14 +11,13 @@ import {
   ToastAndroid,
   Dimensions,
   Image,
-  PermissionsAndroid,
-  Platform,
   Alert,
   Modal,
   TextInput,
+  AppRegistry, // Tambahkan import ini
 } from 'react-native';
 
-import RNAndroidNotificationListener from 'react-native-android-notification-listener'; // Import library benar
+import RNAndroidNotificationListener, { RNAndroidNotificationListenerHeadlessJsName } from 'react-native-android-notification-listener';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
@@ -60,6 +59,22 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
     </TouchableOpacity>
   );
 }, (prev, next) => prev.item.packageName === next.item.packageName);
+
+const headlessNotificationListener = async (remoteMessage) => {
+  // remoteMessage adalah object yang berisi notification data
+  const notification = JSON.parse(remoteMessage.notification); // Parse jika diperlukan, sesuai doc library
+  const appPackage = notification.app; // Ambil package name app pengirim notif
+
+  if (appPackage) {
+    try {
+      await RNFS.writeFile(TEMP_NOTIF_PATH, appPackage.toLowerCase(), 'utf8');
+    } catch (error) {
+      console.error('Error writing notification to file:', error);
+    }
+  }
+
+  return Promise.resolve();
+};
 
 const AssistantDock = () => {
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
@@ -346,5 +361,7 @@ const styles = StyleSheet.create({
   modalInput: { backgroundColor: '#262626', color: '#fff', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
   permissionButton: { marginTop: 15, paddingVertical: 12, paddingHorizontal: 15, borderRadius: 12, borderWidth: 1, borderColor: '#007AFF', alignItems: 'center' },
 });
+
+AppRegistry.registerHeadlessTask(RNAndroidNotificationListenerHeadlessJsName, () => headlessNotificationListener);
 
 export default App;
