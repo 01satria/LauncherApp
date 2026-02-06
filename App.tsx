@@ -94,53 +94,60 @@ const AssistantDock = () => {
     }
   };
 
+  // 1. LISTENER NOTIFIKASI (Dipisah agar fokus)
   useEffect(() => {
     loadAssistantData();
-    const setupListener = async () => {
+
+    const startListener = async () => {
       const status = await RNNotificationListener.getPermissionStatus();
-      if (status === 'authorized') {
-        (RNNotificationListener as any).onNotificationReceived((notification: any) => {
-          const appName = notification.app || "New Notification";
-          setNotifications(prev => [...new Set([appName, ...prev].slice(0, 3))]);
-          setTimeout(() => setNotifications([]), 10000);
-        });
-      }
+      if (status !== 'authorized') return;
+
+      (RNNotificationListener as any).onNotificationReceived((notification: any) => {
+        // Ambil nama aplikasi dan bersihkan
+        const app = (notification.app || notification.name || "").toLowerCase();
+
+        if (app) {
+          // Gunakan functional update agar state selalu fresh
+          setNotifications(prev => {
+            const updated = [app, ...prev].slice(0, 3);
+            return [...new Set(updated)];
+          });
+
+          // Hapus notif setelah 10 detik agar kembali ke salam waktu
+          setTimeout(() => {
+            setNotifications(prev => prev.filter(item => item !== app));
+          }, 10000);
+        }
+      });
     };
-    setupListener();
+
+    startListener();
   }, []);
 
+  // 2. LOGIKA UPDATE PESAN (Dipicu setiap kali notifications berubah)
   useEffect(() => {
-    // Buat fungsi update sebagai variabel agar bisa dipanggil kapan saja
-    const updateMessage = () => {
-      // Prioritas 1: Notifikasi (Langsung tampil jika ada)
-      if (notifications.length > 0) {
-        const uniqueApps = [...new Set(notifications)];
-        const lastApp = uniqueApps[0].toLowerCase();
+    const hour = new Date().getHours();
 
-        if (lastApp.includes('whatsapp')) {
-          setMessage(`${userName}, someone's texting you on WhatsApp! 💌 Check it out now.`);
-        } else {
-          setMessage(`Hey ${userName}, you've got new updates from ${uniqueApps[0]}. ✨`);
-        }
-        return; // Keluar dari fungsi agar tidak menimpa pesan dengan salam waktu
+    if (notifications.length > 0) {
+      // CEK APAKAH ADA WA
+      const hasWA = notifications.some(n =>
+        n.includes('whatsapp') || n.includes('wa business')
+      );
+
+      if (hasWA) {
+        setMessage(`${userName}, someone's texting you on WhatsApp! 💌`);
+      } else {
+        setMessage(`Hey ${userName}, you've got updates from ${notifications[0]}! ✨`);
       }
-
-      // Prioritas 2: Salam berdasarkan Waktu (Jika tidak ada notifikasi)
-      const hour = new Date().getHours();
+    } else {
+      // SALAM WAKTU NORMAL
       if (hour >= 22 || hour < 4) setMessage(`Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`);
       else if (hour >= 4 && hour < 11) setMessage(`Good morning, ${userName}! ☀️ ${assistantName} is here.`);
       else if (hour >= 11 && hour < 15) setMessage(`Good afternoon, ${userName} 🌤️ Don't forget lunch!`);
       else if (hour >= 15 && hour < 18) setMessage(`Good afternoon, ${userName} 🌇 ${assistantName} is online.`);
       else setMessage(`Good night, ${userName} 🌙 Recharge with ${assistantName}.`);
-    };
-
-    // Jalankan seketika saat notifications, assistantName, atau userName berubah
-    updateMessage();
-
-    // Tetap gunakan interval untuk update waktu (misal dari pagi ke siang)
-    const interval = setInterval(updateMessage, 10000); // Perkecil ke 10 detik agar lebih responsif
-    return () => clearInterval(interval);
-  }, [notifications, assistantName, userName]); // Dependency sangat penting di sini!
+    }
+  }, [notifications, assistantName, userName]); // <--- Dependency ini yang bikin REAKTIF
 
   const saveSettings = async () => {
     if (tempAssistantName.trim()) {
@@ -182,7 +189,8 @@ const AssistantDock = () => {
           </View>
         </TouchableOpacity>
         <View style={styles.messageContainer}>
-          <Text style={styles.assistantText}>{message}</Text>
+          {/* Tambahkan key={message} agar teks ter-render ulang secara paksa jika berubah */}
+          <Text key={message} style={styles.assistantText}>{message}</Text>
         </View>
       </View>
 
@@ -204,6 +212,7 @@ const AssistantDock = () => {
     </View>
   );
 };
+
 
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
