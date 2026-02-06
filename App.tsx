@@ -51,12 +51,12 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPr
   };
 
   return (
-    <TouchableOpacity 
-      style={styles.item} 
-      onPress={() => onPress(item.packageName, item.label)} 
+    <TouchableOpacity
+      style={styles.item}
+      onPress={() => onPress(item.packageName, item.label)}
       onLongPress={() => onLongPress(item.packageName, item.label)}
       activeOpacity={0.7}
-      delayLongPress={2000}
+      delayLongPress={1500}
     >
       <View style={[styles.iconBox, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <Text style={styles.initial}>{getInitial(item.label)}</Text>
@@ -66,17 +66,17 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPr
   );
 }, (prev, next) => prev.item.packageName === next.item.packageName);
 
-const AssistantDock = ({ 
-  userName, 
-  assistantName, 
-  showHidden, 
-  onSaveNames, 
-  onToggleShowHidden, 
+const AssistantDock = ({
+  userName,
+  assistantName,
+  showHidden,
+  onSaveNames,
+  onToggleShowHidden,
   onChangePhoto,
   avatarSource
-}: { 
-  userName: string; 
-  assistantName: string; 
+}: {
+  userName: string;
+  assistantName: string;
   showHidden: boolean;
   onSaveNames: (newAssistantName: string, newUserName: string) => void;
   onToggleShowHidden: (value: boolean) => void;
@@ -92,21 +92,20 @@ const AssistantDock = ({
   useEffect(() => {
     const updateMessage = () => {
       const hour = new Date().getHours();
-
       if (hour >= 22 || hour < 4) {
-        setMessage(`Hey ${userName}, it's getting late... 😴 Don't stay up too much, get some good rest so you're fresh tomorrow. ${assistantName} cares about you, sleep tight!`);
-      } 
+        setMessage(`It's late, ${userName}. 😴 Go to sleep now so you're fresh tomorrow. I'll be here when you wake up!`);
+      }
       else if (hour >= 4 && hour < 11) {
-        setMessage(`Good morning, ${userName}! ☀️ Hope your day is full of happiness. ${assistantName} is ready to accompany you all day!`);
-      } 
+        setMessage(`Morning, ${userName}! ☀️ Hope you have a great day. I'm ready to accompany you!`);
+      }
       else if (hour >= 11 && hour < 15) {
-        setMessage(`Afternoon ${userName}! 🌤️ Don't forget to have lunch, keep your energy up. You're important to ${assistantName} ❤️`);
-      } 
+        setMessage(`Lunch time, ${userName}! 🌤️ Eat something good and keep your energy up. You matter to me! ❤️`);
+      }
       else if (hour >= 15 && hour < 18) {
-        setMessage(`Afternoon ${userName}! 🌇 Hope your day has been smooth so far. If you're tired, take a short break. ${assistantName} is always here for you.`);
-      } 
+        setMessage(`Hey ${userName}, take a break if you're tired. 🌇 I'm always here for you.`);
+      }
       else {
-        setMessage(`Evening ${userName}! 🌙 You've been great today. Relax, recharge, and get a good night's sleep. ${assistantName} is proud of you!`);
+        setMessage(`Good night, ${userName}! 🌙 You did great today. I'm proud of you, now go rest.`);
       }
     };
 
@@ -132,7 +131,7 @@ const AssistantDock = ({
   return (
     <View style={styles.dockContainer}>
       <View style={styles.dockContent}>
-        <TouchableOpacity delayLongPress={5000} onLongPress={handleUpdateAssistant} activeOpacity={0.8}>
+        <TouchableOpacity delayLongPress={4000} onLongPress={handleUpdateAssistant} activeOpacity={0.8}>
           <View style={styles.avatarContainer}>
             <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
             <View style={styles.onlineIndicator} />
@@ -326,9 +325,9 @@ const App = () => {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
-      <AssistantDock 
-        userName={userName} 
-        assistantName={assistantName} 
+      <AssistantDock
+        userName={userName}
+        assistantName={assistantName}
         showHidden={showHidden}
         onSaveNames={saveNames}
         onToggleShowHidden={toggleShowHidden}
