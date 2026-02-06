@@ -34,7 +34,7 @@ const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/41
 
 // Path custom untuk simpan avatar
 // Ganti ini
-const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`; 
+const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
@@ -64,20 +64,24 @@ const AssistantDock = () => {
     const updateMessage = () => {
       if (notifications.length > 0) {
         const uniqueApps = [...new Set(notifications)];
-        const appNames = uniqueApps.join(", ");
-        setMessage(`Hai Satria... ada notifikasi dari ${appNames}.`);
+        if (uniqueApps.some(app => app.toLowerCase().includes('whatsapp'))) {
+          setMessage("Satria, someone's texting you on WhatsApp! 💌 Check it out now.");
+        } else {
+          const appNames = uniqueApps.join(", ");
+          setMessage(`Hey Satria, you've got new updates from ${appNames}. ✨`);
+        }
       } else {
         const hour = new Date().getHours();
-        if (hour >= 0 && hour < 4) {
-          setMessage("Selamat tidur, Satria 😴 Jangan begadang ya.");
+        if (hour >= 22 || hour < 4) {
+          setMessage("Go to sleep, Satria 😴 Don't stay up too late, okay?");
         } else if (hour >= 4 && hour < 11) {
-          setMessage("Selamat pagi, Satria ☀️ Semangat aktivitas!");
+          setMessage("Good morning, Satria ☀️ Have a wonderful day ahead!");
         } else if (hour >= 11 && hour < 15) {
-          setMessage("Selamat siang, Satria 🌤️ Jangan lupa makan.");
+          setMessage("Good afternoon, Satria 🌤️ Don't forget to eat your lunch!");
         } else if (hour >= 15 && hour < 18) {
-          setMessage("Selamat sore, Satria 🌇");
+          setMessage("Good afternoon, Satria 🌇 Hope you're having a good one.");
         } else {
-          setMessage("Selamat malam, Satria 🌙 Istirahatlah.");
+          setMessage("Good night, Satria 🌙 Time to rest and recharge.");
         }
       }
     };
@@ -211,29 +215,35 @@ const AssistantDock = () => {
 
   return (
     <View style={styles.dockContainer}>
-      {/* Bagian Kiri: Foto Asisten dengan Long Press */}
-      <TouchableOpacity
-        style={styles.avatarContainer}
-        delayLongPress={7000} // 7 detik (7000 ms)
-        onLongPress={handleChangeAvatar}
-        activeOpacity={0.7}
-      >
-        <Image
-          source={{ uri: avatarSource }}
-          style={styles.avatar}
-          resizeMode="cover"
-          onError={(e) => console.error('Image load error:', e.nativeEvent.error)}
-        />
-        <View style={styles.onlineIndicator} />
-      </TouchableOpacity>
+      {/* Grup Konten agar bisa rata tengah */}
+      <View style={styles.dockContent}>
 
-      {/* Bagian Kanan: Teks Pesan */}
-      <View style={styles.messageContainer}>
-        <Text style={styles.assistantText}>
-          {message}
-        </Text>
+        {/* Bagian Kiri: Foto Asisten */}
+        <TouchableOpacity
+          style={styles.avatarContainer}
+          delayLongPress={5000}
+          onLongPress={handleChangeAvatar}
+          activeOpacity={0.7}
+        >
+          <Image
+            source={{ uri: avatarSource }}
+            style={styles.avatar}
+            resizeMode="cover"
+            onError={(e) => console.error('Image load error:', e.nativeEvent.error)}
+          />
+          <View style={styles.onlineIndicator} />
+        </TouchableOpacity>
+
+        {/* Bagian Kanan: Teks Pesan */}
+        <View style={styles.messageContainer}>
+          <Text style={styles.assistantText} numberOfLines={2}>
+            {message}
+          </Text>
+        </View>
+
       </View>
     </View>
+  );
   );
 };
 
@@ -272,7 +282,12 @@ const App = () => {
 
   const launchApp = useCallback((packageName: string, label: string) => {
     try {
-      ToastAndroid.show(`Opening ${label}...`, ToastAndroid.SHORT);
+      if (label.toLowerCase().includes('brave')) {
+        ToastAndroid.show("Browsing time? Don't get lost in your tabs, okay? 🌐😘", ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show(`Opening ${label} for you 😉`, ToastAndroid.SHORT);
+      }
+
       RNLauncherKitHelper.launchApplication(packageName);
     } catch (err) {
       ToastAndroid.show("Failed to launch app", ToastAndroid.SHORT);
@@ -358,37 +373,34 @@ const styles = StyleSheet.create({
     height: 70,
     backgroundColor: 'rgba(20, 20, 20, 0.9)',
     borderRadius: 35,
-    flexDirection: 'row',
+    flexDirection: 'row', // Tetap row
     alignItems: 'center',
+    justifyContent: 'center', // INI PENTING: Membuat grup di dalamnya rata tengah secara horizontal
     paddingHorizontal: 15,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     elevation: 10,
   },
+  dockContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // Kita tidak pakai flex: 1 di sini supaya lebarnya mengikuti isi (wrap content)
+    maxWidth: '100%',
+  },
   avatarContainer: {
     position: 'relative',
+    // Margin kanan agar tidak terlalu nempel dengan teks
+    marginRight: 12,
   },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#333',
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#4CD964',
-    borderWidth: 2,
-    borderColor: '#1a1a1a',
   },
   messageContainer: {
-    flex: 1,
-    marginLeft: 15,
+    // Hapus marginLeft: 15 yang lama karena sudah ada marginRight di avatar
     justifyContent: 'center',
+    maxWidth: width * 0.6, // Batasi lebar teks agar tidak menabrak pinggiran dock
   },
   assistantText: {
     color: '#ffffff',
@@ -396,7 +408,18 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 18,
     opacity: 0.9,
-  }
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#00ff00',
+    bottom: 0,
+    right: 0,
+    borderWidth: 2,
+    borderColor: 'rgba(20, 20, 20, 0.9)',
+  },
 });
 
 export default App;
