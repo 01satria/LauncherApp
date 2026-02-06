@@ -12,6 +12,7 @@
   "dependencies": {
     "react": "18.2.0",
     "react-native": "0.74.5",
+    "react-native-android-notification-listener": "^5.0.1",
     "react-native-fs": "^2.20.0",
     "react-native-image-picker": "^8.2.1",
     "react-native-launcher-kit": "^2.1.0",

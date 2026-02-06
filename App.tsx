@@ -18,7 +18,7 @@ import {
   TextInput,
 } from 'react-native';
 
-import RNNotificationListener from 'react-native-notification-listener';
+import RNAndroidNotificationListener from 'react-native-android-notification-listener'; // Import library benar
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
@@ -37,6 +37,7 @@ const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 const CUSTOM_NAME_PATH = `${CUSTOM_AVATAR_DIR}/name.txt`;
 const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
+const TEMP_NOTIF_PATH = `${RNFS.TemporaryDirectoryPath}/recent_notif.txt`; // Temp storage untuk notif dari headless
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   const getInitial = (label: string) => {
@@ -94,34 +95,45 @@ const AssistantDock = () => {
     }
   };
 
-  // 1. LISTENER NOTIFIKASI (Dipisah agar fokus)
-  useEffect(() => {
-    loadAssistantData();
-
-    const startListener = async () => {
-      const status = await RNNotificationListener.getPermissionStatus();
-      if (status !== 'authorized') return;
-
-      (RNNotificationListener as any).onNotificationReceived((notification: any) => {
-        // Ambil nama aplikasi dan bersihkan
-        const app = (notification.app || notification.name || "").toLowerCase();
-
+  // Fungsi untuk load recent notif dari temp file (dipanggil polling)
+  const loadNotifications = async () => {
+    try {
+      const exists = await RNFS.exists(TEMP_NOTIF_PATH);
+      if (exists) {
+        const app = await RNFS.readFile(TEMP_NOTIF_PATH, 'utf8');
         if (app) {
-          // Gunakan functional update agar state selalu fresh
           setNotifications(prev => {
             const updated = [app, ...prev].slice(0, 3);
             return [...new Set(updated)];
           });
-
-          // Hapus notif setelah 10 detik agar kembali ke salam waktu
-          setTimeout(() => {
-            setNotifications(prev => prev.filter(item => item !== app));
-          }, 10000);
+          // Hapus file temp setelah dibaca
+          await RNFS.unlink(TEMP_NOTIF_PATH);
         }
-      });
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  // 1. INIT PERMISSION DAN LOAD DATA
+  useEffect(() => {
+    loadAssistantData();
+
+    const initNotificationListener = async () => {
+      const status = await RNAndroidNotificationListener.getPermissionStatus();
+      console.log('Permission status:', status); // Debug
+
+      if (status !== 'authorized') {
+        // Request jika belum
+        await RNAndroidNotificationListener.requestPermission();
+      }
     };
 
-    startListener();
+    initNotificationListener();
+
+    // Polling setiap 2 detik untuk cek notif baru dari headless
+    const interval = setInterval(loadNotifications, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   // 2. LOGIKA UPDATE PESAN (Dipicu setiap kali notifications berubah)
@@ -139,6 +151,8 @@ const AssistantDock = () => {
       } else {
         setMessage(`Hey ${userName}, you've got updates from ${notifications[0]}! ✨`);
       }
+      // Hapus notif setelah 10 detik
+      setTimeout(() => setNotifications([]), 10000);
     } else {
       // SALAM WAKTU NORMAL
       if (hour >= 22 || hour < 4) setMessage(`Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`);
@@ -147,7 +161,7 @@ const AssistantDock = () => {
       else if (hour >= 15 && hour < 18) setMessage(`Good afternoon, ${userName} 🌇 ${assistantName} is online.`);
       else setMessage(`Good night, ${userName} 🌙 Recharge with ${assistantName}.`);
     }
-  }, [notifications, assistantName, userName]); // <--- Dependency ini yang bikin REAKTIF
+  }, [notifications, assistantName, userName]);
 
   const saveSettings = async () => {
     if (tempAssistantName.trim()) {
@@ -208,7 +222,7 @@ const AssistantDock = () => {
             </View>
             <TouchableOpacity
               style={styles.permissionButton}
-              onPress={() => RNNotificationListener.requestPermission()}
+              onPress={() => RNAndroidNotificationListener.requestPermission()}
             >
               <Text style={{ color: '#007AFF', fontWeight: 'bold' }}>Grant Notification Access</Text>
             </TouchableOpacity>
