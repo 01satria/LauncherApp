@@ -104,6 +104,9 @@ const AssistantDock = ({
       else if (hour >= 15 && hour < 18) {
         setMessage(`Hey ${userName}, take a break if you're tired. 🌇 I'm always here for you.`);
       }
+      else if (hour >= 18 && hour < 20) {
+        setMessage(`Evening, ${userName}! 🌇 I'm here to support you. Take care of yourself.`);
+      }
       else {
         setMessage(`Good night, ${userName}! 🌙 You did great today. I'm proud of you, now go rest.`);
       }
