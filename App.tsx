@@ -14,10 +14,8 @@ import {
   Alert,
   Modal,
   TextInput,
-  AppRegistry,
 } from 'react-native';
 
-import RNAndroidNotificationListener, { RNAndroidNotificationListenerHeadlessJsName } from 'react-native-android-notification-listener';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
@@ -36,9 +34,8 @@ const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 const CUSTOM_NAME_PATH = `${CUSTOM_AVATAR_DIR}/name.txt`;
 const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
-const TEMP_NOTIF_PATH = `${RNFS.TemporaryDirectoryPath}/recent_notif.txt`; // Temp storage untuk notif dari headless
 
-const MemoizedItem = memo(({ item, onPress, hasNotification }: { item: AppData; onPress: (pkg: string, label: string) => void; hasNotification: boolean }) => {
+const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   const getInitial = (label: string) => {
     if (!label) return "?";
     const words = label.trim().split(/\s+/);
@@ -54,31 +51,17 @@ const MemoizedItem = memo(({ item, onPress, hasNotification }: { item: AppData; 
     <TouchableOpacity style={styles.item} onPress={() => onPress(item.packageName, item.label)} activeOpacity={0.7}>
       <View style={[styles.iconBox, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <Text style={styles.initial}>{getInitial(item.label)}</Text>
-        {hasNotification && <View style={styles.notificationBadge} />}
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </TouchableOpacity>
   );
-}, (prev, next) => prev.item.packageName === next.item.packageName && prev.hasNotification === next.hasNotification);
+}, (prev, next) => prev.item.packageName === next.item.packageName);
 
-const headlessNotificationListener = async (remoteMessage) => {
-  // remoteMessage adalah object yang berisi notification data
-  const notification = JSON.parse(remoteMessage.notification); // Parse jika diperlukan, sesuai doc library
-  const appPackage = notification.app; // Ambil package name app pengirim notif
-
-  if (appPackage) {
-    try {
-      await RNFS.writeFile(TEMP_NOTIF_PATH, appPackage.toLowerCase(), 'utf8');
-    } catch (error) {
-      console.error('Error writing notification to file:', error);
-    }
-  }
-
-  return Promise.resolve();
-};
-
-const AssistantDock = ({ userName, assistantName, currentHour }: { userName: string; assistantName: string; currentHour: number }) => {
+const AssistantDock = () => {
+  const [message, setMessage] = useState("");
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
+  const [assistantName, setAssistantName] = useState("Assistant");
+  const [userName, setUserName] = useState("User");
 
   const [isModalVisible, setModalVisible] = useState(false);
   const [tempAssistantName, setTempAssistantName] = useState("");
@@ -96,6 +79,12 @@ const AssistantDock = ({ userName, assistantName, currentHour }: { userName: str
       } else {
         setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
       }
+
+      const nameExists = await RNFS.exists(CUSTOM_NAME_PATH);
+      if (nameExists) setAssistantName(await RNFS.readFile(CUSTOM_NAME_PATH, 'utf8'));
+
+      const userExists = await RNFS.exists(CUSTOM_USER_PATH);
+      if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
     } catch (error) {
       setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
     }
@@ -105,23 +94,28 @@ const AssistantDock = ({ userName, assistantName, currentHour }: { userName: str
     loadAssistantData();
   }, []);
 
-  const getMessage = () => {
-    // SALAM WAKTU NORMAL
-    if (currentHour >= 22 || currentHour < 4) return `Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`;
-    else if (currentHour >= 4 && currentHour < 11) return `Good morning, ${userName}! ☀️ ${assistantName} is here.`;
-    else if (currentHour >= 11 && currentHour < 15) return `Good afternoon, ${userName} 🌤️ Don't forget lunch!`;
-    else if (currentHour >= 15 && currentHour < 18) return `Good afternoon, ${userName} 🌇 ${assistantName} is online.`;
-    else return `Good night, ${userName} 🌙 Recharge with ${assistantName}.`;
-  };
+  useEffect(() => {
+    const updateMessage = () => {
+      const hour = new Date().getHours();
+      if (hour >= 22 || hour < 4) setMessage(`Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`);
+      else if (hour >= 4 && hour < 11) setMessage(`Good morning, ${userName}! ☀️ ${assistantName} is here.`);
+      else if (hour >= 11 && hour < 15) setMessage(`Good afternoon, ${userName} 🌤️ Don't forget lunch!`);
+      else if (hour >= 15 && hour < 18) setMessage(`Good afternoon, ${userName} 🌇 ${assistantName} is online.`);
+      else setMessage(`Good night, ${userName} 🌙 Recharge with ${assistantName}.`);
+    };
+    updateMessage();
+    const interval = setInterval(updateMessage, 60000);
+    return () => clearInterval(interval);
+  }, [assistantName, userName]);
 
   const saveSettings = async () => {
     if (tempAssistantName.trim()) {
       await RNFS.writeFile(CUSTOM_NAME_PATH, tempAssistantName, 'utf8');
-      // Note: Parent component should handle updating assistantName
+      setAssistantName(tempAssistantName);
     }
     if (tempUserName.trim()) {
       await RNFS.writeFile(CUSTOM_USER_PATH, tempUserName, 'utf8');
-      // Note: Parent component should handle updating userName
+      setUserName(tempUserName);
     }
     setModalVisible(false);
     ToastAndroid.show("Saved!", ToastAndroid.SHORT);
@@ -154,7 +148,7 @@ const AssistantDock = ({ userName, assistantName, currentHour }: { userName: str
           </View>
         </TouchableOpacity>
         <View style={styles.messageContainer}>
-          <Text style={styles.assistantText}>{getMessage()}</Text>
+          <Text style={styles.assistantText}>{message}</Text>
         </View>
       </View>
 
@@ -170,12 +164,6 @@ const AssistantDock = ({ userName, assistantName, currentHour }: { userName: str
               <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}><Text style={{ color: '#aaa' }}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity onPress={saveSettings}><Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text></TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.permissionButton}
-              onPress={() => RNAndroidNotificationListener.requestPermission()}
-            >
-              <Text style={{ color: '#007AFF', fontWeight: 'bold' }}>Grant Notification Access</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -183,34 +171,10 @@ const AssistantDock = ({ userName, assistantName, currentHour }: { userName: str
   );
 };
 
-
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("User");
-  const [assistantName, setAssistantName] = useState("Assistant");
-  const [notifications, setNotifications] = useState<string[]>([]);
-  const [currentHour, setCurrentHour] = useState(new Date().getHours());
-
-  // Fungsi untuk load recent notif dari temp file (dipanggil polling)
-  const loadNotifications = async () => {
-    try {
-      const exists = await RNFS.exists(TEMP_NOTIF_PATH);
-      if (exists) {
-        const app = await RNFS.readFile(TEMP_NOTIF_PATH, 'utf8');
-        if (app) {
-          setNotifications(prev => {
-            const updated = [app, ...prev].slice(0, 3);
-            return [...new Set(updated)];
-          });
-          // Hapus file temp setelah dibaca
-          await RNFS.unlink(TEMP_NOTIF_PATH);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading notifications:', error);
-    }
-  };
 
   useEffect(() => {
     const fetchApps = async () => {
@@ -226,54 +190,16 @@ const App = () => {
     };
     fetchApps();
 
-    const loadUserData = async () => {
+    const loadUserName = async () => {
       try {
         const userExists = await RNFS.exists(CUSTOM_USER_PATH);
         if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
-
-        const nameExists = await RNFS.exists(CUSTOM_NAME_PATH);
-        if (nameExists) setAssistantName(await RNFS.readFile(CUSTOM_NAME_PATH, 'utf8'));
       } catch (error) {
         // keep default
       }
     };
-    loadUserData();
-
-    const initNotificationListener = async () => {
-      const status = await RNAndroidNotificationListener.getPermissionStatus();
-      console.log('Permission status:', status); // Debug
-
-      if (status !== 'authorized') {
-        // Request jika belum
-        await RNAndroidNotificationListener.requestPermission();
-      }
-    };
-
-    initNotificationListener();
-
-    // Polling setiap 2 detik untuk cek notif baru dari headless
-    const interval = setInterval(loadNotifications, 2000);
-    return () => clearInterval(interval);
+    loadUserName();
   }, []);
-
-  // Timeout to clear notifications after 10 seconds
-  useEffect(() => {
-    if (notifications.length > 0) {
-      const timer = setTimeout(() => setNotifications([]), 10000);
-      return () => clearTimeout(timer);
-    }
-  }, [notifications]);
-
-  // Update current hour every minute to refresh time-based messages if needed
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const newHour = new Date().getHours();
-      if (newHour !== currentHour) {
-        setCurrentHour(newHour);
-      }
-    }, 60000); // Check every minute
-    return () => clearInterval(interval);
-  }, [currentHour]);
 
   const launchApp = useCallback((packageName: string, label: string) => {
     try {
@@ -286,8 +212,19 @@ const App = () => {
         ToastAndroid.show(`Checking messages, ${userName}? Say hi for me! 💌`, ToastAndroid.SHORT);
       } else if (appName.includes('youtube')) {
         ToastAndroid.show(`Enjoy your videos, ${userName}! 🍿`, ToastAndroid.SHORT);
+      } else if (appName.includes('instagram lite')) {
+        ToastAndroid.show(`Scrolling through feeds, ${userName}? Stay fabulous! 📸✨`, ToastAndroid.SHORT);
+      } else if (appName.includes('camera')) {
+        ToastAndroid.show(`Smile for the camera, ${userName}! 📷😄`, ToastAndroid.SHORT);
+      } else if (appName.includes('gallery')) {
+        ToastAndroid.show(`Revisiting memories, ${userName}? 📂❤️`, ToastAndroid.SHORT);
+      } else if (appName.includes('waze')) {
+        ToastAndroid.show(`Navigating with Waze, ${userName}? Safe travels! 🗺️🚗`, ToastAndroid.SHORT);
+      } else if (appName.includes('maps')) {
+        ToastAndroid.show(`Exploring with Maps, ${userName}? Adventure awaits! 🌍🧭`, ToastAndroid.SHORT);
+      } else if (appName.includes('shopee lite')) {
+        ToastAndroid.show(`Shopping spree on Shopee, ${userName}? Happy hunting! 🛒💸`, ToastAndroid.SHORT);
       } else {
-        // Pesan default untuk aplikasi lain
         ToastAndroid.show(`Opening ${label} for you 😉`, ToastAndroid.SHORT);
       }
 
@@ -307,11 +244,11 @@ const App = () => {
         data={apps}
         numColumns={4}
         keyExtractor={(item) => item.packageName}
-        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} hasNotification={notifications.includes(item.packageName.toLowerCase())} />}
+        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
-      <AssistantDock userName={userName} assistantName={assistantName} currentHour={currentHour} />
+      <AssistantDock />
     </SafeAreaView>
   );
 };
@@ -324,15 +261,6 @@ const styles = StyleSheet.create({
   iconBox: { width: 60, height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   initial: { color: 'white', fontSize: 20, fontWeight: '700' },
   label: { color: '#fff', fontSize: 11, textAlign: 'center', textShadowColor: 'rgba(0, 0, 0, 0.75)', textShadowOffset: { width: -1, height: 1 }, textShadowRadius: 10 },
-  notificationBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: 'red',
-  },
 
   dockContainer: {
     position: 'absolute', bottom: 30, left: 20, right: 20, height: 80,
@@ -352,9 +280,6 @@ const styles = StyleSheet.create({
   modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   inputLabel: { color: '#888', fontSize: 12, marginBottom: 8, marginLeft: 5 },
   modalInput: { backgroundColor: '#262626', color: '#fff', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
-  permissionButton: { marginTop: 15, paddingVertical: 12, paddingHorizontal: 15, borderRadius: 12, borderWidth: 1, borderColor: '#007AFF', alignItems: 'center' },
 });
-
-AppRegistry.registerHeadlessTask(RNAndroidNotificationListenerHeadlessJsName, () => headlessNotificationListener);
 
 export default App;
