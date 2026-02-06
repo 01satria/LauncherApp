@@ -11,7 +11,6 @@ import {
   ToastAndroid,
   Dimensions,
   Image,
-  Alert,
   Modal,
   TextInput,
   Switch,
@@ -56,7 +55,7 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPr
       onPress={() => onPress(item.packageName, item.label)}
       onLongPress={() => onLongPress(item.packageName, item.label)}
       activeOpacity={0.7}
-      delayLongPress={1500}
+      delayLongPress={1000}
     >
       <View style={[styles.iconBox, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <Text style={styles.initial}>{getInitial(item.label)}</Text>
@@ -130,7 +129,7 @@ const AssistantDock = ({
   return (
     <View style={styles.dockContainer}>
       <View style={styles.dockContent}>
-        <TouchableOpacity delayLongPress={1500} onLongPress={handleUpdateAssistant} activeOpacity={0.8}>
+        <TouchableOpacity delayLongPress={1000} onLongPress={handleUpdateAssistant} activeOpacity={0.8}>
           <View style={styles.avatarContainer}>
             <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
             <View style={styles.onlineIndicator} />
@@ -154,7 +153,7 @@ const AssistantDock = ({
               <Switch value={showHidden} onValueChange={onToggleShowHidden} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
-              <TouchableOpacity onPress={onChangePhoto} style={{ marginRight: 40 }}><Text style={{ color: '#aaa' }}>Change Photo</Text></TouchableOpacity>
+              <TouchableOpacity onPress={onChangePhoto} style={{ marginLeft: 0 }}><Text style={{ color: '#aaa' }}>Change Photo</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}><Text style={{ color: '#aaa' }}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity onPress={saveSettings}><Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text></TouchableOpacity>
             </View>
@@ -174,6 +173,10 @@ const App = () => {
   const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
+  const [isActionModalVisible, setActionModalVisible] = useState(false);
+  const [currentAction, setCurrentAction] = useState<'hide' | 'unhide'>('hide');
+  const [currentPackage, setCurrentPackage] = useState<string>('');
+  const [currentLabel, setCurrentLabel] = useState<string>('');
 
   const loadData = async () => {
     try {
@@ -264,33 +267,26 @@ const App = () => {
   };
 
   const handleLongPress = (packageName: string, label: string) => {
-    if (hiddenPackages.includes(packageName) && showHidden) {
-      Alert.alert('Unhide App', `Do you want to unhide ${label}?`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unhide',
-          onPress: async () => {
-            const newHidden = hiddenPackages.filter(pkg => pkg !== packageName);
-            setHiddenPackages(newHidden);
-            await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newHidden), 'utf8');
-            ToastAndroid.show(`${label} unhidden`, ToastAndroid.SHORT);
-          }
-        }
-      ]);
+    const isHidden = hiddenPackages.includes(packageName) && showHidden;
+    setCurrentAction(isHidden ? 'unhide' : 'hide');
+    setCurrentPackage(packageName);
+    setCurrentLabel(label);
+    setActionModalVisible(true);
+  };
+
+  const performAction = async () => {
+    if (currentAction === 'unhide') {
+      const newHidden = hiddenPackages.filter(pkg => pkg !== currentPackage);
+      setHiddenPackages(newHidden);
+      await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newHidden), 'utf8');
+      ToastAndroid.show(`${currentLabel} unhidden`, ToastAndroid.SHORT);
     } else {
-      Alert.alert('Hide App', `Do you want to hide ${label}?`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Hide',
-          onPress: async () => {
-            const newHidden = [...hiddenPackages, packageName];
-            setHiddenPackages(newHidden);
-            await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newHidden), 'utf8');
-            ToastAndroid.show(`${label} hidden`, ToastAndroid.SHORT);
-          }
-        }
-      ]);
+      const newHidden = [...hiddenPackages, currentPackage];
+      setHiddenPackages(newHidden);
+      await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newHidden), 'utf8');
+      ToastAndroid.show(`${currentLabel} hidden`, ToastAndroid.SHORT);
     }
+    setActionModalVisible(false);
   };
 
   const launchApp = useCallback((packageName: string, label: string) => {
@@ -349,6 +345,24 @@ const App = () => {
         onChangePhoto={changePhoto}
         avatarSource={avatarSource}
       />
+      <Modal visible={isActionModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{currentAction === 'unhide' ? 'Unhide App' : 'Hide App'}</Text>
+            <Text style={styles.modalMessage}>
+              Do you want to {currentAction} {currentLabel}?
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20 }}>
+              <TouchableOpacity onPress={() => setActionModalVisible(false)} style={{ marginRight: 20 }}>
+                <Text style={{ color: '#aaa' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={performAction}>
+                <Text style={{ color: '#00ff00', fontWeight: 'bold' }}>{currentAction === 'unhide' ? 'Unhide' : 'Hide'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -382,6 +396,7 @@ const styles = StyleSheet.create({
   modalInput: { backgroundColor: '#262626', color: '#fff', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
   switchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
   switchLabel: { color: '#fff', fontSize: 14 },
+  modalMessage: { color: '#fff', fontSize: 16, textAlign: 'center', marginBottom: 10 },
 });
 
 export default App;
