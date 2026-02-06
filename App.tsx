@@ -11,6 +11,8 @@ import {
   ToastAndroid,
   Dimensions,
   Image,
+  Modal,
+  TextInput,
   PermissionsAndroid,
   Platform,
   Alert,
@@ -56,13 +58,14 @@ const AssistantDock = () => {
   const [assistantName, setAssistantName] = useState("Assistant");
   const [notifications, setNotifications] = useState<string[]>([]);
 
-  // Load Foto dan Nama dari Storage
+  // State untuk Modal Nama
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [tempName, setTempName] = useState("");
+
   const loadAssistantData = async () => {
     try {
       const dirExists = await RNFS.exists(CUSTOM_AVATAR_DIR);
       if (!dirExists) await RNFS.mkdir(CUSTOM_AVATAR_DIR);
-
-      // Load Foto
       const photoExists = await RNFS.exists(CUSTOM_AVATAR_PATH);
       if (photoExists) {
         const fileData = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
@@ -70,8 +73,6 @@ const AssistantDock = () => {
       } else {
         setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
       }
-
-      // Load Nama
       const nameExists = await RNFS.exists(CUSTOM_NAME_PATH);
       if (nameExists) {
         const savedName = await RNFS.readFile(CUSTOM_NAME_PATH, 'utf8');
@@ -84,12 +85,9 @@ const AssistantDock = () => {
 
   useEffect(() => {
     loadAssistantData();
-    
-    // Setup Notification Listener
     const setupListener = async () => {
       const status = await RNNotificationListener.getPermissionStatus();
       if (status !== 'authorized') return;
-
       (RNNotificationListener as any).onNotificationReceived((notification: any) => {
         const appName = notification.app || "New Notification";
         if (appName) {
@@ -104,113 +102,85 @@ const AssistantDock = () => {
     setupListener();
   }, []);
 
-  // Logic Pesan Dinamis menggunakan assistantName
   useEffect(() => {
     const updateMessage = () => {
       if (notifications.length > 0) {
         const uniqueApps = [...new Set(notifications)];
-        if (uniqueApps.some(app => app.toLowerCase().includes('whatsapp'))) {
-          setMessage(`Satria, someone's texting you! 💌 I'm ${assistantName}, check WhatsApp now.`);
-        } else {
-          setMessage(`Hey Satria, ${assistantName} found new updates from ${uniqueApps.join(", ")}! ✨`);
-        }
+        setMessage(`Satria, I'm ${assistantName}. Someone's texting you on ${uniqueApps[0]}! 💌`);
       } else {
         const hour = new Date().getHours();
-        if (hour >= 22 || hour < 4) {
-          setMessage(`Go to sleep, Satria 😴 I'm ${assistantName}, don't stay up late.`);
-        } else if (hour >= 4 && hour < 11) {
-          setMessage(`Good morning, Satria! ☀️ ${assistantName} is here for you.`);
-        } else if (hour >= 11 && hour < 15) {
-          setMessage(`Good afternoon, Satria 🌤️ Have you had lunch? - ${assistantName}`);
-        } else if (hour >= 15 && hour < 18) {
-          setMessage(`Good evening, Satria 🌇 ${assistantName} is online.`);
-        } else {
-          setMessage(`Good night, Satria 🌙 Rest well with ${assistantName}.`);
-        }
+        if (hour >= 22 || hour < 4) setMessage(`Go to sleep, Satria 😴 I'm ${assistantName}, don't stay up late.`);
+        else if (hour >= 4 && hour < 11) setMessage(`Good morning, Satria! ☀️ ${assistantName} is here.`);
+        else setMessage(`Hello Satria, ${assistantName} is online! ✨`);
       }
     };
-
     updateMessage();
     const interval = setInterval(updateMessage, 60000);
     return () => clearInterval(interval);
   }, [notifications, assistantName]);
 
-  const handleUpdateAssistant = () => {
-    Alert.alert(
-      'Update Assistant',
-      'What do you want to change?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Change Name',
-          onPress: () => {
-            Alert.prompt(
-              "Assistant Name",
-              "Enter a new name:",
-              async (newName) => {
-                if (newName && newName.trim().length > 0) {
-                  await RNFS.writeFile(CUSTOM_NAME_PATH, newName, 'utf8');
-                  setAssistantName(newName);
-                  ToastAndroid.show(`Name updated to ${newName}`, ToastAndroid.SHORT);
-                }
-              },
-              'plain-text',
-              assistantName
-            );
-          }
-        },
-        {
-          text: 'Change Photo',
-          onPress: async () => {
-            try {
-              const result = await ImagePicker.launchImageLibrary({
-                mediaType: 'photo',
-                includeBase64: true,
-                maxHeight: 200,
-                maxWidth: 200,
-              });
-              if (result.didCancel || !result.assets) return;
-              const asset = result.assets[0];
-              if (asset.base64) {
-                await RNFS.writeFile(CUSTOM_AVATAR_PATH, asset.base64, 'base64');
-                await loadAssistantData();
-                ToastAndroid.show('Avatar updated!', ToastAndroid.SHORT);
-              }
-            } catch (e) {
-              ToastAndroid.show('Failed to update photo', ToastAndroid.SHORT);
-            }
-          }
-        }
-      ]
-    );
+  const saveName = async () => {
+    if (tempName.trim().length > 0) {
+      await RNFS.writeFile(CUSTOM_NAME_PATH, tempName, 'utf8');
+      setAssistantName(tempName);
+      setModalVisible(false);
+      ToastAndroid.show(`Name updated to ${tempName}`, ToastAndroid.SHORT);
+    }
   };
 
-  if (!avatarSource) {
-    return (
-      <View style={styles.dockContainer}>
-        <ActivityIndicator size="small" color="#ffffff" />
-      </View>
-    );
-  }
+  const handleUpdateAssistant = () => {
+    Alert.alert('Update Assistant', 'What to change?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Change Name', onPress: () => { setTempName(assistantName); setModalVisible(true); } },
+      {
+        text: 'Change Photo',
+        onPress: async () => {
+          const result = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true });
+          if (result.assets && result.assets[0].base64) {
+            await RNFS.writeFile(CUSTOM_AVATAR_PATH, result.assets[0].base64, 'base64');
+            loadAssistantData();
+          }
+        }
+      }
+    ]);
+  };
 
   return (
     <View style={styles.dockContainer}>
       <View style={styles.dockContent}>
-        <TouchableOpacity
-          style={styles.avatarContainer}
-          delayLongPress={5000}
-          onLongPress={handleUpdateAssistant}
-          activeOpacity={0.7}
-        >
-          <Image source={{ uri: avatarSource }} style={styles.avatar} resizeMode="cover" />
+        <TouchableOpacity delayLongPress={5000} onLongPress={handleUpdateAssistant}>
+          <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
           <View style={styles.onlineIndicator} />
         </TouchableOpacity>
         <View style={styles.messageContainer}>
-          <Text style={styles.assistantText} numberOfLines={2}>
-            {message}
-          </Text>
+          <Text style={styles.assistantText}>{message}</Text>
         </View>
       </View>
+
+      {/* MODAL INPUT NAMA */}
+      <Modal visible={isModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Assistant Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={tempName}
+              onChangeText={setTempName}
+              placeholder="Enter name..."
+              placeholderTextColor="#666"
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}>
+                <Text style={{ color: '#aaa' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveName}>
+                <Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -301,6 +271,34 @@ const styles = StyleSheet.create({
   onlineIndicator: {
     position: 'absolute', width: 12, height: 12, borderRadius: 6,
     backgroundColor: '#00ff00', bottom: 0, right: 0, borderWidth: 2, borderColor: '#141414',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: width * 0.8,
+    backgroundColor: '#222',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#444',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+  },
+  modalInput: {
+    backgroundColor: '#333',
+    color: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginBottom: 20,
   },
 });
 
