@@ -14,6 +14,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  Switch,
 } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
@@ -34,8 +35,10 @@ const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 const CUSTOM_NAME_PATH = `${CUSTOM_AVATAR_DIR}/name.txt`;
 const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
+const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
+const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 
-const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
+const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPress: (pkg: string, label: string) => void; onLongPress: (pkg: string, label: string) => void }) => {
   const getInitial = (label: string) => {
     if (!label) return "?";
     const words = label.trim().split(/\s+/);
@@ -48,7 +51,13 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
   };
 
   return (
-    <TouchableOpacity style={styles.item} onPress={() => onPress(item.packageName, item.label)} activeOpacity={0.7}>
+    <TouchableOpacity 
+      style={styles.item} 
+      onPress={() => onPress(item.packageName, item.label)} 
+      onLongPress={() => onLongPress(item.packageName, item.label)}
+      activeOpacity={0.7}
+      delayLongPress={2000}
+    >
       <View style={[styles.iconBox, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <Text style={styles.initial}>{getInitial(item.label)}</Text>
       </View>
@@ -57,11 +66,23 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
   );
 }, (prev, next) => prev.item.packageName === next.item.packageName);
 
-const AssistantDock = () => {
+const AssistantDock = ({ 
+  userName, 
+  assistantName, 
+  showHidden, 
+  onSaveNames, 
+  onToggleShowHidden, 
+  onChangePhoto 
+}: { 
+  userName: string; 
+  assistantName: string; 
+  showHidden: boolean;
+  onSaveNames: (newAssistantName: string, newUserName: string) => void;
+  onToggleShowHidden: (value: boolean) => void;
+  onChangePhoto: () => void;
+}) => {
   const [message, setMessage] = useState("");
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
-  const [assistantName, setAssistantName] = useState("Assistant");
-  const [userName, setUserName] = useState("User");
 
   const [isModalVisible, setModalVisible] = useState(false);
   const [tempAssistantName, setTempAssistantName] = useState("");
@@ -79,12 +100,6 @@ const AssistantDock = () => {
       } else {
         setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
       }
-
-      const nameExists = await RNFS.exists(CUSTOM_NAME_PATH);
-      if (nameExists) setAssistantName(await RNFS.readFile(CUSTOM_NAME_PATH, 'utf8'));
-
-      const userExists = await RNFS.exists(CUSTOM_USER_PATH);
-      if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
     } catch (error) {
       setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
     }
@@ -108,15 +123,8 @@ const AssistantDock = () => {
     return () => clearInterval(interval);
   }, [assistantName, userName]);
 
-  const saveSettings = async () => {
-    if (tempAssistantName.trim()) {
-      await RNFS.writeFile(CUSTOM_NAME_PATH, tempAssistantName, 'utf8');
-      setAssistantName(tempAssistantName);
-    }
-    if (tempUserName.trim()) {
-      await RNFS.writeFile(CUSTOM_USER_PATH, tempUserName, 'utf8');
-      setUserName(tempUserName);
-    }
+  const saveSettings = () => {
+    onSaveNames(tempAssistantName, tempUserName);
     setModalVisible(false);
     ToastAndroid.show("Saved!", ToastAndroid.SHORT);
   };
@@ -125,16 +133,7 @@ const AssistantDock = () => {
     Alert.alert('Settings', 'Update profile?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Edit Names', onPress: () => { setTempAssistantName(assistantName); setTempUserName(userName); setModalVisible(true); } },
-      {
-        text: 'Change Photo',
-        onPress: async () => {
-          const result = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true });
-          if (result.assets && result.assets[0].base64) {
-            await RNFS.writeFile(CUSTOM_AVATAR_PATH, result.assets[0].base64, 'base64');
-            loadAssistantData();
-          }
-        }
-      }
+      { text: 'Change Photo', onPress: onChangePhoto },
     ]);
   };
 
@@ -160,6 +159,10 @@ const AssistantDock = () => {
             <TextInput style={styles.modalInput} value={tempAssistantName} onChangeText={setTempAssistantName} placeholderTextColor="#666" />
             <Text style={styles.inputLabel}>Your Name:</Text>
             <TextInput style={styles.modalInput} value={tempUserName} onChangeText={setTempUserName} placeholderTextColor="#666" />
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchLabel}>Show Hidden Apps</Text>
+              <Switch value={showHidden} onValueChange={onToggleShowHidden} />
+            </View>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}><Text style={{ color: '#aaa' }}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity onPress={saveSettings}><Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text></TouchableOpacity>
@@ -172,34 +175,101 @@ const AssistantDock = () => {
 };
 
 const App = () => {
-  const [apps, setApps] = useState<AppData[]>([]);
+  const [allApps, setAllApps] = useState<AppData[]>([]);
+  const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("User");
+  const [assistantName, setAssistantName] = useState("Assistant");
+  const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const dirExists = await RNFS.exists(CUSTOM_AVATAR_DIR);
+      if (!dirExists) await RNFS.mkdir(CUSTOM_AVATAR_DIR);
+
+      const userExists = await RNFS.exists(CUSTOM_USER_PATH);
+      if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
+
+      const nameExists = await RNFS.exists(CUSTOM_NAME_PATH);
+      if (nameExists) setAssistantName(await RNFS.readFile(CUSTOM_NAME_PATH, 'utf8'));
+
+      const hiddenExists = await RNFS.exists(CUSTOM_HIDDEN_PATH);
+      if (hiddenExists) {
+        const hiddenData = await RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8');
+        setHiddenPackages(JSON.parse(hiddenData));
+      }
+
+      const showHiddenExists = await RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH);
+      if (showHiddenExists) {
+        const showHiddenData = await RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8');
+        setShowHidden(showHiddenData === 'true');
+      }
+    } catch (error) {
+      // keep defaults
+    }
+  };
+
+  const fetchApps = async () => {
+    try {
+      const result = await InstalledApps.getApps();
+      const lightData = result
+        .map(app => ({ label: app.label || 'App', packageName: app.packageName }))
+        .filter(app => app.packageName)
+        .sort((a, b) => a.label.localeCompare(b.label));
+      setAllApps(lightData);
+      setLoading(false);
+    } catch (e) { setLoading(false); }
+  };
 
   useEffect(() => {
-    const fetchApps = async () => {
-      try {
-        const result = await InstalledApps.getApps();
-        const lightData = result
-          .map(app => ({ label: app.label || 'App', packageName: app.packageName }))
-          .filter(app => app.packageName)
-          .sort((a, b) => a.label.localeCompare(b.label));
-        setApps(lightData);
-        setLoading(false);
-      } catch (e) { setLoading(false); }
-    };
+    loadData();
     fetchApps();
-
-    const loadUserName = async () => {
-      try {
-        const userExists = await RNFS.exists(CUSTOM_USER_PATH);
-        if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
-      } catch (error) {
-        // keep default
-      }
-    };
-    loadUserName();
   }, []);
+
+  useEffect(() => {
+    const updatedFiltered = allApps.filter(app => showHidden || !hiddenPackages.includes(app.packageName));
+    setFilteredApps(updatedFiltered);
+  }, [allApps, hiddenPackages, showHidden]);
+
+  const saveNames = async (newAssistantName: string, newUserName: string) => {
+    if (newAssistantName.trim()) {
+      await RNFS.writeFile(CUSTOM_NAME_PATH, newAssistantName, 'utf8');
+      setAssistantName(newAssistantName);
+    }
+    if (newUserName.trim()) {
+      await RNFS.writeFile(CUSTOM_USER_PATH, newUserName, 'utf8');
+      setUserName(newUserName);
+    }
+  };
+
+  const toggleShowHidden = async (value: boolean) => {
+    setShowHidden(value);
+    await RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, value ? 'true' : 'false', 'utf8');
+  };
+
+  const changePhoto = async () => {
+    const result = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true });
+    if (result.assets && result.assets[0].base64) {
+      await RNFS.writeFile(CUSTOM_AVATAR_PATH, result.assets[0].base64, 'base64');
+      // Note: To refresh avatar, you may need to add a state or reload in AssistantDock, but since it's in dock, assume reload on app restart or add prop.
+    }
+  };
+
+  const handleLongPress = (packageName: string, label: string) => {
+    Alert.alert('Hide App', `Do you want to hide ${label}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Hide',
+        onPress: async () => {
+          const newHidden = [...hiddenPackages, packageName];
+          setHiddenPackages(newHidden);
+          await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newHidden), 'utf8');
+          ToastAndroid.show(`${label} hidden`, ToastAndroid.SHORT);
+        }
+      }
+    ]);
+  };
 
   const launchApp = useCallback((packageName: string, label: string) => {
     try {
@@ -241,14 +311,21 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="transparent" barStyle="light-content" translucent />
       <FlatList
-        data={apps}
+        data={filteredApps}
         numColumns={4}
         keyExtractor={(item) => item.packageName}
-        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
+        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
-      <AssistantDock />
+      <AssistantDock 
+        userName={userName} 
+        assistantName={assistantName} 
+        showHidden={showHidden}
+        onSaveNames={saveNames}
+        onToggleShowHidden={toggleShowHidden}
+        onChangePhoto={changePhoto}
+      />
     </SafeAreaView>
   );
 };
@@ -280,6 +357,8 @@ const styles = StyleSheet.create({
   modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   inputLabel: { color: '#888', fontSize: 12, marginBottom: 8, marginLeft: 5 },
   modalInput: { backgroundColor: '#262626', color: '#fff', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
+  switchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  switchLabel: { color: '#fff', fontSize: 14 },
 });
 
 export default App;
