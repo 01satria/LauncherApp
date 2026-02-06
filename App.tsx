@@ -36,13 +36,24 @@ const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/41
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 const CUSTOM_NAME_PATH = `${CUSTOM_AVATAR_DIR}/name.txt`;
-const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`; // Path Nama User
+const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
+  const getInitial = (label: string) => {
+    if (!label) return "?";
+    const words = label.trim().split(/\s+/);
+
+    if (words.length > 1) {
+      return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+    }
+
+    return label.charAt(0).toUpperCase();
+  };
+
   return (
     <TouchableOpacity style={styles.item} onPress={() => onPress(item.packageName, item.label)} activeOpacity={0.7}>
-      <View style={[styles.iconBox, { backgroundColor: '#000000' }]}>
-        <Text style={styles.initial}>{item.label ? item.label.charAt(0).toUpperCase() : "?"}</Text>
+      <View style={[styles.iconBox, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+        <Text style={styles.initial}>{getInitial(item.label)}</Text>
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </TouchableOpacity>
@@ -53,9 +64,9 @@ const AssistantDock = () => {
   const [message, setMessage] = useState("");
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
   const [assistantName, setAssistantName] = useState("Assistant");
-  const [userName, setUserName] = useState("Satria"); // State Nama User
+  const [userName, setUserName] = useState("User");
   const [notifications, setNotifications] = useState<string[]>([]);
-  
+
   const [isModalVisible, setModalVisible] = useState(false);
   const [tempAssistantName, setTempAssistantName] = useState("");
   const [tempUserName, setTempUserName] = useState("");
@@ -102,14 +113,14 @@ const AssistantDock = () => {
     const updateMessage = () => {
       if (notifications.length > 0) {
         const uniqueApps = [...new Set(notifications)];
-        setMessage(`${userName}, I'm ${assistantName}. Someone's texting you on ${uniqueApps[0]}! 💌`);
+        setMessage(`${userName}, someone's texting you on ${uniqueApps[0]}! 💌`);
       } else {
         const hour = new Date().getHours();
         if (hour >= 22 || hour < 4) setMessage(`Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`);
         else if (hour >= 4 && hour < 11) setMessage(`Good morning, ${userName}! ☀️ ${assistantName} is here.`);
-        else if (hour >= 11 && hour < 15) setMessage(`Good afternoon, ${userName} 🌤️ I'm ${assistantName}. Don't forget to eat lunch!`);
+        else if (hour >= 11 && hour < 15) setMessage(`Good afternoon, ${userName} 🌤️ Don't forget lunch!`);
         else if (hour >= 15 && hour < 18) setMessage(`Good afternoon, ${userName} 🌇 ${assistantName} is online.`);
-        else setMessage(`Good night, ${userName} 🌙 Time to recharge with ${assistantName}.`);
+        else setMessage(`Good night, ${userName} 🌙 Recharge with ${assistantName}.`);
       }
     };
     updateMessage();
@@ -127,7 +138,7 @@ const AssistantDock = () => {
       setUserName(tempUserName);
     }
     setModalVisible(false);
-    ToastAndroid.show("Settings Saved!", ToastAndroid.SHORT);
+    ToastAndroid.show("Saved!", ToastAndroid.SHORT);
   };
 
   const handleUpdateAssistant = () => {
@@ -150,9 +161,11 @@ const AssistantDock = () => {
   return (
     <View style={styles.dockContainer}>
       <View style={styles.dockContent}>
-        <TouchableOpacity delayLongPress={5000} onLongPress={handleUpdateAssistant}>
-          <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
-          <View style={styles.onlineIndicator} />
+        <TouchableOpacity delayLongPress={5000} onLongPress={handleUpdateAssistant} activeOpacity={0.8}>
+          <View style={styles.avatarContainer}>
+            <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
+            <View style={styles.onlineIndicator} />
+          </View>
         </TouchableOpacity>
         <View style={styles.messageContainer}>
           <Text style={styles.assistantText}>{message}</Text>
@@ -163,20 +176,13 @@ const AssistantDock = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Settings</Text>
-            
             <Text style={styles.inputLabel}>Assistant Name:</Text>
             <TextInput style={styles.modalInput} value={tempAssistantName} onChangeText={setTempAssistantName} placeholderTextColor="#666" />
-            
             <Text style={styles.inputLabel}>Your Name:</Text>
             <TextInput style={styles.modalInput} value={tempUserName} onChangeText={setTempUserName} placeholderTextColor="#666" />
-
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}>
-                <Text style={{ color: '#aaa' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={saveSettings}>
-                <Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save All</Text>
-              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}><Text style={{ color: '#aaa' }}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity onPress={saveSettings}><Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -188,6 +194,7 @@ const AssistantDock = () => {
 const App = () => {
   const [apps, setApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("User");
 
   useEffect(() => {
     const fetchApps = async () => {
@@ -202,18 +209,40 @@ const App = () => {
       } catch (e) { setLoading(false); }
     };
     fetchApps();
+
+    const loadUserName = async () => {
+      try {
+        const userExists = await RNFS.exists(CUSTOM_USER_PATH);
+        if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
+      } catch (error) {
+        // keep default
+      }
+    };
+    loadUserName();
   }, []);
 
   const launchApp = useCallback((packageName: string, label: string) => {
     try {
-      if (label.toLowerCase().includes('brave')) {
-        ToastAndroid.show("Focus time! 🌐😘", ToastAndroid.SHORT);
+      const appName = label.toLowerCase();
+
+      // Logika Toast Pesan Khusus
+      if (appName.includes('brave')) {
+        ToastAndroid.show(`Browsing time? Don't get lost in your tabs, ${userName}! 🌐😘`, ToastAndroid.LONG);
+      } else if (appName.includes('whatsapp') || appName.includes('telegram') || appName.includes('telegram x') || appName.includes('messenger') || appName.includes('wa business')) {
+        ToastAndroid.show(`Checking messages, ${userName}? Say hi for me! 💌`, ToastAndroid.SHORT);
+      } else if (appName.includes('youtube')) {
+        ToastAndroid.show(`Enjoy your videos, ${userName}! 🍿`, ToastAndroid.SHORT);
       } else {
-        ToastAndroid.show(`Opening ${label}...`, ToastAndroid.SHORT);
+        // Pesan default untuk aplikasi lain
+        ToastAndroid.show(`Opening ${label} for you 😉`, ToastAndroid.SHORT);
       }
+
+      // Jalankan Aplikasinya
       RNLauncherKitHelper.launchApplication(packageName);
-    } catch (err) { ToastAndroid.show("Error", ToastAndroid.SHORT); }
-  }, []);
+    } catch (err) {
+      ToastAndroid.show("Failed to launch app", ToastAndroid.SHORT);
+    }
+  }, [userName]); // Tambahkan userName sebagai dependency agar namanya terupdate
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#fff" /></View>;
 
@@ -226,6 +255,7 @@ const App = () => {
         keyExtractor={(item) => item.packageName}
         renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} />}
         contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
       />
       <AssistantDock />
     </SafeAreaView>
@@ -233,25 +263,32 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
-  list: { paddingTop: 50, paddingBottom: 120 },
-  item: { width: ITEM_WIDTH, height: ITEM_HEIGHT, alignItems: 'center', marginBottom: 10 },
-  iconBox: { width: 58, height: 58, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 6, borderWidth: 1, borderColor: '#333' },
-  initial: { color: 'white', fontSize: 24, fontWeight: '700' },
-  label: { color: '#eee', fontSize: 11, textAlign: 'center' },
-  dockContainer: { position: 'absolute', bottom: 20, left: 20, right: 20, height: 70, backgroundColor: 'rgba(20, 20, 20, 0.9)', borderRadius: 35, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', elevation: 10 },
-  dockContent: { flexDirection: 'row', alignItems: 'center', maxWidth: '100%' },
-  avatarContainer: { position: 'relative', marginRight: 12 },
-  avatar: { width: 50, height: 50, borderRadius: 25 },
-  messageContainer: { justifyContent: 'center', maxWidth: width * 0.6 },
-  assistantText: { color: '#ffffff', fontSize: 13, fontWeight: '500' },
-  onlineIndicator: { position: 'absolute', width: 12, height: 12, borderRadius: 6, backgroundColor: '#00ff00', bottom: 0, right: 0, borderWidth: 2, borderColor: '#141414' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: width * 0.8, backgroundColor: '#222', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#444' },
-  modalTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  inputLabel: { color: '#aaa', fontSize: 12, marginBottom: 5, marginLeft: 5 },
-  modalInput: { backgroundColor: '#333', color: '#fff', borderRadius: 10, paddingHorizontal: 15, marginBottom: 15 },
+  container: { flex: 1, backgroundColor: 'transparent' }, // Wallpaper Terlihat
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  list: { paddingTop: 60, paddingBottom: 120 },
+  item: { width: ITEM_WIDTH, height: ITEM_HEIGHT, alignItems: 'center', marginBottom: 15 },
+  iconBox: { width: 60, height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  initial: { color: 'white', fontSize: 20, fontWeight: '700' },
+  label: { color: '#fff', fontSize: 11, textAlign: 'center', textShadowColor: 'rgba(0, 0, 0, 0.75)', textShadowOffset: { width: -1, height: 1 }, textShadowRadius: 10 },
+
+  dockContainer: {
+    position: 'absolute', bottom: 30, left: 20, right: 20, height: 80,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', borderRadius: 40,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)'
+  },
+  dockContent: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+  avatarContainer: { position: 'relative', marginRight: 20 }, // Jarak Antara Avatar & Teks
+  avatar: { width: 55, height: 55, borderRadius: 27.5, backgroundColor: '#333' },
+  messageContainer: { flex: 1, justifyContent: 'center' },
+  assistantText: { color: '#ffffff', fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  onlineIndicator: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: '#00ff00', bottom: 2, right: 2, borderWidth: 2, borderColor: '#000' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: width * 0.85, backgroundColor: '#1a1a1a', borderRadius: 25, padding: 25, borderWidth: 1, borderColor: '#333' },
+  modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  inputLabel: { color: '#888', fontSize: 12, marginBottom: 8, marginLeft: 5 },
+  modalInput: { backgroundColor: '#262626', color: '#fff', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
 });
 
 export default App;
