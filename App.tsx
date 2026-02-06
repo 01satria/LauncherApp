@@ -62,11 +62,11 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
 }, (prev, next) => prev.item.packageName === next.item.packageName);
 
 const AssistantDock = () => {
-  const [message, setMessage] = useState("");
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
   const [assistantName, setAssistantName] = useState("Assistant");
   const [userName, setUserName] = useState("User");
   const [notifications, setNotifications] = useState<string[]>([]);
+  const [currentHour, setCurrentHour] = useState(new Date().getHours());
 
   const [isModalVisible, setModalVisible] = useState(false);
   const [tempAssistantName, setTempAssistantName] = useState("");
@@ -136,32 +136,45 @@ const AssistantDock = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. LOGIKA UPDATE PESAN (Dipicu setiap kali notifications berubah)
+  // Timeout to clear notifications after 10 seconds
   useEffect(() => {
-    const hour = new Date().getHours();
-
     if (notifications.length > 0) {
-      // CEK APAKAH ADA WA
+      const timer = setTimeout(() => setNotifications([]), 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [notifications]);
+
+  // Update current hour every minute to refresh time-based messages if needed
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newHour = new Date().getHours();
+      if (newHour !== currentHour) {
+        setCurrentHour(newHour);
+      }
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [currentHour]);
+
+  const getMessage = () => {
+    if (notifications.length > 0) {
       const hasWA = notifications.some(n =>
         n.includes('whatsapp') || n.includes('wa business')
       );
 
       if (hasWA) {
-        setMessage(`${userName}, someone's texting you on WhatsApp! 💌`);
+        return `${userName}, someone's texting you on WhatsApp! 💌`;
       } else {
-        setMessage(`Hey ${userName}, you've got updates from ${notifications[0]}! ✨`);
+        return `Hey ${userName}, you've got updates from ${notifications[0]}! ✨`;
       }
-      // Hapus notif setelah 10 detik
-      setTimeout(() => setNotifications([]), 10000);
     } else {
       // SALAM WAKTU NORMAL
-      if (hour >= 22 || hour < 4) setMessage(`Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`);
-      else if (hour >= 4 && hour < 11) setMessage(`Good morning, ${userName}! ☀️ ${assistantName} is here.`);
-      else if (hour >= 11 && hour < 15) setMessage(`Good afternoon, ${userName} 🌤️ Don't forget lunch!`);
-      else if (hour >= 15 && hour < 18) setMessage(`Good afternoon, ${userName} 🌇 ${assistantName} is online.`);
-      else setMessage(`Good night, ${userName} 🌙 Recharge with ${assistantName}.`);
+      if (currentHour >= 22 || currentHour < 4) return `Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`;
+      else if (currentHour >= 4 && currentHour < 11) return `Good morning, ${userName}! ☀️ ${assistantName} is here.`;
+      else if (currentHour >= 11 && currentHour < 15) return `Good afternoon, ${userName} 🌤️ Don't forget lunch!`;
+      else if (currentHour >= 15 && currentHour < 18) return `Good afternoon, ${userName} 🌇 ${assistantName} is online.`;
+      else return `Good night, ${userName} 🌙 Recharge with ${assistantName}.`;
     }
-  }, [notifications, assistantName, userName]);
+  };
 
   const saveSettings = async () => {
     if (tempAssistantName.trim()) {
@@ -203,8 +216,7 @@ const AssistantDock = () => {
           </View>
         </TouchableOpacity>
         <View style={styles.messageContainer}>
-          {/* Tambahkan key={message} agar teks ter-render ulang secara paksa jika berubah */}
-          <Text key={message} style={styles.assistantText}>{message}</Text>
+          <Text style={styles.assistantText}>{getMessage()}</Text>
         </View>
       </View>
 
