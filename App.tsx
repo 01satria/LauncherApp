@@ -124,11 +124,7 @@ const AssistantDock = ({
   };
 
   const handleUpdateAssistant = () => {
-    Alert.alert('Settings', 'Update profile?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Edit Names', onPress: () => { setTempAssistantName(assistantName); setTempUserName(userName); setModalVisible(true); } },
-      { text: 'Change Photo', onPress: onChangePhoto },
-    ]);
+    setTempAssistantName(assistantName); setTempUserName(userName); setModalVisible(true);
   };
 
   return (
@@ -158,6 +154,7 @@ const AssistantDock = ({
               <Switch value={showHidden} onValueChange={onToggleShowHidden} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
+              <TouchableOpacity onPress={onChangePhoto} style={{ marginRight: 40 }}><Text style={{ color: '#aaa' }}>Change Photo</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}><Text style={{ color: '#aaa' }}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity onPress={saveSettings}><Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text></TouchableOpacity>
             </View>
