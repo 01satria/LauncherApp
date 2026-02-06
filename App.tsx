@@ -113,19 +113,19 @@ const AssistantDock = ({
     const updateMessage = () => {
       const hour = new Date().getHours();
       if (hour >= 22 || hour < 4) {
-        setMessage(`Hey ${userName}, it's getting late... 😴 Don't stay up too much, get some good rest so you're fresh tomorrow. ${assistantName} cares about you, sleep tight!`);
+        setMessage(`It's late, ${userName}. 😴 Go to sleep now so you're fresh tomorrow. I'll be here when you wake up!`);
       }
       else if (hour >= 4 && hour < 11) {
-        setMessage(`Good morning, ${userName}! ☀️ Hope your day is full of happiness. ${assistantName} is ready to accompany you all day!`);
+        setMessage(`Morning, ${userName}! ☀️ Hope you have a great day. I'm ready to accompany you!`);
       }
       else if (hour >= 11 && hour < 15) {
-        setMessage(`Afternoon ${userName}! 🌤️ Don't forget to have lunch, keep your energy up. You're important to ${assistantName} ❤️`);
+        setMessage(`Lunch time, ${userName}! 🌤️ Eat something good and keep your energy up. You matter to me! ❤️`);
       }
       else if (hour >= 15 && hour < 18) {
-        setMessage(`Afternoon ${userName}! 🌇 Hope your day has been smooth so far. If you're tired, take a short break. ${assistantName} is always here for you.`);
+        setMessage(`Hey ${userName}, take a break if you're tired. 🌇 I'm always here for you.`);
       }
       else {
-        setMessage(`Evening ${userName}! 🌙 You've been great today. Relax, recharge, and get a good night's sleep. ${assistantName} is proud of you!`);
+        setMessage(`Good night, ${userName}! 🌙 You did great today. I'm proud of you, now go rest.`);
       }
     };
     updateMessage();
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   avatarContainer: { position: 'relative', marginRight: 20 }, // Jarak Antara Avatar & Teks
   avatar: { width: 55, height: 55, borderRadius: 27.5, backgroundColor: '#333' },
   messageContainer: { flex: 1, justifyContent: 'center' },
-  assistantText: { color: '#ffffff', fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  assistantText: { color: '#ffffff', fontSize: 12, fontWeight: '500', lineHeight: 18 },
   onlineIndicator: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: '#00ff00', bottom: 2, right: 2, borderWidth: 2, borderColor: '#000' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
