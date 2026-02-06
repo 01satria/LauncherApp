@@ -1,79 +1,111 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Satria Launcher 🚀
 
-# Getting Started
+**Satria Launcher** is a minimalist, high-performance Android launcher built with **React Native**.  
+It features a unique **AI Assistant Dock** that provides personalized greetings, advanced privacy through app hiding, and a clean, icon-free UI focused on typography and speed.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+---
 
-## Step 1: Start the Metro Server
+## 🌟 Key Features
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+- **Minimalist Interface** — Text-based initials instead of heavy icons for a clean, distraction-free aesthetic
+- **Dynamic Assistant Dock** — Smart bottom bar with time-based greetings (Morning, Lunch, Afternoon, Evening, Night)
+- **Privacy Control** — Long-press any app to hide it. Toggle visibility via secure settings
+- **Personalized Experience** — Custom names for both user and assistant
+- **Contextual Toasts** — Witty, fun reactions when opening specific apps (WhatsApp, Brave, YouTube, Camera, etc.)
+- **Avatar Customization** — Change the assistant’s profile picture from your gallery
+- **Persistent Storage** — All settings saved locally using `react-native-fs`
 
-To start Metro, run the following command from the _root_ of your React Native project:
+---
+
+## 🛠️ Customization
+
+### 1. Changing Names & Visibility
+- **Long-press the Assistant Avatar** (bottom dock) for 1 second
+- Settings modal appears with options to:
+  - Edit **Assistant Name**
+  - Edit **Your Name** (used in greetings)
+  - Toggle **Show Hidden Apps**
+
+### 2. Changing Assistant Photo
+- Long-press avatar → Settings Modal
+- Tap **"Change Photo"**
+- Pick image from gallery → automatically saved as new avatar
+
+### 3. Hiding / Unhiding Apps
+- **Hide**: Long-press any app name → confirm
+- **Unhide**: Enable "Show Hidden Apps" in settings → long-press hidden app → **Unhide**
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- React Native development environment
+- Physical Android device (strongly recommended)
+
+### Installation
 
 ```bash
-# using npm
-npm start
+# 1. Install dependencies
+npm install
+# or
+yarn install
 
-# OR using Yarn
-yarn start
+# 2. Start Metro
+npx react-native start
+
+# 3. Run on Android
+npx react-native run-android
+
 ```
+---
 
-## Step 2: Start your Application
+## 📦 Technical Architecture
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
+The project utilizes several key libraries and optimizations to interact with the Android System:
 
-### For Android
+* **`react-native-launcher-kit`** → Fetch installed apps & launch applications.
+* **`react-native-fs`** → Persistent storage for settings, names, and images.
+* **`react-native-image-picker`** → Simple interface to select a custom avatar.
+* **`React.memo` + `useCallback`** → Optimized rendering to ensure smooth **60fps** app list scrolling.
 
-```bash
-# using npm
-npm run android
+---
 
-# OR using Yarn
-yarn android
-```
+## 📝 Configuration Files
 
-### For iOS
+All local data is stored in the following directory:  
+`${DocumentDirectoryPath}/satrialauncher/`
 
-```bash
-# using npm
-npm run ios
+| File | Purpose |
+| :--- | :--- |
+| `name.txt` | Assistant's custom name |
+| `user.txt` | User's name |
+| `hidden.json` | Array of hidden package names |
+| `asist.jpg` | Custom avatar image (Base64) |
+| `show_hidden.txt` | Boolean flag (`true`/`false`) for hidden apps visibility |
 
-# OR using Yarn
-yarn ios
-```
+---
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+## 🚀 Getting Started
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+1.  **Install Dependencies**: `npm install`
+2.  **Start Metro**: `npx react-native start`
+3.  **Run on Android**: `npx react-native run-android`
 
-## Step 3: Modifying your App
+---
 
-Now that you have successfully run the app, let's modify it.
+## 🤝 Contributing
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+Feel free to fork this project and make it your own!  
+Pull requests for:
+* New features
+* Better witty toasts
+* Performance improvements
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+...are very welcome!
 
-## Congratulations! :tada:
+---
 
-You've successfully run and modified your React Native App. :partying_face:
+Built with ❤️ using **React Native**
 
-### Now what?
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
