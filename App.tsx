@@ -51,9 +51,9 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPr
   };
 
   return (
-    <TouchableOpacity 
-      style={styles.item} 
-      onPress={() => onPress(item.packageName, item.label)} 
+    <TouchableOpacity
+      style={styles.item}
+      onPress={() => onPress(item.packageName, item.label)}
       onLongPress={() => onLongPress(item.packageName, item.label)}
       activeOpacity={0.7}
       delayLongPress={2000}
@@ -66,16 +66,16 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPr
   );
 }, (prev, next) => prev.item.packageName === next.item.packageName);
 
-const AssistantDock = ({ 
-  userName, 
-  assistantName, 
-  showHidden, 
-  onSaveNames, 
-  onToggleShowHidden, 
-  onChangePhoto 
-}: { 
-  userName: string; 
-  assistantName: string; 
+const AssistantDock = ({
+  userName,
+  assistantName,
+  showHidden,
+  onSaveNames,
+  onToggleShowHidden,
+  onChangePhoto
+}: {
+  userName: string;
+  assistantName: string;
   showHidden: boolean;
   onSaveNames: (newAssistantName: string, newUserName: string) => void;
   onToggleShowHidden: (value: boolean) => void;
@@ -112,11 +112,21 @@ const AssistantDock = ({
   useEffect(() => {
     const updateMessage = () => {
       const hour = new Date().getHours();
-      if (hour >= 22 || hour < 4) setMessage(`Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`);
-      else if (hour >= 4 && hour < 11) setMessage(`Good morning, ${userName}! ☀️ ${assistantName} is here.`);
-      else if (hour >= 11 && hour < 15) setMessage(`Good afternoon, ${userName} 🌤️ Don't forget lunch!`);
-      else if (hour >= 15 && hour < 18) setMessage(`Good afternoon, ${userName} 🌇 ${assistantName} is online.`);
-      else setMessage(`Good night, ${userName} 🌙 Recharge with ${assistantName}.`);
+      if (hour >= 22 || hour < 4) {
+        setMessage(`Hey ${userName}, it's getting late... 😴 Don't stay up too much, get some good rest so you're fresh tomorrow. ${assistantName} cares about you, sleep tight!`);
+      }
+      else if (hour >= 4 && hour < 11) {
+        setMessage(`Good morning, ${userName}! ☀️ Hope your day is full of happiness. ${assistantName} is ready to accompany you all day!`);
+      }
+      else if (hour >= 11 && hour < 15) {
+        setMessage(`Afternoon ${userName}! 🌤️ Don't forget to have lunch, keep your energy up. You're important to ${assistantName} ❤️`);
+      }
+      else if (hour >= 15 && hour < 18) {
+        setMessage(`Afternoon ${userName}! 🌇 Hope your day has been smooth so far. If you're tired, take a short break. ${assistantName} is always here for you.`);
+      }
+      else {
+        setMessage(`Evening ${userName}! 🌙 You've been great today. Relax, recharge, and get a good night's sleep. ${assistantName} is proud of you!`);
+      }
     };
     updateMessage();
     const interval = setInterval(updateMessage, 60000);
@@ -318,9 +328,9 @@ const App = () => {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
-      <AssistantDock 
-        userName={userName} 
-        assistantName={assistantName} 
+      <AssistantDock
+        userName={userName}
+        assistantName={assistantName}
         showHidden={showHidden}
         onSaveNames={saveNames}
         onToggleShowHidden={toggleShowHidden}
