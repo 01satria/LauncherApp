@@ -26,20 +26,21 @@ interface AppData {
 }
 
 const { width } = Dimensions.get('window');
-const ITEM_WIDTH = width / 4; 
+const ITEM_WIDTH = width / 4;
 const ITEM_HEIGHT = 100;
 
 // URL Default Foto Asisten
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 // Path custom untuk simpan avatar
-const CUSTOM_AVATAR_DIR = `${RNFS.ExternalStorageDirectoryPath}/Android/media/satrialauncher`;
+// Ganti ini
+const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`; 
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 
 const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: string, label: string) => void }) => {
   return (
-    <TouchableOpacity 
-      style={styles.item} 
+    <TouchableOpacity
+      style={styles.item}
       onPress={() => onPress(item.packageName, item.label)}
       activeOpacity={0.7}
     >
@@ -54,10 +55,10 @@ const MemoizedItem = memo(({ item, onPress }: { item: AppData; onPress: (pkg: st
 // KOMPONEN DOCK ASISTEN
 const AssistantDock = () => {
   const [message, setMessage] = useState("");
-  const [avatarSource, setAvatarSource] = useState<string | null>(null); 
-  
+  const [avatarSource, setAvatarSource] = useState<string | null>(null);
+
   // Simulasi Notifikasi
-  const [notifications, setNotifications] = useState<string[]>([]); 
+  const [notifications, setNotifications] = useState<string[]>([]);
 
   useEffect(() => {
     const updateMessage = () => {
@@ -161,62 +162,38 @@ const AssistantDock = () => {
             try {
               const result = await ImagePicker.launchImageLibrary({
                 mediaType: 'photo',
-                includeBase64: false,
+                includeBase64: true, // AKTIFKAN INI
                 maxHeight: 200,
                 maxWidth: 200,
               });
 
-              if (result.didCancel) {
-                console.log('User cancelled image picker');
-                return;
-              }
-              if (result.errorCode) {
-                console.error('ImagePicker Error: ', result.errorMessage);
-                ToastAndroid.show('Gagal memilih foto.', ToastAndroid.SHORT);
-                return;
-              }
-              if (!result.assets || result.assets.length === 0) {
-                console.log('No image selected');
-                return;
-              }
+              if (result.didCancel || !result.assets) return;
 
-              const selectedUri = result.assets[0].uri;
-              if (!selectedUri) {
-                console.log('No URI for selected image');
-                return;
-              }
+              const asset = result.assets[0];
 
-              console.log('Selected image URI:', selectedUri);
-
-              // Buat folder jika belum ada (mkdir aman jika sudah ada)
+              // Pastikan folder tujuan ada
               const dirExists = await RNFS.exists(CUSTOM_AVATAR_DIR);
               if (!dirExists) {
                 await RNFS.mkdir(CUSTOM_AVATAR_DIR);
-                console.log('Created directory:', CUSTOM_AVATAR_DIR);
               }
 
-              // Periksa apakah file sudah ada, jika ya hapus untuk replace
-              const fileExists = await RNFS.exists(CUSTOM_AVATAR_PATH);
-              if (fileExists) {
-                await RNFS.unlink(CUSTOM_AVATAR_PATH);
-                console.log('Existing file deleted');
-              }
-
-              // Copy file baru
-              await RNFS.copyFile(selectedUri, CUSTOM_AVATAR_PATH);
-              console.log('File copied to:', CUSTOM_AVATAR_PATH);
-
-              // Verifikasi setelah copy
-              const copiedExists = await RNFS.exists(CUSTOM_AVATAR_PATH);
-              if (copiedExists) {
-                ToastAndroid.show('Foto asisten berhasil diubah!', ToastAndroid.SHORT);
-                await loadAvatar();
+              // Gunakan base64 untuk menulis file baru jika copyFile gagal
+              if (asset.base64) {
+                await RNFS.writeFile(CUSTOM_AVATAR_PATH, asset.base64, 'base64');
+              } else if (asset.uri) {
+                // Fallback jika base64 tidak ada
+                await RNFS.copyFile(asset.uri, CUSTOM_AVATAR_PATH);
               } else {
-                throw new Error('Failed to verify copied file');
+                throw new Error('No valid image source available');
               }
+
+              ToastAndroid.show('Foto berhasil diubah!', ToastAndroid.SHORT);
+              await loadAvatar();
+
             } catch (error) {
-              console.error('Error changing avatar:', error);
-              ToastAndroid.show('!' + error, ToastAndroid.LONG);
+              console.error(error);
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              ToastAndroid.show('Gagal menyimpan foto: ' + errorMessage, ToastAndroid.LONG);
             }
           },
         },
@@ -241,9 +218,9 @@ const AssistantDock = () => {
         onLongPress={handleChangeAvatar}
         activeOpacity={0.7}
       >
-        <Image 
-          source={{ uri: avatarSource }} 
-          style={styles.avatar} 
+        <Image
+          source={{ uri: avatarSource }}
+          style={styles.avatar}
           resizeMode="cover"
           onError={(e) => console.error('Image load error:', e.nativeEvent.error)}
         />
@@ -266,7 +243,7 @@ const App = () => {
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const initLoad = setTimeout(async () => {
       try {
         const result = await InstalledApps.getApps();
@@ -277,7 +254,7 @@ const App = () => {
           }))
           .filter(app => app.packageName)
           .sort((a, b) => a.label.localeCompare(b.label));
-        
+
         if (isMounted) {
           setApps(lightData);
           setLoading(false);
@@ -287,8 +264,8 @@ const App = () => {
       }
     }, 100);
 
-    return () => { 
-      isMounted = false; 
+    return () => {
+      isMounted = false;
       clearTimeout(initLoad);
     };
   }, []);
@@ -319,7 +296,7 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
-      
+
       <FlatList
         data={apps}
         numColumns={4}
@@ -344,20 +321,20 @@ const App = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' },
-  
-  list: { 
-    paddingTop: 50, 
-    paddingBottom: 120,
-  }, 
 
-  item: { 
-    width: ITEM_WIDTH, 
+  list: {
+    paddingTop: 50,
+    paddingBottom: 120,
+  },
+
+  item: {
+    width: ITEM_WIDTH,
     height: ITEM_HEIGHT,
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'flex-start',
     marginBottom: 10,
   },
-  
+
   iconBox: {
     width: 58,
     height: 58,
@@ -366,7 +343,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
     borderWidth: 1,
-    borderColor: '#333333', 
+    borderColor: '#333333',
     backgroundColor: '#000000',
     elevation: 2,
   },
