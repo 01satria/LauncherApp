@@ -206,6 +206,12 @@ const AssistantDock = () => {
               <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}><Text style={{ color: '#aaa' }}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity onPress={saveSettings}><Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text></TouchableOpacity>
             </View>
+            <TouchableOpacity
+              style={styles.permissionButton}
+              onPress={() => RNNotificationListener.requestPermission()}
+            >
+              <Text style={{ color: '#007AFF', fontWeight: 'bold' }}>Grant Notification Access</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -312,6 +318,7 @@ const styles = StyleSheet.create({
   modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   inputLabel: { color: '#888', fontSize: 12, marginBottom: 8, marginLeft: 5 },
   modalInput: { backgroundColor: '#262626', color: '#fff', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
+  permissionButton: { marginTop: 15, paddingVertical: 12, paddingHorizontal: 15, borderRadius: 12, borderWidth: 1, borderColor: '#007AFF', alignItems: 'center' },
 });
 
 export default App;
