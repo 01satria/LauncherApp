@@ -51,9 +51,9 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPr
   };
 
   return (
-    <TouchableOpacity
-      style={styles.item}
-      onPress={() => onPress(item.packageName, item.label)}
+    <TouchableOpacity 
+      style={styles.item} 
+      onPress={() => onPress(item.packageName, item.label)} 
       onLongPress={() => onLongPress(item.packageName, item.label)}
       activeOpacity={0.7}
       delayLongPress={2000}
@@ -66,72 +66,54 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPr
   );
 }, (prev, next) => prev.item.packageName === next.item.packageName);
 
-const AssistantDock = ({
-  userName,
-  assistantName,
-  showHidden,
-  onSaveNames,
-  onToggleShowHidden,
-  onChangePhoto
-}: {
-  userName: string;
-  assistantName: string;
+const AssistantDock = ({ 
+  userName, 
+  assistantName, 
+  showHidden, 
+  onSaveNames, 
+  onToggleShowHidden, 
+  onChangePhoto,
+  avatarSource
+}: { 
+  userName: string; 
+  assistantName: string; 
   showHidden: boolean;
   onSaveNames: (newAssistantName: string, newUserName: string) => void;
   onToggleShowHidden: (value: boolean) => void;
   onChangePhoto: () => void;
+  avatarSource: string | null;
 }) => {
   const [message, setMessage] = useState("");
-  const [avatarSource, setAvatarSource] = useState<string | null>(null);
 
   const [isModalVisible, setModalVisible] = useState(false);
   const [tempAssistantName, setTempAssistantName] = useState("");
   const [tempUserName, setTempUserName] = useState("");
 
-  const loadAssistantData = async () => {
-    try {
-      const dirExists = await RNFS.exists(CUSTOM_AVATAR_DIR);
-      if (!dirExists) await RNFS.mkdir(CUSTOM_AVATAR_DIR);
-
-      const photoExists = await RNFS.exists(CUSTOM_AVATAR_PATH);
-      if (photoExists) {
-        const fileData = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
-        setAvatarSource(`data:image/jpeg;base64,${fileData}`);
-      } else {
-        setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
-      }
-    } catch (error) {
-      setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
-    }
-  };
-
-  useEffect(() => {
-    loadAssistantData();
-  }, []);
-
   useEffect(() => {
     const updateMessage = () => {
       const hour = new Date().getHours();
+
       if (hour >= 22 || hour < 4) {
-        setMessage(`It's late, ${userName}. 😴 Go to sleep now so you're fresh tomorrow. I'll be here when you wake up!`);
-      }
+        setMessage(`Hey ${userName}, it's getting late... 😴 Don't stay up too much, get some good rest so you're fresh tomorrow. ${assistantName} cares about you, sleep tight!`);
+      } 
       else if (hour >= 4 && hour < 11) {
-        setMessage(`Morning, ${userName}! ☀️ Hope you have a great day. I'm ready to accompany you!`);
-      }
+        setMessage(`Good morning, ${userName}! ☀️ Hope your day is full of happiness. ${assistantName} is ready to accompany you all day!`);
+      } 
       else if (hour >= 11 && hour < 15) {
-        setMessage(`Lunch time, ${userName}! 🌤️ Eat something good and keep your energy up. You matter to me! ❤️`);
-      }
+        setMessage(`Afternoon ${userName}! 🌤️ Don't forget to have lunch, keep your energy up. You're important to ${assistantName} ❤️`);
+      } 
       else if (hour >= 15 && hour < 18) {
-        setMessage(`Hey ${userName}, take a break if you're tired. 🌇 I'm always here for you.`);
-      }
+        setMessage(`Afternoon ${userName}! 🌇 Hope your day has been smooth so far. If you're tired, take a short break. ${assistantName} is always here for you.`);
+      } 
       else {
-        setMessage(`Good night, ${userName}! 🌙 You did great today. I'm proud of you, now go rest.`);
+        setMessage(`Evening ${userName}! 🌙 You've been great today. Relax, recharge, and get a good night's sleep. ${assistantName} is proud of you!`);
       }
     };
+
     updateMessage();
-    const interval = setInterval(updateMessage, 60000);
+    const interval = setInterval(updateMessage, 60000); // update tiap menit
     return () => clearInterval(interval);
-  }, [assistantName, userName]);
+  }, [userName, assistantName]);
 
   const saveSettings = () => {
     onSaveNames(tempAssistantName, tempUserName);
@@ -192,6 +174,7 @@ const App = () => {
   const [assistantName, setAssistantName] = useState("Assistant");
   const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
+  const [avatarSource, setAvatarSource] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -220,6 +203,20 @@ const App = () => {
     }
   };
 
+  const loadAvatar = async () => {
+    try {
+      const photoExists = await RNFS.exists(CUSTOM_AVATAR_PATH);
+      if (photoExists) {
+        const fileData = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
+        setAvatarSource(`data:image/jpeg;base64,${fileData}`);
+      } else {
+        setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
+      }
+    } catch (error) {
+      setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
+    }
+  };
+
   const fetchApps = async () => {
     try {
       const result = await InstalledApps.getApps();
@@ -234,6 +231,7 @@ const App = () => {
 
   useEffect(() => {
     loadData();
+    loadAvatar();
     fetchApps();
   }, []);
 
@@ -262,7 +260,7 @@ const App = () => {
     const result = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true });
     if (result.assets && result.assets[0].base64) {
       await RNFS.writeFile(CUSTOM_AVATAR_PATH, result.assets[0].base64, 'base64');
-      // Note: To refresh avatar, you may need to add a state or reload in AssistantDock, but since it's in dock, assume reload on app restart or add prop.
+      loadAvatar();
     }
   };
 
@@ -328,13 +326,14 @@ const App = () => {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       />
-      <AssistantDock
-        userName={userName}
-        assistantName={assistantName}
+      <AssistantDock 
+        userName={userName} 
+        assistantName={assistantName} 
         showHidden={showHidden}
         onSaveNames={saveNames}
         onToggleShowHidden={toggleShowHidden}
         onChangePhoto={changePhoto}
+        avatarSource={avatarSource}
       />
     </SafeAreaView>
   );
@@ -359,7 +358,7 @@ const styles = StyleSheet.create({
   avatarContainer: { position: 'relative', marginRight: 20 }, // Jarak Antara Avatar & Teks
   avatar: { width: 55, height: 55, borderRadius: 27.5, backgroundColor: '#333' },
   messageContainer: { flex: 1, justifyContent: 'center' },
-  assistantText: { color: '#ffffff', fontSize: 12, fontWeight: '500', lineHeight: 18 },
+  assistantText: { color: '#ffffff', fontSize: 13, fontWeight: '500', lineHeight: 18 },
   onlineIndicator: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: '#00ff00', bottom: 2, right: 2, borderWidth: 2, borderColor: '#000' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
