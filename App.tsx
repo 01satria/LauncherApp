@@ -110,23 +110,37 @@ const AssistantDock = () => {
   }, []);
 
   useEffect(() => {
+    // Buat fungsi update sebagai variabel agar bisa dipanggil kapan saja
     const updateMessage = () => {
+      // Prioritas 1: Notifikasi (Langsung tampil jika ada)
       if (notifications.length > 0) {
         const uniqueApps = [...new Set(notifications)];
-        setMessage(`${userName}, someone's texting you on ${uniqueApps[0]}! 💌`);
-      } else {
-        const hour = new Date().getHours();
-        if (hour >= 22 || hour < 4) setMessage(`Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`);
-        else if (hour >= 4 && hour < 11) setMessage(`Good morning, ${userName}! ☀️ ${assistantName} is here.`);
-        else if (hour >= 11 && hour < 15) setMessage(`Good afternoon, ${userName} 🌤️ Don't forget lunch!`);
-        else if (hour >= 15 && hour < 18) setMessage(`Good afternoon, ${userName} 🌇 ${assistantName} is online.`);
-        else setMessage(`Good night, ${userName} 🌙 Recharge with ${assistantName}.`);
+        const lastApp = uniqueApps[0].toLowerCase();
+
+        if (lastApp.includes('whatsapp')) {
+          setMessage(`${userName}, someone's texting you on WhatsApp! 💌 Check it out now.`);
+        } else {
+          setMessage(`Hey ${userName}, you've got new updates from ${uniqueApps[0]}. ✨`);
+        }
+        return; // Keluar dari fungsi agar tidak menimpa pesan dengan salam waktu
       }
+
+      // Prioritas 2: Salam berdasarkan Waktu (Jika tidak ada notifikasi)
+      const hour = new Date().getHours();
+      if (hour >= 22 || hour < 4) setMessage(`Go to sleep, ${userName} 😴 I'm ${assistantName}, don't stay up late.`);
+      else if (hour >= 4 && hour < 11) setMessage(`Good morning, ${userName}! ☀️ ${assistantName} is here.`);
+      else if (hour >= 11 && hour < 15) setMessage(`Good afternoon, ${userName} 🌤️ Don't forget lunch!`);
+      else if (hour >= 15 && hour < 18) setMessage(`Good afternoon, ${userName} 🌇 ${assistantName} is online.`);
+      else setMessage(`Good night, ${userName} 🌙 Recharge with ${assistantName}.`);
     };
+
+    // Jalankan seketika saat notifications, assistantName, atau userName berubah
     updateMessage();
-    const interval = setInterval(updateMessage, 60000);
+
+    // Tetap gunakan interval untuk update waktu (misal dari pagi ke siang)
+    const interval = setInterval(updateMessage, 10000); // Perkecil ke 10 detik agar lebih responsif
     return () => clearInterval(interval);
-  }, [notifications, assistantName, userName]);
+  }, [notifications, assistantName, userName]); // Dependency sangat penting di sini!
 
   const saveSettings = async () => {
     if (tempAssistantName.trim()) {
