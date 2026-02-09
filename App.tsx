@@ -1,4 +1,4 @@
-import React, { useEffect, useState, memo, useCallback } from 'react';
+import React, { useEffect, useState, memo, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,7 +14,9 @@ import {
   Modal,
   TextInput,
   Switch,
+  DeviceEventEmitter,
 } from 'react-native';
+import type { EmitterSubscription } from 'react-native';
 
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
@@ -27,66 +29,58 @@ interface AppData {
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4;
-const ITEM_HEIGHT = 100;
 
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
-const CUSTOM_NAME_PATH = `${CUSTOM_AVATAR_DIR}/name.txt`;
 const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
 const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 
-const MemoizedItem = memo(({ item, onPress, onLongPress }: { item: AppData; onPress: (pkg: string, label: string) => void; onLongPress: (pkg: string, label: string) => void }) => {
-  const getInitial = (label: string) => {
-    if (!label) return "?";
-    const words = label.trim().split(/\s+/);
-
-    if (words.length > 1) {
-      return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
-    }
-
-    return label.charAt(0).toUpperCase();
-  };
+// ==================== Memoized Item ====================
+const MemoizedItem = memo(({ item, onPress, onLongPress }: {
+  item: AppData;
+  onPress: (pkg: string) => void;
+  onLongPress: (pkg: string, label: string) => void;
+}) => {
+  const getInitial = (label: string) =>
+    label ? label.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || "?" : "?";
 
   return (
     <TouchableOpacity
       style={styles.item}
-      onPress={() => onPress(item.packageName, item.label)}
+      onPress={() => onPress(item.packageName)}
       onLongPress={() => onLongPress(item.packageName, item.label)}
       activeOpacity={0.7}
-      delayLongPress={1000}
+      delayLongPress={800}
     >
-      <View style={[styles.iconBox, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+      <View style={styles.iconBox}>
         <Text style={styles.initial}>{getInitial(item.label)}</Text>
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </TouchableOpacity>
   );
-}, (prev, next) => prev.item.packageName === next.item.packageName);
+});
 
-const AssistantDock = ({
+// ==================== AssistantDock ====================
+const AssistantDock = memo(({
   userName,
-  assistantName,
   showHidden,
-  onSaveNames,
+  onSaveUserName,
   onToggleShowHidden,
   onChangePhoto,
-  avatarSource
+  avatarSource,
 }: {
   userName: string;
-  assistantName: string;
   showHidden: boolean;
-  onSaveNames: (newAssistantName: string, newUserName: string) => void;
+  onSaveUserName: (name: string) => void;
   onToggleShowHidden: (value: boolean) => void;
   onChangePhoto: () => void;
   avatarSource: string | null;
 }) => {
   const [message, setMessage] = useState("");
-
-  const [isModalVisible, setModalVisible] = useState(false);
-  const [tempAssistantName, setTempAssistantName] = useState("");
-  const [tempUserName, setTempUserName] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [tempName, setTempName] = useState(userName);
 
   useEffect(() => {
     const updateMessage = () => {
@@ -112,24 +106,25 @@ const AssistantDock = ({
     };
 
     updateMessage();
-    const interval = setInterval(updateMessage, 60000); // update tiap menit
-    return () => clearInterval(interval);
-  }, [userName, assistantName]);
+    const id = setInterval(updateMessage, 60000);
+    return () => clearInterval(id);
+  }, [userName]);
 
-  const saveSettings = () => {
-    onSaveNames(tempAssistantName, tempUserName);
+  const save = useCallback(() => {
+    onSaveUserName(tempName.trim());
     setModalVisible(false);
-    ToastAndroid.show("Saved!", ToastAndroid.SHORT);
-  };
+    ToastAndroid.show("Saved", ToastAndroid.SHORT);
+  }, [tempName, onSaveUserName]);
 
-  const handleUpdateAssistant = () => {
-    setTempAssistantName(assistantName); setTempUserName(userName); setModalVisible(true);
-  };
+  const openModal = useCallback(() => {
+    setTempName(userName);
+    setModalVisible(true);
+  }, [userName]);
 
   return (
     <View style={styles.dockContainer}>
       <View style={styles.dockContent}>
-        <TouchableOpacity delayLongPress={1000} onLongPress={handleUpdateAssistant} activeOpacity={0.8}>
+        <TouchableOpacity onLongPress={openModal} activeOpacity={0.8} delayLongPress={800}>
           <View style={styles.avatarContainer}>
             <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
             <View style={styles.onlineIndicator} />
@@ -140,224 +135,206 @@ const AssistantDock = ({
         </View>
       </View>
 
-      <Modal visible={isModalVisible} transparent animationType="slide">
+      <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Settings</Text>
-            <Text style={styles.inputLabel}>Assistant Name:</Text>
-            <TextInput style={styles.modalInput} value={tempAssistantName} onChangeText={setTempAssistantName} placeholderTextColor="#666" />
-            <Text style={styles.inputLabel}>Your Name:</Text>
-            <TextInput style={styles.modalInput} value={tempUserName} onChangeText={setTempUserName} placeholderTextColor="#666" />
+            <Text style={styles.inputLabel}>Your Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={tempName}
+              onChangeText={setTempName}
+              placeholderTextColor="#666"
+            />
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>Show Hidden Apps</Text>
               <Switch value={showHidden} onValueChange={onToggleShowHidden} />
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
-              <TouchableOpacity onPress={onChangePhoto} style={{ marginRight: 55 }}><Text style={{ color: '#aaa' }}>Change Photo</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}><Text style={{ color: '#aaa' }}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity onPress={saveSettings}><Text style={{ color: '#00ff00', fontWeight: 'bold' }}>Save</Text></TouchableOpacity>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={onChangePhoto} style={{ marginRight: 50 }}>
+                <Text style={styles.modalButtonText}>Change Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 25 }}>
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={save}>
+                <Text style={styles.saveButton}>Save</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
     </View>
   );
-};
+});
 
 const App = () => {
   const [allApps, setAllApps] = useState<AppData[]>([]);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("User");
-  const [assistantName, setAssistantName] = useState("Assistant");
   const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
-  const [isActionModalVisible, setActionModalVisible] = useState(false);
-  const [currentAction, setCurrentAction] = useState<'hide' | 'unhide'>('hide');
-  const [currentPackage, setCurrentPackage] = useState<string>('');
-  const [currentLabel, setCurrentLabel] = useState<string>('');
 
-  const loadData = async () => {
-    try {
-      const dirExists = await RNFS.exists(CUSTOM_AVATAR_DIR);
-      if (!dirExists) await RNFS.mkdir(CUSTOM_AVATAR_DIR);
+  const [actionModal, setActionModal] = useState(false);
+  const [actionType, setActionType] = useState<'hide' | 'unhide'>('hide');
+  const [selectedPkg, setSelectedPkg] = useState('');
+  const [selectedLabel, setSelectedLabel] = useState('');
 
-      const userExists = await RNFS.exists(CUSTOM_USER_PATH);
-      if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
+  const packageListener = useRef<EmitterSubscription | null>(null);
 
-      const nameExists = await RNFS.exists(CUSTOM_NAME_PATH);
-      if (nameExists) setAssistantName(await RNFS.readFile(CUSTOM_NAME_PATH, 'utf8'));
-
-      const hiddenExists = await RNFS.exists(CUSTOM_HIDDEN_PATH);
-      if (hiddenExists) {
-        const hiddenData = await RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8');
-        setHiddenPackages(JSON.parse(hiddenData));
-      }
-
-      const showHiddenExists = await RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH);
-      if (showHiddenExists) {
-        const showHiddenData = await RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8');
-        setShowHidden(showHiddenData === 'true');
-      }
-    } catch (error) {
-      // keep defaults
-    }
-  };
-
-  const loadAvatar = async () => {
-    try {
-      const photoExists = await RNFS.exists(CUSTOM_AVATAR_PATH);
-      if (photoExists) {
-        const fileData = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
-        setAvatarSource(`data:image/jpeg;base64,${fileData}`);
-      } else {
-        setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
-      }
-    } catch (error) {
-      setAvatarSource(DEFAULT_ASSISTANT_AVATAR);
-    }
-  };
-
-  const fetchApps = async () => {
+  // Refresh aplikasi (dipakai saat install/uninstall)
+  const refreshApps = useCallback(async () => {
     try {
       const result = await InstalledApps.getApps();
-      const lightData = result
-        .map(app => ({ label: app.label || 'App', packageName: app.packageName }))
-        .filter(app => app.packageName)
-        .sort((a, b) => a.label.localeCompare(b.label));
-      setAllApps(lightData);
-      setLoading(false);
-    } catch (e) { setLoading(false); }
-  };
+      const apps = result
+        .map((a: any) => ({ label: a.label || 'App', packageName: a.packageName }))
+        .filter((a: any) => a.packageName)
+        .sort((a: any, b: any) => a.label.localeCompare(b.label));
 
-  useEffect(() => {
-    loadData();
-    loadAvatar();
-    fetchApps();
+      setAllApps(apps);
+    } catch (e) { }
   }, []);
 
+  // Inisialisasi data (sekali saja)
   useEffect(() => {
-    const updatedFiltered = allApps.filter(app => showHidden || !hiddenPackages.includes(app.packageName));
-    setFilteredApps(updatedFiltered);
+    const init = async () => {
+      try {
+        await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => { });
+
+        if (await RNFS.exists(CUSTOM_USER_PATH))
+          setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
+
+        if (await RNFS.exists(CUSTOM_HIDDEN_PATH)) {
+          const data = await RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8');
+          setHiddenPackages(JSON.parse(data));
+        }
+
+        if (await RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH))
+          setShowHidden((await RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8')) === 'true');
+
+        if (await RNFS.exists(CUSTOM_AVATAR_PATH)) {
+          const b64 = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
+          setAvatarSource(`data:image/jpeg;base64,${b64}`);
+        }
+      } catch (_) { }
+      setLoading(false);
+    };
+    init();
+    refreshApps(); // load apps pertama kali
+  }, [refreshApps]);
+
+  // Listener Install / Uninstall (Hanya ini yang aktif)
+  useEffect(() => {
+    packageListener.current = DeviceEventEmitter.addListener("PACKAGE_CHANGED", () => {
+      refreshApps();
+      ToastAndroid.show("App list updated", ToastAndroid.SHORT);
+    });
+
+    return () => {
+      packageListener.current?.remove();
+    };
+  }, [refreshApps]);
+
+  // Filter apps
+  useEffect(() => {
+    setFilteredApps(allApps.filter(app => showHidden || !hiddenPackages.includes(app.packageName)));
   }, [allApps, hiddenPackages, showHidden]);
 
-  const saveNames = async (newAssistantName: string, newUserName: string) => {
-    if (newAssistantName.trim()) {
-      await RNFS.writeFile(CUSTOM_NAME_PATH, newAssistantName, 'utf8');
-      setAssistantName(newAssistantName);
+  const saveUserName = useCallback(async (name: string) => {
+    if (name) {
+      await RNFS.writeFile(CUSTOM_USER_PATH, name, 'utf8');
+      setUserName(name);
     }
-    if (newUserName.trim()) {
-      await RNFS.writeFile(CUSTOM_USER_PATH, newUserName, 'utf8');
-      setUserName(newUserName);
+  }, []);
+
+  const toggleShowHidden = useCallback(async (val: boolean) => {
+    setShowHidden(val);
+    await RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, val ? 'true' : 'false', 'utf8');
+  }, []);
+
+  const changePhoto = useCallback(async () => {
+    const res = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true });
+    if (res.assets?.[0]?.base64) {
+      await RNFS.writeFile(CUSTOM_AVATAR_PATH, res.assets[0].base64, 'base64');
+      const b64 = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
+      setAvatarSource(`data:image/jpeg;base64,${b64}`);
     }
-  };
+  }, []);
 
-  const toggleShowHidden = async (value: boolean) => {
-    setShowHidden(value);
-    await RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, value ? 'true' : 'false', 'utf8');
-  };
+  const handleLongPress = useCallback((pkg: string, label: string) => {
+    const isHidden = hiddenPackages.includes(pkg) && showHidden;
+    setActionType(isHidden ? 'unhide' : 'hide');
+    setSelectedPkg(pkg);
+    setSelectedLabel(label);
+    setActionModal(true);
+  }, [hiddenPackages, showHidden]);
 
-  const changePhoto = async () => {
-    const result = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true });
-    if (result.assets && result.assets[0].base64) {
-      await RNFS.writeFile(CUSTOM_AVATAR_PATH, result.assets[0].base64, 'base64');
-      loadAvatar();
-    }
-  };
-
-  const handleLongPress = (packageName: string, label: string) => {
-    const isHidden = hiddenPackages.includes(packageName) && showHidden;
-    setCurrentAction(isHidden ? 'unhide' : 'hide');
-    setCurrentPackage(packageName);
-    setCurrentLabel(label);
-    setActionModalVisible(true);
-  };
-
-  const performAction = async () => {
-    if (currentAction === 'unhide') {
-      const newHidden = hiddenPackages.filter(pkg => pkg !== currentPackage);
-      setHiddenPackages(newHidden);
-      await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newHidden), 'utf8');
-      ToastAndroid.show(`${currentLabel} unhidden`, ToastAndroid.SHORT);
+  const doAction = useCallback(async () => {
+    let newList = [...hiddenPackages];
+    if (actionType === 'unhide') {
+      newList = newList.filter(p => p !== selectedPkg);
     } else {
-      const newHidden = [...hiddenPackages, currentPackage];
-      setHiddenPackages(newHidden);
-      await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newHidden), 'utf8');
-      ToastAndroid.show(`${currentLabel} hidden`, ToastAndroid.SHORT);
+      newList.push(selectedPkg);
     }
-    setActionModalVisible(false);
-  };
+    setHiddenPackages(newList);
+    await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newList), 'utf8');
+    setActionModal(false);
+  }, [actionType, selectedPkg, hiddenPackages]);
 
-  const launchApp = useCallback((packageName: string, label: string) => {
+  const launchApp = useCallback((packageName: string) => {
     try {
-      const appName = label.toLowerCase();
-
-      // Logika Toast Pesan Khusus
-      if (appName.includes('brave')) {
-        ToastAndroid.show(`Browsing time? Don't get lost in your tabs, ${userName}! 🌐😘`, ToastAndroid.LONG);
-      } else if (appName.includes('whatsapp') || appName.includes('telegram') || appName.includes('telegram x') || appName.includes('messenger') || appName.includes('wa business')) {
-        ToastAndroid.show(`Checking messages, ${userName}? Say hi for me! 💌`, ToastAndroid.SHORT);
-      } else if (appName.includes('youtube')) {
-        ToastAndroid.show(`Enjoy your videos, ${userName}! 🍿`, ToastAndroid.SHORT);
-      } else if (appName.includes('instagram lite')) {
-        ToastAndroid.show(`Scrolling through feeds, ${userName}? Stay fabulous! 📸✨`, ToastAndroid.SHORT);
-      } else if (appName.includes('camera')) {
-        ToastAndroid.show(`Smile for the camera, ${userName}! 📷😄`, ToastAndroid.SHORT);
-      } else if (appName.includes('gallery')) {
-        ToastAndroid.show(`Revisiting memories, ${userName}? 📂❤️`, ToastAndroid.SHORT);
-      } else if (appName.includes('waze')) {
-        ToastAndroid.show(`Navigating with Waze, ${userName}? Safe travels! 🗺️🚗`, ToastAndroid.SHORT);
-      } else if (appName.includes('maps')) {
-        ToastAndroid.show(`Exploring with Maps, ${userName}? Adventure awaits! 🌍🧭`, ToastAndroid.SHORT);
-      } else if (appName.includes('shopee lite')) {
-        ToastAndroid.show(`Shopping spree on Shopee, ${userName}? Happy hunting! 🛒💸`, ToastAndroid.SHORT);
-      } else {
-        ToastAndroid.show(`Opening ${label} for you 😉`, ToastAndroid.SHORT);
-      }
-
-      // Jalankan Aplikasinya
       RNLauncherKitHelper.launchApplication(packageName);
-    } catch (err) {
-      ToastAndroid.show("Failed to launch app", ToastAndroid.SHORT);
+    } catch (e) {
+      ToastAndroid.show("Can't open app", ToastAndroid.SHORT);
     }
-  }, [userName]); // Tambahkan userName sebagai dependency agar namanya terupdate
+  }, []);
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#fff" /></View>;
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator size="large" color="#fff" /></View>;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="transparent" barStyle="light-content" translucent />
+
       <FlatList
         data={filteredApps}
         numColumns={4}
-        keyExtractor={(item) => item.packageName}
-        renderItem={({ item }) => <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} />}
+        keyExtractor={item => item.packageName}
+        renderItem={({ item }) => (
+          <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} />
+        )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        initialNumToRender={12}
+        maxToRenderPerBatch={8}
+        windowSize={7}
       />
+
       <AssistantDock
         userName={userName}
-        assistantName={assistantName}
         showHidden={showHidden}
-        onSaveNames={saveNames}
+        onSaveUserName={saveUserName}
         onToggleShowHidden={toggleShowHidden}
         onChangePhoto={changePhoto}
         avatarSource={avatarSource}
       />
-      <Modal visible={isActionModalVisible} transparent animationType="fade">
+
+      {/* Modal Hide / Unhide */}
+      <Modal visible={actionModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{currentAction === 'unhide' ? 'Unhide App' : 'Hide App'}</Text>
-            <Text style={styles.modalMessage}>
-              Do you want to {currentAction} {currentLabel}?
-            </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 20 }}>
-              <TouchableOpacity onPress={() => setActionModalVisible(false)} style={{ marginRight: 20 }}>
-                <Text style={{ color: '#aaa' }}>Cancel</Text>
+            <Text style={styles.modalTitle}>{actionType === 'unhide' ? 'Unhide' : 'Hide'} App</Text>
+            <Text style={styles.modalMessage}>Do you want to {actionType} {selectedLabel}?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={() => setActionModal(false)} style={{ marginRight: 25 }}>
+                <Text style={styles.modalButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={performAction}>
-                <Text style={{ color: '#00ff00', fontWeight: 'bold' }}>{currentAction === 'unhide' ? 'Unhide' : 'Hide'}</Text>
+              <TouchableOpacity onPress={doAction}>
+                <Text style={styles.saveButton}>{actionType === 'unhide' ? 'Unhide' : 'Hide'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -368,35 +345,34 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'transparent' }, // Wallpaper Terlihat
+  container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { paddingTop: 60, paddingBottom: 120 },
-  item: { width: ITEM_WIDTH, height: ITEM_HEIGHT, alignItems: 'center', marginBottom: 15 },
-  iconBox: { width: 60, height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  initial: { color: 'white', fontSize: 20, fontWeight: '700' },
-  label: { color: '#fff', fontSize: 11, textAlign: 'center', textShadowColor: 'rgba(0, 0, 0, 0.75)', textShadowOffset: { width: -1, height: 1 }, textShadowRadius: 10 },
+  list: { paddingTop: 60, paddingBottom: 130 },
+  item: { width: ITEM_WIDTH, height: 100, alignItems: 'center', marginBottom: 12 },
+  iconBox: { width: 58, height: 58, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.93)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  initial: { color: '#fff', fontSize: 21, fontWeight: '700' },
+  label: { color: '#eee', fontSize: 10.5, textAlign: 'center', marginTop: 4 },
 
-  dockContainer: {
-    position: 'absolute', bottom: 30, left: 20, right: 20, height: 80,
-    backgroundColor: 'rgba(0, 0, 0, 0.94)', borderRadius: 40,
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)'
-  },
-  dockContent: { flexDirection: 'row', alignItems: 'center', width: '100%' },
-  avatarContainer: { position: 'relative', marginRight: 20 }, // Jarak Antara Avatar & Teks
-  avatar: { width: 55, height: 55, borderRadius: 27.5, backgroundColor: '#333' },
-  messageContainer: { flex: 1, justifyContent: 'center' },
-  assistantText: { color: '#ffffff', fontSize: 13, fontWeight: '500', lineHeight: 18 },
-  onlineIndicator: { position: 'absolute', width: 14, height: 14, borderRadius: 7, backgroundColor: '#00ff00', bottom: 2, right: 2, borderWidth: 2, borderColor: '#000' },
+  dockContainer: { position: 'absolute', bottom: 28, left: 16, right: 16, height: 76, backgroundColor: 'rgba(0,0,0,0.94)', borderRadius: 38, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  dockContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  avatarContainer: { marginRight: 16 },
+  avatar: { width: 52, height: 52, borderRadius: 26 },
+  onlineIndicator: { position: 'absolute', bottom: 0, right: 0, width: 14, height: 14, borderRadius: 7, backgroundColor: '#0f0', borderWidth: 2, borderColor: '#000' },
+  messageContainer: { flex: 1 },
+  assistantText: { color: '#fff', fontSize: 13, lineHeight: 17 },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: width * 0.85, backgroundColor: '#1a1a1a', borderRadius: 25, padding: 25, borderWidth: 1, borderColor: '#333' },
-  modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  inputLabel: { color: '#888', fontSize: 12, marginBottom: 8, marginLeft: 5 },
-  modalInput: { backgroundColor: '#262626', color: '#fff', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10, marginBottom: 20, borderWidth: 1, borderColor: '#333' },
-  switchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  switchLabel: { color: '#fff', fontSize: 14 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: width * 0.88, backgroundColor: '#1c1c1c', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#333' },
+  modalTitle: { color: '#fff', fontSize: 19, fontWeight: 'bold', textAlign: 'center', marginBottom: 18 },
+  inputLabel: { color: '#888', fontSize: 12, marginBottom: 6 },
+  modalInput: { backgroundColor: '#282828', color: '#fff', borderRadius: 12, padding: 12, marginBottom: 18 },
+  switchContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 },
+  switchLabel: { color: '#ddd', fontSize: 14.5 },
+  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
+  modalButtonText: { color: '#999', fontSize: 15 },
+  saveButton: { color: '#0f0', fontWeight: 'bold', fontSize: 15 },
   modalMessage: { color: '#fff', fontSize: 16, textAlign: 'center', marginBottom: 10 },
+
 });
 
 export default App;
