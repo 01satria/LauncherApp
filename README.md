@@ -106,9 +106,6 @@ Pull requests for:
 
 ---
 
-## Contributors
-- [@01satria](https://github.com/01satria) - Lead Developer
-- 
 Built with ❤️ using **React Native**
 
 
