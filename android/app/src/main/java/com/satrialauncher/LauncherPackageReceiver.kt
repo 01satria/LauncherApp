@@ -1,4 +1,4 @@
-package com.helloworld
+package com.satrialauncher
 
 import android.content.BroadcastReceiver
 import android.content.Context

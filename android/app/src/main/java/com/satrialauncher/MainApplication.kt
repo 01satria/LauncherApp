@@ -1,4 +1,4 @@
-package com.helloworld
+package com.satrialauncher
 
 import android.app.Application
 import android.content.Intent
@@ -15,7 +15,7 @@ import com.facebook.soloader.SoLoader
 import com.facebook.react.bridge.ReactApplicationContext   // ← Tambahkan ini
 
 // ← Tambahkan import ini
-import com.helloworld.LauncherPackageReceiver   // Pastikan nama package sesuai
+import com.satrialauncher.LauncherPackageReceiver   // Pastikan nama package sesuai
 
 class MainApplication : Application(), ReactApplication {
 
