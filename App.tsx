@@ -49,7 +49,7 @@ const AppIcon = memo(({ packageName }: { packageName: string }) => {
     const fetchIcon = async () => {
       try {
         // Coba ambil icon
-        const result = await InstalledApps.getSortedApps({ includeVersion: true, includeAccentColor: true });
+        const result = await InstalledApps.getApps({ includeVersion: true, includeAccentColor: true });
 
         if (isMounted) {
           if (result) {
