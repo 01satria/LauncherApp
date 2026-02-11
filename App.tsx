@@ -15,6 +15,7 @@ import {
   TextInput,
   Switch,
   DeviceEventEmitter,
+  ListRenderItem,
 } from 'react-native';
 import type { EmitterSubscription } from 'react-native';
 
@@ -22,9 +23,11 @@ import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
 
+// --- Interface Update: Menambahkan 'icon' ---
 interface AppData {
   label: string;
   packageName: string;
+  icon: string; // Base64 string dari library
 }
 
 const { width } = Dimensions.get('window');
@@ -37,12 +40,13 @@ const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
 const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 
-// ==================== Memoized Item ====================
+// ==================== Memoized Item (Diperbaiki) ====================
 const MemoizedItem = memo(({ item, onPress, onLongPress }: {
   item: AppData;
   onPress: (pkg: string) => void;
   onLongPress: (pkg: string, label: string) => void;
 }) => {
+  // Fallback jika icon tidak ada (jarang terjadi)
   const getInitial = (label: string) =>
     label ? label.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || "?" : "?";
 
@@ -52,10 +56,18 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
       onPress={() => onPress(item.packageName)}
       onLongPress={() => onLongPress(item.packageName, item.label)}
       activeOpacity={0.7}
-      delayLongPress={800}
+      delayLongPress={500} // Sedikit dipercepat agar lebih responsif
     >
       <View style={styles.iconBox}>
-        <Text style={styles.initial}>{getInitial(item.label)}</Text>
+        {item.icon ? (
+          <Image 
+            source={{ uri: `data:image/png;base64,${item.icon}` }} 
+            style={styles.appIcon} 
+            resizeMode="contain"
+          />
+        ) : (
+          <Text style={styles.initial}>{getInitial(item.label)}</Text>
+        )}
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </TouchableOpacity>
@@ -86,22 +98,17 @@ const AssistantDock = memo(({
     const updateMessage = () => {
       const hour = new Date().getHours();
       if (hour >= 22 || hour < 4) {
-        setMessage(`It's late, ${userName}. 😴 Go to sleep now so you're fresh tomorrow. I'll be here when you wake up!`);
-      }
-      else if (hour >= 4 && hour < 11) {
-        setMessage(`Morning, ${userName}! ☀️ Hope you have a great day. I'm ready to accompany you!`);
-      }
-      else if (hour >= 11 && hour < 15) {
-        setMessage(`Lunch time, ${userName}! 🌤️ Eat something good and keep your energy up. You matter to me! ❤️`);
-      }
-      else if (hour >= 15 && hour < 18) {
-        setMessage(`Hey ${userName}, take a break if you're tired. 🌇 I'm always here for you.`);
-      }
-      else if (hour >= 18 && hour < 20) {
-        setMessage(`Evening, ${userName}! 🌇 I'm here to support you. Take care of yourself.`);
-      }
-      else {
-        setMessage(`Good night, ${userName}! 🌙 You did great today. I'm proud of you, now go rest.`);
+        setMessage(`It's late, ${userName}. 😴 Go to sleep now so you're fresh tomorrow.`);
+      } else if (hour >= 4 && hour < 11) {
+        setMessage(`Morning, ${userName}! ☀️ Hope you have a great day.`);
+      } else if (hour >= 11 && hour < 15) {
+        setMessage(`Lunch time, ${userName}! 🌤️ Keep your energy up!`);
+      } else if (hour >= 15 && hour < 18) {
+        setMessage(`Hey ${userName}, take a break if you're tired. 🌇`);
+      } else if (hour >= 18 && hour < 20) {
+        setMessage(`Evening, ${userName}! 🌇 I'm here to support you.`);
+      } else {
+        setMessage(`Good night, ${userName}! 🌙 You did great today.`);
       }
     };
 
@@ -124,18 +131,18 @@ const AssistantDock = memo(({
   return (
     <View style={styles.dockContainer}>
       <View style={styles.dockContent}>
-        <TouchableOpacity onLongPress={openModal} activeOpacity={0.8} delayLongPress={800}>
+        <TouchableOpacity onLongPress={openModal} activeOpacity={0.8}>
           <View style={styles.avatarContainer}>
             <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
             <View style={styles.onlineIndicator} />
           </View>
         </TouchableOpacity>
         <View style={styles.messageContainer}>
-          <Text style={styles.assistantText}>{message}</Text>
+          <Text style={styles.assistantText} numberOfLines={2}>{message}</Text>
         </View>
       </View>
 
-      <Modal visible={modalVisible} transparent animationType="slide">
+      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Settings</Text>
@@ -148,13 +155,13 @@ const AssistantDock = memo(({
             />
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>Show Hidden Apps</Text>
-              <Switch value={showHidden} onValueChange={onToggleShowHidden} />
+              <Switch value={showHidden} onValueChange={onToggleShowHidden} trackColor={{false: "#767577", true: "#81b0ff"}} thumbColor={showHidden ? "#f5dd4b" : "#f4f3f4"} />
             </View>
             <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={onChangePhoto} style={{ marginRight: 50 }}>
+              <TouchableOpacity onPress={onChangePhoto} style={{ marginRight: 20 }}>
                 <Text style={styles.modalButtonText}>Change Photo</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 25 }}>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginRight: 20 }}>
                 <Text style={styles.modalButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={save}>
@@ -168,6 +175,7 @@ const AssistantDock = memo(({
   );
 });
 
+// ==================== Main App ====================
 const App = () => {
   const [allApps, setAllApps] = useState<AppData[]>([]);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
@@ -184,52 +192,66 @@ const App = () => {
 
   const packageListener = useRef<EmitterSubscription | null>(null);
 
-  // Refresh aplikasi (dipakai saat install/uninstall)
   const refreshApps = useCallback(async () => {
     try {
       const result = await InstalledApps.getApps();
       const apps = result
-        .map((a: any) => ({ label: a.label || 'App', packageName: a.packageName }))
+        .map((a: any) => ({ 
+          label: a.label || 'App', 
+          packageName: a.packageName,
+          icon: a.icon // PENTING: Mengambil data icon
+        }))
         .filter((a: any) => a.packageName)
         .sort((a: any, b: any) => a.label.localeCompare(b.label));
 
       setAllApps(apps);
-    } catch (e) { }
+    } catch (e) {
+      console.error("Error loading apps", e);
+    }
   }, []);
 
-  // Inisialisasi data (sekali saja)
   useEffect(() => {
     const init = async () => {
       try {
-        await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => { });
+        await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => {});
+        
+        // Load semua data preference secara paralel agar lebih cepat
+        const [userExists, hiddenExists, showHiddenExists, avatarExists] = await Promise.all([
+            RNFS.exists(CUSTOM_USER_PATH),
+            RNFS.exists(CUSTOM_HIDDEN_PATH),
+            RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH),
+            RNFS.exists(CUSTOM_AVATAR_PATH)
+        ]);
 
-        if (await RNFS.exists(CUSTOM_USER_PATH))
-          setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
-
-        if (await RNFS.exists(CUSTOM_HIDDEN_PATH)) {
+        if (userExists) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
+        
+        if (hiddenExists) {
           const data = await RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8');
           setHiddenPackages(JSON.parse(data));
         }
 
-        if (await RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH))
-          setShowHidden((await RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8')) === 'true');
+        if (showHiddenExists) {
+           const val = await RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8');
+           setShowHidden(val === 'true');
+        }
 
-        if (await RNFS.exists(CUSTOM_AVATAR_PATH)) {
+        if (avatarExists) {
           const b64 = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
           setAvatarSource(`data:image/jpeg;base64,${b64}`);
         }
-      } catch (_) { }
+      } catch (_) {}
+      
       setLoading(false);
     };
+    
     init();
-    refreshApps(); // load apps pertama kali
+    refreshApps();
   }, [refreshApps]);
 
-  // Listener Install / Uninstall (Hanya ini yang aktif)
   useEffect(() => {
     packageListener.current = DeviceEventEmitter.addListener("PACKAGE_CHANGED", () => {
       refreshApps();
-      ToastAndroid.show("App list updated", ToastAndroid.SHORT);
+      ToastAndroid.show("Updating app list...", ToastAndroid.SHORT);
     });
 
     return () => {
@@ -237,9 +259,13 @@ const App = () => {
     };
   }, [refreshApps]);
 
-  // Filter apps
   useEffect(() => {
-    setFilteredApps(allApps.filter(app => showHidden || !hiddenPackages.includes(app.packageName)));
+    // Filter logic
+    if (showHidden) {
+        setFilteredApps(allApps);
+    } else {
+        setFilteredApps(allApps.filter(app => !hiddenPackages.includes(app.packageName)));
+    }
   }, [allApps, hiddenPackages, showHidden]);
 
   const saveUserName = useCallback(async (name: string) => {
@@ -255,32 +281,57 @@ const App = () => {
   }, []);
 
   const changePhoto = useCallback(async () => {
-    const res = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true });
-    if (res.assets?.[0]?.base64) {
-      await RNFS.writeFile(CUSTOM_AVATAR_PATH, res.assets[0].base64, 'base64');
-      const b64 = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
-      setAvatarSource(`data:image/jpeg;base64,${b64}`);
+    try {
+        const res = await ImagePicker.launchImageLibrary({ 
+            mediaType: 'photo', 
+            includeBase64: true,
+            quality: 0.5, // Kompresi agar tidak berat
+            maxWidth: 200,
+            maxHeight: 200
+        });
+        
+        if (res.assets?.[0]?.base64) {
+            await RNFS.writeFile(CUSTOM_AVATAR_PATH, res.assets[0].base64, 'base64');
+            const b64 = await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64');
+            setAvatarSource(`data:image/jpeg;base64,${b64}`);
+            ToastAndroid.show("Photo updated", ToastAndroid.SHORT);
+        }
+    } catch (err) {
+        ToastAndroid.show("Failed to pick image", ToastAndroid.SHORT);
     }
   }, []);
 
   const handleLongPress = useCallback((pkg: string, label: string) => {
-    const isHidden = hiddenPackages.includes(pkg) && showHidden;
-    setActionType(isHidden ? 'unhide' : 'hide');
+    // Jika showHidden true, kita bisa melihat hidden apps, jadi aksinya bisa unhide
+    // Jika showHidden false, kita tidak bisa melihat hidden apps, jadi aksinya pasti hide
+    const isCurrentlyHidden = hiddenPackages.includes(pkg);
+    
+    if (isCurrentlyHidden) {
+        setActionType('unhide');
+    } else {
+        setActionType('hide');
+    }
+    
     setSelectedPkg(pkg);
     setSelectedLabel(label);
     setActionModal(true);
-  }, [hiddenPackages, showHidden]);
+  }, [hiddenPackages]);
 
   const doAction = useCallback(async () => {
     let newList = [...hiddenPackages];
     if (actionType === 'unhide') {
       newList = newList.filter(p => p !== selectedPkg);
     } else {
-      newList.push(selectedPkg);
+      // Cek duplicate agar aman
+      if (!newList.includes(selectedPkg)) {
+          newList.push(selectedPkg);
+      }
     }
+    
     setHiddenPackages(newList);
     await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newList), 'utf8');
     setActionModal(false);
+    ToastAndroid.show(`App ${actionType === 'hide' ? 'Hidden' : 'Visible'}`, ToastAndroid.SHORT);
   }, [actionType, selectedPkg, hiddenPackages]);
 
   const launchApp = useCallback((packageName: string) => {
@@ -291,8 +342,12 @@ const App = () => {
     }
   }, []);
 
+  const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
+      <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} />
+  ), [launchApp, handleLongPress]);
+
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color="#fff" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#00ff00" /></View>;
   }
 
   return (
@@ -303,15 +358,16 @@ const App = () => {
         data={filteredApps}
         numColumns={4}
         keyExtractor={item => item.packageName}
-        renderItem={({ item }) => (
-          <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} />
-        )}
+        renderItem={renderItem}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews={true}
-        initialNumToRender={12}
+        initialNumToRender={16} 
         maxToRenderPerBatch={8}
-        windowSize={7}
+        windowSize={5} // Diperkecil agar hemat RAM
+        getItemLayout={(data, index) => (
+            {length: 100 + 12, offset: (100 + 12) * index, index}
+        )}
       />
 
       <AssistantDock
@@ -323,12 +379,11 @@ const App = () => {
         avatarSource={avatarSource}
       />
 
-      {/* Modal Hide / Unhide */}
-      <Modal visible={actionModal} transparent animationType="fade">
+      <Modal visible={actionModal} transparent animationType="fade" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{actionType === 'unhide' ? 'Unhide' : 'Hide'} App</Text>
-            <Text style={styles.modalMessage}>Do you want to {actionType} {selectedLabel}?</Text>
+            <Text style={styles.modalMessage}>Do you want to {actionType} "{selectedLabel}"?</Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity onPress={() => setActionModal(false)} style={{ marginRight: 25 }}>
                 <Text style={styles.modalButtonText}>Cancel</Text>
@@ -345,34 +400,46 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'transparent' },
+  container: { flex: 1, backgroundColor: 'transparent' }, // Launcher biasanya transparan agar wallpaper terlihat
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { paddingTop: 60, paddingBottom: 130 },
   item: { width: ITEM_WIDTH, height: 100, alignItems: 'center', marginBottom: 12 },
-  iconBox: { width: 58, height: 58, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.93)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  initial: { color: '#fff', fontSize: 21, fontWeight: '700' },
-  label: { color: '#eee', fontSize: 10.5, textAlign: 'center', marginTop: 4 },
+  
+  // Update Style IconBox agar mendukung gambar
+  iconBox: { 
+      width: 58, 
+      height: 58, 
+      // borderRadius: 18, // Opsional: jika ingin kotak rounded
+      justifyContent: 'center', 
+      alignItems: 'center', 
+  },
+  appIcon: {
+      width: 58,
+      height: 58,
+  },
+  
+  initial: { color: '#fff', fontSize: 24, fontWeight: 'bold' }, // Style fallback
+  label: { color: '#eee', fontSize: 11, textAlign: 'center', marginTop: 6, marginHorizontal: 4, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3 },
 
-  dockContainer: { position: 'absolute', bottom: 28, left: 16, right: 16, height: 76, backgroundColor: 'rgba(0,0,0,0.94)', borderRadius: 38, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  dockContainer: { position: 'absolute', bottom: 28, left: 16, right: 16, height: 76, backgroundColor: 'rgba(0,0,0,0.85)', borderRadius: 24, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   dockContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  avatarContainer: { marginRight: 16 },
-  avatar: { width: 52, height: 52, borderRadius: 26 },
-  onlineIndicator: { position: 'absolute', bottom: 0, right: 0, width: 14, height: 14, borderRadius: 7, backgroundColor: '#0f0', borderWidth: 2, borderColor: '#000' },
-  messageContainer: { flex: 1 },
-  assistantText: { color: '#fff', fontSize: 13, lineHeight: 17 },
+  avatarContainer: { marginRight: 14 },
+  avatar: { width: 48, height: 48, borderRadius: 24 },
+  onlineIndicator: { position: 'absolute', bottom: 2, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: '#4caf50', borderWidth: 2, borderColor: '#1c1c1c' },
+  messageContainer: { flex: 1, justifyContent: 'center' },
+  assistantText: { color: '#fff', fontSize: 13, lineHeight: 18, fontWeight: '400' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: width * 0.88, backgroundColor: '#1c1c1c', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#333' },
-  modalTitle: { color: '#fff', fontSize: 19, fontWeight: 'bold', textAlign: 'center', marginBottom: 18 },
-  inputLabel: { color: '#888', fontSize: 12, marginBottom: 6 },
-  modalInput: { backgroundColor: '#282828', color: '#fff', borderRadius: 12, padding: 12, marginBottom: 18 },
-  switchContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 },
-  switchLabel: { color: '#ddd', fontSize: 14.5 },
-  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' },
-  modalButtonText: { color: '#999', fontSize: 15 },
-  saveButton: { color: '#0f0', fontWeight: 'bold', fontSize: 15 },
-  modalMessage: { color: '#fff', fontSize: 16, textAlign: 'center', marginBottom: 10 },
-
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: width * 0.85, backgroundColor: '#222', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#333', elevation: 10 },
+  modalTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
+  inputLabel: { color: '#aaa', fontSize: 12, marginBottom: 8, marginLeft: 4 },
+  modalInput: { backgroundColor: '#333', color: '#fff', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, marginBottom: 20, fontSize: 16 },
+  switchContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  switchLabel: { color: '#ddd', fontSize: 16 },
+  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10 },
+  modalButtonText: { color: '#aaa', fontSize: 16, fontWeight: '600' },
+  saveButton: { color: '#4caf50', fontWeight: 'bold', fontSize: 16 },
+  modalMessage: { color: '#ddd', fontSize: 16, textAlign: 'center', marginBottom: 24, lineHeight: 22 },
 });
 
 export default App;
