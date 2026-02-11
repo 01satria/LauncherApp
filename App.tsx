@@ -39,45 +39,105 @@ const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
-// ==================== COMPONENT: AppIcon (Debug Mode) ====================
+// ==================== COMPONENT: AppIcon (Optimized with Shared Cache) ====================
+// Optimasi utama:
+// - Fetch InstalledApps.getApps() HANYA SEKALI untuk seluruh app (shared cache).
+// - Semua instance AppIcon akan menggunakan cache yang sama → RAM & CPU jauh lebih hemat.
+// - Setelah fetch pertama, icon langsung diambil dari cache (instan).
+// - Mendukung format icon lama (base64) dan baru (file path).
+// - Jika app berubah (install/uninstall), cache belum otomatis refresh → bisa ditambah manual refresh jika diperlukan.
+
+
+// Shared cache & fetch promise (singleton, di luar komponen agar shared antar instance)
+let cachedApps: any[] | null = null;
+let ongoingFetch: Promise<any[]> | null = null;
+
+const processIconUri = (icon: string): string => {
+  if (!icon) return '';
+
+  if (icon.startsWith('data:image') || icon.startsWith('http') || icon.startsWith('file://')) {
+    return icon;
+  }
+
+  if (icon.startsWith('/')) {
+    // File path (versi baru library)
+    return `file://${icon}`;
+  }
+
+  // Base64 tanpa prefix (versi lama)
+  const cleanBase64 = icon.replace(/(\r\n|\n|\r)/gm, '').trim();
+  return `data:image/png;base64,${cleanBase64}`;
+};
+
 const AppIcon = memo(({ packageName }: { packageName: string }) => {
   const [iconUri, setIconUri] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    const fetchIcon = async () => {
+    const loadIcon = async () => {
+      // Jika sudah ada cache, ambil langsung
+      if (cachedApps) {
+        const targetApp = cachedApps.find((app: any) => app.packageName === packageName);
+        if (isMounted) {
+          setIconUri(targetApp?.icon ? processIconUri(targetApp.icon) : null);
+          if (!targetApp) {
+            ToastAndroid.show(`App Tidak Ditemukan: ${packageName}`, ToastAndroid.SHORT);
+          }
+        }
+        return;
+      }
+
+      // Jika sedang ada fetch lain, tunggu hasilnya
+      if (ongoingFetch) {
+        try {
+          const apps = await ongoingFetch;
+          if (isMounted) {
+            cachedApps = apps;
+            const targetApp = apps.find((app: any) => app.packageName === packageName);
+            setIconUri(targetApp?.icon ? processIconUri(targetApp.icon) : null);
+          }
+        } catch (e) {
+          if (isMounted) ToastAndroid.show(`Gagal Load Cache: ${packageName}`, ToastAndroid.SHORT);
+        }
+        return;
+      }
+
+      // Fetch baru (hanya dijalankan sekali)
+      ongoingFetch = InstalledApps.getApps({
+        includeVersion: true,
+        includeAccentColor: true,
+      });
+
       try {
-        // Coba ambil icon
-        const result = await InstalledApps.getApps({ includeVersion: true, includeAccentColor: true });
+        const apps = await ongoingFetch;
+        ongoingFetch = null; // reset setelah selesai
 
         if (isMounted) {
-          if (result) {
-            // Bersihkan string dari Enter/Spasi (Penyebab utama error render)
-            const cleanBase64 = result.toString().replace(/(\r\n|\n|\r)/gm, "");
+          cachedApps = apps;
+          const targetApp = apps.find((app: any) => app.packageName === packageName);
+          setIconUri(targetApp?.icon ? processIconUri(targetApp.icon) : null);
 
-            // Tambahkan header jika belum ada
-            const finalUri = cleanBase64.startsWith('data:image')
-              ? cleanBase64
-              : `data:image/png;base64,${cleanBase64}`;
-
-            setIconUri(finalUri);
-          } else {
-            // DATA KOSONG (Null)
-            ToastAndroid.show(`Icon Kosong: ${packageName}`, ToastAndroid.SHORT);
+          if (!targetApp) {
+            ToastAndroid.show(`App Tidak Ditemukan: ${packageName}`, ToastAndroid.SHORT);
           }
         }
       } catch (e) {
-        // ERROR SAAT MENGAMBIL DATA (Library Error)
-        ToastAndroid.show(`Gagal Load: ${packageName}`, ToastAndroid.SHORT);
+        ongoingFetch = null;
+        console.error('Error fetching apps:', e);
+        if (isMounted) {
+          ToastAndroid.show(`Gagal Load Apps: ${packageName}`, ToastAndroid.SHORT);
+        }
       }
     };
 
-    fetchIcon();
-    return () => { isMounted = false; };
+    loadIcon();
+
+    return () => {
+      isMounted = false;
+    };
   }, [packageName]);
 
-  // Render
   return (
     <View style={styles.iconContainer}>
       {iconUri ? (
@@ -85,13 +145,11 @@ const AppIcon = memo(({ packageName }: { packageName: string }) => {
           source={{ uri: iconUri }}
           style={styles.appIconImage}
           resizeMode="contain"
-          // ERROR SAAT RENDER GAMBAR (Data rusak/corrupt)
-          onError={(e) => {
-            ToastAndroid.show(`Format Salah: ${packageName}`, ToastAndroid.SHORT);
+          onError={() => {
+            ToastAndroid.show(`Render Gagal: ${packageName}`, ToastAndroid.SHORT);
           }}
         />
       ) : (
-        // Placeholder saat loading atau gagal total
         <View style={styles.placeholderIcon} />
       )}
     </View>
