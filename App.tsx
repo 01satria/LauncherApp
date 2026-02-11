@@ -141,13 +141,13 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
           <Image
             source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }}
             style={styles.avatarImage}
-            resizeMethod="resize"
+            // resizeMethod="resize"
           />
         </TouchableOpacity>
 
         {/* BAGIAN KANAN: PESAN TEKS */}
         <View style={styles.messageBubble}>
-          <Text style={styles.assistantText} numberOfLines={1}>{message}</Text>
+          <Text style={styles.assistantText}>{message}</Text>
         </View>
 
       </View>
@@ -353,52 +353,56 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3
   },
 
-  // === STYLE DOCK BARU (TERPISAH) ===
+  // === STYLE DOCK BARU (AUTO HEIGHT & HD) ===
   dockWrapper: {
     position: 'absolute',
     bottom: 24,
     left: 20,
     right: 20,
-    flexDirection: 'row', // Menyusun ke samping
-    alignItems: 'center',
-    height: 60, // Tinggi fix agar rapi
+    flexDirection: 'row',
+    alignItems: 'flex-end', // PENTING: Avatar tetap di bawah jika pesan panjang
+    minHeight: 60, // Ganti height jadi minHeight agar bisa melar
   },
 
   // 1. Bubble Kiri (Avatar)
   avatarBubble: {
     width: 60,
     height: 60,
-    backgroundColor: '#000000', // Hitam pekat
-    borderRadius: 20, // Radius sudut 20px
+    backgroundColor: '#000000',
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333', // Border tipis abu-abu agar terlihat di wallpaper gelap
-    marginRight: 12, // Jarak pemisah dengan bubble kanan
-    elevation: 5, // Shadow Android
+    borderColor: '#333',
+    marginRight: 12,
+    elevation: 5,
   },
+
   avatarImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20, // Avatar bulat di dalam kotak rounded
+    width: 60, // Full size dalam bubble
+    height: 60,
+    borderRadius: 35,
   },
 
   // 2. Bubble Kanan (Pesan)
   messageBubble: {
-    flex: 1, // Mengambil sisa lebar yang ada
-    height: 60,
-    backgroundColor: '#000000', // Hitam pekat
-    borderRadius: 20, // Radius sudut 20px
-    justifyContent: 'center',
+    flex: 1,
+    minHeight: 60, // Tinggi minimal sama dengan avatar
+    backgroundColor: '#000000',
+    borderRadius: 35,
+    justifyContent: 'center', // Teks vertikal center jika pendek
     paddingHorizontal: 20,
+    paddingVertical: 15, // Padding atas bawah agar teks tidak mepet
     borderWidth: 1,
     borderColor: '#333',
     elevation: 5,
   },
+
   assistantText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '500'
+    fontWeight: '500',
+    lineHeight: 20, // Jarak antar baris agar nyaman dibaca
   },
 
   // ... (Style Modal tetap sama) ...
