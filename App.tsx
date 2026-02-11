@@ -25,6 +25,7 @@ import * as ImagePicker from 'react-native-image-picker';
 interface AppData {
   label: string;
   packageName: string;
+  icon: string; // Menyimpan data icon base64
 }
 
 const { width } = Dimensions.get('window');
@@ -38,45 +39,67 @@ const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
-// ==================== COMPONENT: AppIcon (Strict Icon Only) ====================
+// ==================== COMPONENT: AppIcon (Debug Mode) ====================
 const AppIcon = memo(({ packageName }: { packageName: string }) => {
   const [iconUri, setIconUri] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+
     const fetchIcon = async () => {
       try {
-        // Mengambil icon asli
-        const result = await RNLauncherKitHelper.getAppIcon(packageName);
-        if (isMounted && result) {
-            // Pastikan format base64 valid
-            const source = result.startsWith('data:image') ? result : `data:image/png;base64,${result}`;
-            setIconUri(source);
+        // Coba ambil icon
+        const result = await InstalledApps.getSortedApps({ includeVersion: true, includeAccentColor: true });
+
+        if (isMounted) {
+          if (result) {
+            // Bersihkan string dari Enter/Spasi (Penyebab utama error render)
+            const cleanBase64 = result.toString().replace(/(\r\n|\n|\r)/gm, "");
+
+            // Tambahkan header jika belum ada
+            const finalUri = cleanBase64.startsWith('data:image')
+              ? cleanBase64
+              : `data:image/png;base64,${cleanBase64}`;
+
+            setIconUri(finalUri);
+          } else {
+            // DATA KOSONG (Null)
+            ToastAndroid.show(`Icon Kosong: ${packageName}`, ToastAndroid.SHORT);
+          }
         }
-      } catch (e) { 
-        // Silent error 
+      } catch (e) {
+        // ERROR SAAT MENGAMBIL DATA (Library Error)
+        ToastAndroid.show(`Gagal Load: ${packageName}`, ToastAndroid.SHORT);
       }
     };
+
     fetchIcon();
     return () => { isMounted = false; };
   }, [packageName]);
 
-  // JIKA ICON BELUM ADA: Tampilkan kotak kosong transparan (Bukan Huruf)
-  if (!iconUri) {
-    return <View style={styles.placeholderIcon} />;
-  }
-
-  // JIKA ICON ADA: Tampilkan Icon Asli
+  // Render
   return (
-    <Image 
-      source={{ uri: iconUri }} 
-      style={styles.appIconImage} 
-      resizeMode="contain"
-    />
+    <View style={styles.iconContainer}>
+      {iconUri ? (
+        <Image
+          source={{ uri: iconUri }}
+          style={styles.appIconImage}
+          resizeMode="contain"
+          // ERROR SAAT RENDER GAMBAR (Data rusak/corrupt)
+          onError={(e) => {
+            ToastAndroid.show(`Format Salah: ${packageName}`, ToastAndroid.SHORT);
+          }}
+        />
+      ) : (
+        // Placeholder saat loading atau gagal total
+        <View style={styles.placeholderIcon} />
+      )}
+    </View>
   );
 });
 
 // ==================== ITEM LIST ====================
+// ==================== Memoized Item (Fixed Icon) ====================
 const MemoizedItem = memo(({ item, onPress, onLongPress }: {
   item: AppData;
   onPress: (pkg: string) => void;
@@ -88,16 +111,28 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
       onPress={() => onPress(item.packageName)}
       onLongPress={() => onLongPress(item.packageName, item.label)}
       activeOpacity={0.7}
-      delayLongPress={400} // Lebih responsif
+      delayLongPress={400}
     >
       <View style={styles.iconContainer}>
-        {/* Hanya memanggil komponen Icon, tanpa opsi teks */}
-        <AppIcon packageName={item.packageName} />
+        {item.icon ? (
+          <Image
+            source={{ uri: item.icon }}
+            style={styles.appIconImage}
+            resizeMode="contain"
+          />
+        ) : (
+          // Fallback jika icon benar-benar kosong (kotak transparan)
+          <View style={styles.placeholderIcon} />
+        )}
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </TouchableOpacity>
   );
+}, (prev, next) => {
+  // Optimasi render: Hanya render ulang jika package atau icon berubah
+  return prev.item.packageName === next.item.packageName && prev.item.icon === next.item.icon;
 });
+
 
 // ==================== DOCK ASSISTANT ====================
 const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShowHidden, onChangePhoto, avatarSource }: any) => {
@@ -125,10 +160,10 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
     <>
       <View style={styles.dockContainer}>
         <TouchableOpacity style={styles.dockContent} onLongPress={() => { setTempName(userName); setModalVisible(true); }}>
-           <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
-           <View style={styles.messageBox}>
-             <Text style={styles.assistantText} numberOfLines={1}>{message}</Text>
-           </View>
+          <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatar} />
+          <View style={styles.messageBox}>
+            <Text style={styles.assistantText} numberOfLines={1}>{message}</Text>
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -136,14 +171,14 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Settings</Text>
-            <TextInput style={styles.input} value={tempName} onChangeText={setTempName} placeholder="Your Name" placeholderTextColor="#666"/>
+            <TextInput style={styles.input} value={tempName} onChangeText={setTempName} placeholder="Your Name" placeholderTextColor="#666" />
             <View style={styles.rowBetween}>
-                <Text style={{color:'#fff'}}>Show Hidden Apps</Text>
-                <Switch value={showHidden} onValueChange={onToggleShowHidden}/>
+              <Text style={{ color: '#fff' }}>Show Hidden Apps</Text>
+              <Switch value={showHidden} onValueChange={onToggleShowHidden} />
             </View>
             <View style={styles.modalBtnRow}>
-                <TouchableOpacity onPress={onChangePhoto}><Text style={styles.btnText}>Change Icon</Text></TouchableOpacity>
-                <TouchableOpacity onPress={save}><Text style={styles.btnSave}>Save</Text></TouchableOpacity>
+              <TouchableOpacity onPress={onChangePhoto}><Text style={styles.btnText}>Change Icon</Text></TouchableOpacity>
+              <TouchableOpacity onPress={save}><Text style={styles.btnSave}>Save</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -172,25 +207,47 @@ const App = () => {
 
   const refreshApps = useCallback(async () => {
     try {
-      // HANYA ambil Label & Package Name (Sangat Ringan)
       const result = await InstalledApps.getApps();
+
       const apps = result
-        .map((a: any) => ({ label: a.label || 'App', packageName: a.packageName }))
+        .map((a: any) => {
+          // PEMBERSIHAN DATA ICON (Kunci agar icon muncul!)
+          // 1. Ambil raw icon
+          let rawIcon = a.icon || "";
+
+          // 2. Hapus karakter Enter/New Line yang merusak gambar
+          rawIcon = rawIcon.replace(/(\r\n|\n|\r)/gm, "");
+
+          // 3. Pastikan format header benar
+          if (rawIcon && !rawIcon.startsWith('data:image')) {
+            rawIcon = `data:image/png;base64,${rawIcon}`;
+          }
+
+          return {
+            label: a.label || 'App',
+            packageName: a.packageName,
+            icon: rawIcon
+          };
+        })
         .filter((a: any) => a.packageName)
         .sort((a: any, b: any) => a.label.localeCompare(b.label));
+
       setAllApps(apps);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error("Error loading apps:", e);
+      ToastAndroid.show("Gagal memuat aplikasi", ToastAndroid.SHORT);
+    }
   }, []);
 
   useEffect(() => {
     const init = async () => {
-      await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => {});
+      await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => { });
       try {
         if (await RNFS.exists(CUSTOM_USER_PATH)) setUserName(await RNFS.readFile(CUSTOM_USER_PATH, 'utf8'));
         if (await RNFS.exists(CUSTOM_HIDDEN_PATH)) setHiddenPackages(JSON.parse(await RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8')));
         if (await RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH)) setShowHidden((await RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8')) === 'true');
         if (await RNFS.exists(CUSTOM_AVATAR_PATH)) setAvatarSource(`data:image/jpeg;base64,${await RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64')}`);
-      } catch (_) {}
+      } catch (_) { }
       setLoading(false);
     };
     init();
@@ -199,8 +256,8 @@ const App = () => {
 
   useEffect(() => {
     packageListener.current = DeviceEventEmitter.addListener("PACKAGE_CHANGED", () => {
-       refreshApps(); 
-       ToastAndroid.show("Apps Updated", ToastAndroid.SHORT);
+      refreshApps();
+      ToastAndroid.show("Apps Updated", ToastAndroid.SHORT);
     });
     return () => { packageListener.current?.remove(); };
   }, [refreshApps]);
@@ -228,7 +285,7 @@ const App = () => {
   };
 
   const launchApp = (pkg: string) => {
-     try { RNLauncherKitHelper.launchApplication(pkg); } catch { ToastAndroid.show("Error", ToastAndroid.SHORT); }
+    try { RNLauncherKitHelper.launchApplication(pkg); } catch { ToastAndroid.show("Error", ToastAndroid.SHORT); }
   };
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
@@ -239,47 +296,47 @@ const App = () => {
   const saveName = async (n: string) => { await RNFS.writeFile(CUSTOM_USER_PATH, n, 'utf8'); setUserName(n); };
   const toggleHidden = async (v: boolean) => { setShowHidden(v); await RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
   const changePhoto = async () => {
-      const res = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true, maxWidth: 200, maxHeight: 200 });
-      if (res.assets?.[0]?.base64) {
-          await RNFS.writeFile(CUSTOM_AVATAR_PATH, res.assets[0].base64, 'base64');
-          setAvatarSource(`data:image/jpeg;base64,${res.assets[0].base64}`);
-      }
+    const res = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true, maxWidth: 200, maxHeight: 200 });
+    if (res.assets?.[0]?.base64) {
+      await RNFS.writeFile(CUSTOM_AVATAR_PATH, res.assets[0].base64, 'base64');
+      setAvatarSource(`data:image/jpeg;base64,${res.assets[0].base64}`);
+    }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color="#0f0" size="large"/></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator color="#0f0" size="large" /></View>;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" />
-      
+
       <FlatList
         data={filteredApps}
         numColumns={4}
         keyExtractor={item => item.packageName}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
-        removeClippedSubviews={true} 
+        removeClippedSubviews={true}
         initialNumToRender={20}
         maxToRenderPerBatch={10}
         windowSize={5}
-        getItemLayout={(data, index) => ({length: 100, offset: 100 * index, index})}
+        getItemLayout={(data, index) => ({ length: 100, offset: 100 * index, index })}
       />
 
-      <AssistantDock 
-         userName={userName} showHidden={showHidden} avatarSource={avatarSource}
-         onSaveUserName={saveName} onToggleShowHidden={toggleHidden} onChangePhoto={changePhoto} 
+      <AssistantDock
+        userName={userName} showHidden={showHidden} avatarSource={avatarSource}
+        onSaveUserName={saveName} onToggleShowHidden={toggleHidden} onChangePhoto={changePhoto}
       />
 
       <Modal visible={actionModal} transparent animationType="fade" onRequestClose={() => setActionModal(false)}>
-         <View style={styles.modalOverlay}>
-             <View style={styles.modalContent}>
-                 <Text style={styles.modalTitle}>{actionType === 'unhide' ? 'Unhide' : 'Hide'} {selectedLabel}?</Text>
-                 <View style={styles.modalBtnRow}>
-                     <TouchableOpacity onPress={() => setActionModal(false)}><Text style={styles.btnText}>Cancel</Text></TouchableOpacity>
-                     <TouchableOpacity onPress={doAction}><Text style={styles.btnSave}>Confirm</Text></TouchableOpacity>
-                 </View>
-             </View>
-         </View>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{actionType === 'unhide' ? 'Unhide' : 'Hide'} {selectedLabel}?</Text>
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity onPress={() => setActionModal(false)}><Text style={styles.btnText}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity onPress={doAction}><Text style={styles.btnSave}>Confirm</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -290,12 +347,12 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { paddingTop: 60, paddingBottom: 120 },
   item: { width: ITEM_WIDTH, height: 100, alignItems: 'center', marginBottom: 10 },
-  
+
   // Icon Styles - Updated
   iconContainer: { width: 56, height: 56, justifyContent: 'center', alignItems: 'center' },
   appIconImage: { width: 56, height: 56 },
-  placeholderIcon: { width: 56, height: 56, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 }, // Placeholder transparan
-  
+  placeholderIcon: { width: 56, height: 56, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 },
+
   label: { color: '#ddd', fontSize: 11, textAlign: 'center', marginTop: 5, marginHorizontal: 4, textShadowColor: '#000', textShadowRadius: 2 },
 
   // Dock Styles
