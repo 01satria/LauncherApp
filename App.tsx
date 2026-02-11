@@ -15,23 +15,24 @@ import {
   TextInput,
   Switch,
   DeviceEventEmitter,
+  ListRenderItem,
 } from 'react-native';
-import type { EmitterSubscription, ListRenderItem } from 'react-native';
+import type { EmitterSubscription } from 'react-native';
 
-// Pastikan import ini benar sesuai versi library
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
 
+// Interface Data Aplikasi (Hanya Text agar RAM Ringan)
 interface AppData {
   label: string;
   packageName: string;
-  // Kita TIDAK menyimpan icon di sini agar RAM hemat
 }
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4;
 
+// Konstanta File System
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
@@ -39,46 +40,51 @@ const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
 const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 
-// ==================== Component: AppIcon (Lazy Load) ====================
-// Ini solusi agar icon muncul dan RAM tidak bocor
+// ==================== KOMPONEN PENGHEMAT RAM: AppIcon ====================
+// Komponen ini bertugas mengambil icon HANYA saat ditampilkan.
+// Jika di-scroll lewat, dia tidak akan membebani RAM.
 const AppIcon = memo(({ packageName, label }: { packageName: string, label: string }) => {
-  const [iconData, setIconData] = useState<string | null>(null);
+  const [iconUri, setIconUri] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const loadIcon = async () => {
       try {
-        // Mengambil icon satu per satu HANYA untuk app yang tampil di layar
+        // Mengambil icon spesifik untuk package ini
         const result = await RNLauncherKitHelper.getAppIcon(packageName);
+        
         if (isMounted && result) {
-          // Cek apakah library sudah memberi prefix atau belum
-          const source = result.startsWith('data:image') 
-            ? result 
-            : `data:image/png;base64,${result}`;
-          setIconData(source);
+            // Pastikan format base64 benar
+            const cleanIcon = result.startsWith('data:image') 
+                ? result 
+                : `data:image/png;base64,${result}`;
+            setIconUri(cleanIcon);
         }
       } catch (e) {
-        // Fail silently
+        // Jika gagal, biarkan null agar menampilkan inisial teks
       }
     };
 
     loadIcon();
+
+    // Cleanup function: Mencegah update state jika komponen sudah hilang dari layar
     return () => { isMounted = false; };
   }, [packageName]);
 
-  const getInitial = (lbl: string) =>
-    lbl ? lbl.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || "?" : "?";
-
-  if (!iconData) {
-    return <Text style={styles.initial}>{getInitial(label)}</Text>;
+  // Fallback: Jika icon belum loading atau gagal, tampilkan Inisial Huruf
+  if (!iconUri) {
+    const initial = label ? label.trim().substring(0, 1).toUpperCase() : "?";
+    return <Text style={styles.initialText}>{initial}</Text>;
   }
 
+  // Render Icon Asli
   return (
     <Image 
-      source={{ uri: iconData }} 
-      style={styles.appIcon} 
-      resizeMode="contain" 
+      source={{ uri: iconUri }} 
+      style={styles.appIconImage} 
+      resizeMode="contain"
+      // fadeDuration={0} // Opsi: matikan animasi fade agar terasa lebih cepat
     />
   );
 });
@@ -98,7 +104,7 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
       delayLongPress={500}
     >
       <View style={styles.iconBox}>
-        {/* Panggil Component Icon Terpisah */}
+        {/* Panggil komponen AppIcon di sini */}
         <AppIcon packageName={item.packageName} label={item.label} />
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
@@ -106,15 +112,8 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
   );
 });
 
-// ==================== AssistantDock (Sama seperti sebelumnya) ====================
-const AssistantDock = memo(({
-  userName,
-  showHidden,
-  onSaveUserName,
-  onToggleShowHidden,
-  onChangePhoto,
-  avatarSource,
-}: any) => {
+// ==================== AssistantDock (Tetap Sama) ====================
+const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShowHidden, onChangePhoto, avatarSource }: any) => {
   const [message, setMessage] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [tempName, setTempName] = useState(userName);
@@ -149,18 +148,17 @@ const AssistantDock = memo(({
           <Text style={styles.assistantText} numberOfLines={2}>{message}</Text>
         </View>
       </View>
-
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Settings</Text>
-            <TextInput style={styles.modalInput} value={tempName} onChangeText={setTempName} placeholder="Name" placeholderTextColor="#666" />
+            <TextInput style={styles.modalInput} value={tempName} onChangeText={setTempName} placeholder="Your Name" placeholderTextColor="#666" />
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>Show Hidden Apps</Text>
               <Switch value={showHidden} onValueChange={onToggleShowHidden} />
             </View>
             <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={onChangePhoto} style={{marginRight: 15}}><Text style={styles.modalButtonText}>Photo</Text></TouchableOpacity>
+              <TouchableOpacity onPress={onChangePhoto} style={{marginRight: 15}}><Text style={styles.modalButtonText}>Change Photo</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={{marginRight: 15}}><Text style={styles.modalButtonText}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity onPress={save}><Text style={styles.saveButton}>Save</Text></TouchableOpacity>
             </View>
@@ -180,8 +178,8 @@ const App = () => {
   const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
-  
-  // Modal Action States
+
+  // Action Modal State
   const [actionModal, setActionModal] = useState(false);
   const [actionType, setActionType] = useState<'hide' | 'unhide'>('hide');
   const [selectedPkg, setSelectedPkg] = useState('');
@@ -189,10 +187,13 @@ const App = () => {
 
   const packageListener = useRef<EmitterSubscription | null>(null);
 
+  // --- FUNGSI LOAD DATA UTAMA (Sangat Ringan) ---
   const refreshApps = useCallback(async () => {
     try {
-      // PENTING: Jangan load icon di sini. Cukup label & package agar cepat.
+      // Kita HANYA mengambil label & packageName.
+      // JANGAN mengambil icon di sini (berat).
       const result = await InstalledApps.getApps();
+      
       const apps = result
         .map((a: any) => ({ 
           label: a.label || 'App', 
@@ -207,6 +208,7 @@ const App = () => {
     }
   }, []);
 
+  // Init Data
   useEffect(() => {
     const init = async () => {
       await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => {});
@@ -222,19 +224,20 @@ const App = () => {
     refreshApps();
   }, [refreshApps]);
 
+  // Listener Install/Uninstall
   useEffect(() => {
     packageListener.current = DeviceEventEmitter.addListener("PACKAGE_CHANGED", () => {
       refreshApps();
-      ToastAndroid.show("App list updated", ToastAndroid.SHORT);
     });
     return () => { packageListener.current?.remove(); };
   }, [refreshApps]);
 
+  // Filtering Logic
   useEffect(() => {
     setFilteredApps(showHidden ? allApps : allApps.filter(app => !hiddenPackages.includes(app.packageName)));
   }, [allApps, hiddenPackages, showHidden]);
 
-  // Logic Handlers
+  // Handlers
   const handleLongPress = useCallback((pkg: string, label: string) => {
     const isHidden = hiddenPackages.includes(pkg);
     setActionType(isHidden ? 'unhide' : 'hide');
@@ -247,7 +250,6 @@ const App = () => {
     let newList = [...hiddenPackages];
     if (actionType === 'unhide') newList = newList.filter(p => p !== selectedPkg);
     else if (!newList.includes(selectedPkg)) newList.push(selectedPkg);
-    
     setHiddenPackages(newList);
     await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newList), 'utf8');
     setActionModal(false);
@@ -255,10 +257,9 @@ const App = () => {
   };
 
   const launchApp = (pkg: string) => {
-    try { RNLauncherKitHelper.launchApplication(pkg); } catch { ToastAndroid.show("Error", ToastAndroid.SHORT); }
+    try { RNLauncherKitHelper.launchApplication(pkg); } catch { ToastAndroid.show("Error launching", ToastAndroid.SHORT); }
   };
-  
-  // Handlers Setting (User, Photo, ShowHidden) - Sama seperti sebelumnya (dipersingkat di sini)
+
   const saveName = async (n: string) => { await RNFS.writeFile(CUSTOM_USER_PATH, n, 'utf8'); setUserName(n); };
   const toggleHidden = async (v: boolean) => { setShowHidden(v); await RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
   const changePhoto = async () => {
@@ -278,16 +279,20 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" />
+      
       <FlatList
         data={filteredApps}
         numColumns={4}
         keyExtractor={item => item.packageName}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
-        removeClippedSubviews={true}
-        initialNumToRender={16}
-        maxToRenderPerBatch={8}
-        windowSize={5}
+        removeClippedSubviews={true} // PENTING untuk performa
+        initialNumToRender={16}      // Hanya render yang terlihat di awal
+        maxToRenderPerBatch={8}      // Render sedikit demi sedikit
+        windowSize={5}               // Jangan simpan terlalu banyak di memori (di luar layar)
+        getItemLayout={(data, index) => (
+            {length: 112, offset: 112 * index, index} // Optimasi kalkulasi scroll
+        )}
       />
       
       <AssistantDock 
@@ -296,12 +301,12 @@ const App = () => {
          onChangePhoto={changePhoto} avatarSource={avatarSource} 
       />
 
-      {/* Action Modal (Hide/Unhide) */}
+      {/* Modal Hide/Unhide */}
       <Modal visible={actionModal} transparent animationType="fade" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>{actionType === 'unhide' ? 'Unhide' : 'Hide'} App</Text>
-                <Text style={styles.modalMessage}>Action for {selectedLabel}?</Text>
+                <Text style={styles.modalMessage}>Do you want to {actionType} "{selectedLabel}"?</Text>
                 <View style={styles.modalButtons}>
                     <TouchableOpacity onPress={() => setActionModal(false)}><Text style={[styles.modalButtonText, {marginRight: 20}]}>Cancel</Text></TouchableOpacity>
                     <TouchableOpacity onPress={doAction}><Text style={styles.saveButton}>Confirm</Text></TouchableOpacity>
@@ -319,11 +324,42 @@ const styles = StyleSheet.create({
   list: { paddingTop: 60, paddingBottom: 130 },
   item: { width: ITEM_WIDTH, height: 100, alignItems: 'center', marginBottom: 12 },
   
-  iconBox: { width: 58, height: 58, justifyContent: 'center', alignItems: 'center' },
-  appIcon: { width: 58, height: 58 },
-  initial: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
-  label: { color: '#eee', fontSize: 11, textAlign: 'center', marginTop: 6, marginHorizontal: 4, textShadowColor: '#000', textShadowRadius: 3 },
+  // Icon Box yang lebih rapi
+  iconBox: { 
+      width: 58, 
+      height: 58, 
+      justifyContent: 'center', 
+      alignItems: 'center',
+      // backgroundColor: 'rgba(0,0,0,0.2)', // Opsional: background tipis di belakang icon
+      // borderRadius: 12 
+  },
+  
+  // Style untuk Icon Gambar
+  appIconImage: { 
+      width: 58, 
+      height: 58 
+  },
+  
+  // Style untuk Fallback Text Inisial
+  initialText: { 
+      color: '#fff', 
+      fontSize: 24, 
+      fontWeight: 'bold',
+      textShadowColor: 'rgba(0,0,0,0.5)',
+      textShadowRadius: 4
+  },
+  
+  label: { 
+      color: '#eee', 
+      fontSize: 11, 
+      textAlign: 'center', 
+      marginTop: 6, 
+      marginHorizontal: 4, 
+      textShadowColor: '#000', 
+      textShadowRadius: 3 
+  },
 
+  // Dock & Modal Styles (Sama seperti sebelumnya)
   dockContainer: { position: 'absolute', bottom: 28, left: 16, right: 16, height: 76, backgroundColor: 'rgba(0,0,0,0.85)', borderRadius: 24, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 },
   dockContent: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   avatarContainer: { marginRight: 14 },
