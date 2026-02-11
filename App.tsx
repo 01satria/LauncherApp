@@ -25,7 +25,7 @@ import * as ImagePicker from 'react-native-image-picker';
 interface AppData {
   label: string;
   packageName: string;
-  icon: string; // Base64 string siap pakai
+  icon: string; // INI ADALAH FILE PATH, BUKAN BASE64
 }
 
 const { width } = Dimensions.get('window');
@@ -39,13 +39,20 @@ const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
-// ==================== ITEM LIST (SEDERHANA & EFISIEN) ====================
-// Langsung render Image. Tidak ada logic aneh-aneh di sini.
+// ==================== ITEM LIST ====================
 const MemoizedItem = memo(({ item, onPress, onLongPress }: {
   item: AppData;
   onPress: (pkg: string) => void;
   onLongPress: (pkg: string, label: string) => void;
 }) => {
+  
+  // LOGIKA BARU: Format URI untuk File Path
+  // Library mengembalikan path seperti: "/data/user/0/..."
+  // React Native butuh: "file:///data/user/0/..."
+  const iconSource = item.icon.startsWith('file://') 
+      ? item.icon 
+      : `file://${item.icon}`;
+
   return (
     <TouchableOpacity
       style={styles.item}
@@ -55,28 +62,23 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
       delayLongPress={400}
     >
       <View style={styles.iconContainer}>
-        {item.icon && item.icon.length > 10 ? (
-          <Image
-            source={{ uri: item.icon }}
+        <Image
+            source={{ uri: iconSource }}
             style={styles.appIconImage}
             resizeMode="contain"
-            // Debugging: Jika gambar gagal load
-            onError={(e) => console.log(`Error render ${item.label}:`, e.nativeEvent.error)}
-          />
-        ) : (
-          // Fallback jika icon kosong
-          <View style={styles.placeholderIcon} />
-        )}
+            // Cache penting agar tidak reload terus menerus dari file
+            defaultSource={undefined} 
+            onError={(e) => console.log(`Gagal load icon ${item.label}:`, e.nativeEvent.error)}
+        />
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </TouchableOpacity>
   );
 }, (prev, next) => {
-  // Optimasi Render: Cek apakah icon/package berubah
   return prev.item.packageName === next.item.packageName && prev.item.icon === next.item.icon;
 });
 
-// ==================== DOCK ASSISTANT (Tetap) ====================
+// ==================== DOCK ASSISTANT ====================
 const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShowHidden, onChangePhoto, avatarSource }: any) => {
   const [message, setMessage] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
@@ -119,7 +121,7 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
               <Switch value={showHidden} onValueChange={onToggleShowHidden} />
             </View>
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity onPress={onChangePhoto}><Text style={styles.btnText}>Change Icon</Text></TouchableOpacity>
+              <TouchableOpacity onPress={onChangePhoto}><Text style={styles.btnText}>Change Avatar</Text></TouchableOpacity>
               <TouchableOpacity onPress={save}><Text style={styles.btnSave}>Save</Text></TouchableOpacity>
             </View>
           </View>
@@ -146,52 +148,24 @@ const App = () => {
 
   const packageListener = useRef<EmitterSubscription | null>(null);
 
-  // ==================== FUNGSI LOAD APPS UTAMA (DIPERBAIKI) ====================
+  // ==================== REFRESH APPS (SESUAI DOKUMENTASI V2.1.0) ====================
   const refreshApps = useCallback(async () => {
     try {
-      // Fetch semua data sekaligus (termasuk icon)
-      const result = await InstalledApps.getApps();
+      // Gunakan getSortedApps agar otomatis urut A-Z
+      // IncludeVersion & AccentColor opsional, tidak wajib jika tidak dipakai
+      const result = await InstalledApps.getSortedApps();
 
-      const apps = result.map((a: any) => {
-          let cleanIcon = "";
-          
-          if (a.icon) {
-            // 1. Ambil raw string
-            let raw = a.icon.toString();
-            
-            // 2. HAPUS SEMUA WHITESPACE (Spasi, Tab, Enter) - Ini lebih kuat dari regex sebelumnya
-            raw = raw.replace(/\s/g, ''); 
-
-            // 3. Cek Header
-            if (raw.startsWith('data:image')) {
-              cleanIcon = raw;
-            } else {
-              // Tambahkan header PNG
-              cleanIcon = `data:image/png;base64,${raw}`;
-            }
-          }
-
-          return {
-            label: a.label || 'App',
-            packageName: a.packageName,
-            icon: cleanIcon
-          };
-        })
-        .filter((a: any) => a.packageName)
-        .sort((a: any, b: any) => a.label.localeCompare(b.label));
+      // Mapping data langsung. Tidak perlu pembersihan Base64 lagi.
+      const apps = result.map((a: any) => ({
+          label: a.label || 'App',
+          packageName: a.packageName,
+          icon: a.icon // Ini berisi path file: "/data/user/..."
+      }));
 
       setAllApps(apps);
-      
-      // Toast Debug: Muncul jika apps berhasil diload
-      if (apps.length > 0) {
-         // console.log("Load Success. Total Apps:", apps.length);
-      } else {
-         ToastAndroid.show("Warning: 0 Apps Found!", ToastAndroid.LONG);
-      }
-
     } catch (e) {
       console.error("Error loading apps:", e);
-      ToastAndroid.show("CRITICAL: Gagal Memuat Aplikasi", ToastAndroid.LONG);
+      ToastAndroid.show("Gagal memuat aplikasi", ToastAndroid.LONG);
     }
   }, []);
 
@@ -210,12 +184,25 @@ const App = () => {
     refreshApps();
   }, [refreshApps]);
 
+  // Listener untuk install/uninstall aplikasi (Fitur baru library)
   useEffect(() => {
-    packageListener.current = DeviceEventEmitter.addListener("PACKAGE_CHANGED", () => {
-      refreshApps();
-      ToastAndroid.show("Updating App List...", ToastAndroid.SHORT);
+    // Listener Install
+    const installListener = InstalledApps.startListeningForAppInstallations((app) => {
+        refreshApps(); // Refresh list saat ada app baru
+        ToastAndroid.show(`App Installed: ${app.label}`, ToastAndroid.SHORT);
     });
-    return () => { packageListener.current?.remove(); };
+
+    // Listener Removal
+    const removeListener = InstalledApps.startListeningForAppRemovals((pkg) => {
+        refreshApps(); // Refresh list saat ada app dihapus
+        ToastAndroid.show("App Removed", ToastAndroid.SHORT);
+    });
+
+    return () => {
+      // Cleanup listener saat close
+      InstalledApps.stopListeningForAppInstallations();
+      InstalledApps.stopListeningForAppRemovals();
+    };
   }, [refreshApps]);
 
   useEffect(() => {
@@ -270,11 +257,10 @@ const App = () => {
         keyExtractor={item => item.packageName}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
-        // Optimasi Performance FlatList (Sangat Penting untuk Gambar)
         removeClippedSubviews={true} 
-        initialNumToRender={16}
-        maxToRenderPerBatch={12}
-        windowSize={7} 
+        initialNumToRender={20}
+        maxToRenderPerBatch={15}
+        windowSize={10} 
         getItemLayout={(data, index) => ({ length: 100, offset: 100 * index, index })}
       />
 
@@ -304,7 +290,6 @@ const styles = StyleSheet.create({
   list: { paddingTop: 60, paddingBottom: 120 },
   item: { width: ITEM_WIDTH, height: 100, alignItems: 'center', marginBottom: 10 },
   
-  // Icon Container
   iconContainer: { 
     width: 58, 
     height: 58, 
@@ -313,24 +298,15 @@ const styles = StyleSheet.create({
     marginBottom: 5 
   },
   
-  // Image Style
   appIconImage: { 
     width: 58, 
     height: 58,
-    borderRadius: 10 // Sedikit rounded biar rapi
+    // borderRadius: 12 // Optional
   },
   
-  // Placeholder jika icon gagal
-  placeholderIcon: { 
-    width: 58, 
-    height: 58, 
-    backgroundColor: 'rgba(255,255,255,0.1)', 
-    borderRadius: 10 
-  },
-
   label: { color: '#ddd', fontSize: 11, textAlign: 'center', marginTop: 2, marginHorizontal: 4, textShadowColor: '#000', textShadowRadius: 2 },
   
-  // Dock & Modal (Sama seperti sebelumnya)
+  // Dock & Modal (Sama)
   dockContainer: { position: 'absolute', bottom: 20, left: 16, right: 16 },
   dockContent: { backgroundColor: 'rgba(20,20,20,0.9)', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 20, borderWidth: 1, borderColor: '#333' },
   avatar: { width: 44, height: 44, borderRadius: 22, marginRight: 12 },
