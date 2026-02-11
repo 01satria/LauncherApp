@@ -25,11 +25,11 @@ import * as ImagePicker from 'react-native-image-picker';
 interface AppData {
   label: string;
   packageName: string;
-  icon: string; // Menyimpan data icon base64
+  icon: string; // Base64 string siap pakai
 }
 
 const { width } = Dimensions.get('window');
-const ITEM_WIDTH = width / 4; // 4 Kolom
+const ITEM_WIDTH = width / 4; 
 
 // Konstanta Path
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
@@ -39,125 +39,8 @@ const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
-// ==================== COMPONENT: AppIcon (Optimized with Shared Cache) ====================
-// Optimasi utama:
-// - Fetch InstalledApps.getApps() HANYA SEKALI untuk seluruh app (shared cache).
-// - Semua instance AppIcon akan menggunakan cache yang sama → RAM & CPU jauh lebih hemat.
-// - Setelah fetch pertama, icon langsung diambil dari cache (instan).
-// - Mendukung format icon lama (base64) dan baru (file path).
-// - Jika app berubah (install/uninstall), cache belum otomatis refresh → bisa ditambah manual refresh jika diperlukan.
-
-
-// Shared cache & fetch promise (singleton, di luar komponen agar shared antar instance)
-let cachedApps: any[] | null = null;
-let ongoingFetch: Promise<any[]> | null = null;
-
-const processIconUri = (icon: string): string => {
-  if (!icon) return '';
-
-  if (icon.startsWith('data:image') || icon.startsWith('http') || icon.startsWith('file://')) {
-    return icon;
-  }
-
-  if (icon.startsWith('/')) {
-    // File path (versi baru library)
-    return `file://${icon}`;
-  }
-
-  // Base64 tanpa prefix (versi lama)
-  const cleanBase64 = icon.replace(/(\r\n|\n|\r)/gm, '').trim();
-  return `data:image/png;base64,${cleanBase64}`;
-};
-
-const AppIcon = memo(({ packageName }: { packageName: string }) => {
-  const [iconUri, setIconUri] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadIcon = async () => {
-      // Jika sudah ada cache, ambil langsung
-      if (cachedApps) {
-        const targetApp = cachedApps.find((app: any) => app.packageName === packageName);
-        if (isMounted) {
-          setIconUri(targetApp?.icon ? processIconUri(targetApp.icon) : null);
-          if (!targetApp) {
-            ToastAndroid.show(`App Tidak Ditemukan: ${packageName}`, ToastAndroid.SHORT);
-          }
-        }
-        return;
-      }
-
-      // Jika sedang ada fetch lain, tunggu hasilnya
-      if (ongoingFetch) {
-        try {
-          const apps = await ongoingFetch;
-          if (isMounted) {
-            cachedApps = apps;
-            const targetApp = apps.find((app: any) => app.packageName === packageName);
-            setIconUri(targetApp?.icon ? processIconUri(targetApp.icon) : null);
-          }
-        } catch (e) {
-          if (isMounted) ToastAndroid.show(`Gagal Load Cache: ${packageName}`, ToastAndroid.SHORT);
-        }
-        return;
-      }
-
-      // Fetch baru (hanya dijalankan sekali)
-      ongoingFetch = InstalledApps.getApps({
-        includeVersion: true,
-        includeAccentColor: true,
-      });
-
-      try {
-        const apps = await ongoingFetch;
-        ongoingFetch = null; // reset setelah selesai
-
-        if (isMounted) {
-          cachedApps = apps;
-          const targetApp = apps.find((app: any) => app.packageName === packageName);
-          setIconUri(targetApp?.icon ? processIconUri(targetApp.icon) : null);
-
-          if (!targetApp) {
-            ToastAndroid.show(`App Tidak Ditemukan: ${packageName}`, ToastAndroid.SHORT);
-          }
-        }
-      } catch (e) {
-        ongoingFetch = null;
-        console.error('Error fetching apps:', e);
-        if (isMounted) {
-          ToastAndroid.show(`Gagal Load Apps: ${packageName}`, ToastAndroid.SHORT);
-        }
-      }
-    };
-
-    loadIcon();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [packageName]);
-
-  return (
-    <View style={styles.iconContainer}>
-      {iconUri ? (
-        <Image
-          source={{ uri: iconUri }}
-          style={styles.appIconImage}
-          resizeMode="contain"
-          onError={() => {
-            ToastAndroid.show(`Render Gagal: ${packageName}`, ToastAndroid.SHORT);
-          }}
-        />
-      ) : (
-        <View style={styles.placeholderIcon} />
-      )}
-    </View>
-  );
-});
-
-// ==================== ITEM LIST ====================
-// ==================== Memoized Item (Fixed Icon) ====================
+// ==================== ITEM LIST (SEDERHANA & EFISIEN) ====================
+// Langsung render Image. Tidak ada logic aneh-aneh di sini.
 const MemoizedItem = memo(({ item, onPress, onLongPress }: {
   item: AppData;
   onPress: (pkg: string) => void;
@@ -172,14 +55,16 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
       delayLongPress={400}
     >
       <View style={styles.iconContainer}>
-        {item.icon ? (
+        {item.icon && item.icon.length > 10 ? (
           <Image
             source={{ uri: item.icon }}
             style={styles.appIconImage}
             resizeMode="contain"
+            // Debugging: Jika gambar gagal load
+            onError={(e) => console.log(`Error render ${item.label}:`, e.nativeEvent.error)}
           />
         ) : (
-          // Fallback jika icon benar-benar kosong (kotak transparan)
+          // Fallback jika icon kosong
           <View style={styles.placeholderIcon} />
         )}
       </View>
@@ -187,12 +72,11 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
     </TouchableOpacity>
   );
 }, (prev, next) => {
-  // Optimasi render: Hanya render ulang jika package atau icon berubah
+  // Optimasi Render: Cek apakah icon/package berubah
   return prev.item.packageName === next.item.packageName && prev.item.icon === next.item.icon;
 });
 
-
-// ==================== DOCK ASSISTANT ====================
+// ==================== DOCK ASSISTANT (Tetap) ====================
 const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShowHidden, onChangePhoto, avatarSource }: any) => {
   const [message, setMessage] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
@@ -202,8 +86,8 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
     const updateMessage = () => {
       const h = new Date().getHours();
       if (h >= 22 || h < 4) setMessage(`Zzz... Good night ${userName}. 😴`);
-      else if (h >= 4 && h < 11) setMessage(`Morning ${userName}! ☀️ Ready to start?`);
-      else if (h >= 11 && h < 15) setMessage(`It's lunch time ${userName}. 🍔`);
+      else if (h >= 4 && h < 11) setMessage(`Morning ${userName}! ☀️ Ready?`);
+      else if (h >= 11 && h < 15) setMessage(`Lunch time ${userName}. 🍔`);
       else if (h >= 15 && h < 18) setMessage(`Good afternoon ${userName}. ☕`);
       else setMessage(`Good evening ${userName}. 🌙`);
     };
@@ -255,7 +139,6 @@ const App = () => {
   const [showHidden, setShowHidden] = useState(false);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
 
-  // Action Modal
   const [actionModal, setActionModal] = useState(false);
   const [actionType, setActionType] = useState<'hide' | 'unhide'>('hide');
   const [selectedPkg, setSelectedPkg] = useState('');
@@ -263,37 +146,52 @@ const App = () => {
 
   const packageListener = useRef<EmitterSubscription | null>(null);
 
+  // ==================== FUNGSI LOAD APPS UTAMA (DIPERBAIKI) ====================
   const refreshApps = useCallback(async () => {
     try {
+      // Fetch semua data sekaligus (termasuk icon)
       const result = await InstalledApps.getApps();
 
-      const apps = result
-        .map((a: any) => {
-          // PEMBERSIHAN DATA ICON (Kunci agar icon muncul!)
-          // 1. Ambil raw icon
-          let rawIcon = a.icon || "";
+      const apps = result.map((a: any) => {
+          let cleanIcon = "";
+          
+          if (a.icon) {
+            // 1. Ambil raw string
+            let raw = a.icon.toString();
+            
+            // 2. HAPUS SEMUA WHITESPACE (Spasi, Tab, Enter) - Ini lebih kuat dari regex sebelumnya
+            raw = raw.replace(/\s/g, ''); 
 
-          // 2. Hapus karakter Enter/New Line yang merusak gambar
-          rawIcon = rawIcon.replace(/(\r\n|\n|\r)/gm, "");
-
-          // 3. Pastikan format header benar
-          if (rawIcon && !rawIcon.startsWith('data:image')) {
-            rawIcon = `data:image/png;base64,${rawIcon}`;
+            // 3. Cek Header
+            if (raw.startsWith('data:image')) {
+              cleanIcon = raw;
+            } else {
+              // Tambahkan header PNG
+              cleanIcon = `data:image/png;base64,${raw}`;
+            }
           }
 
           return {
             label: a.label || 'App',
             packageName: a.packageName,
-            icon: rawIcon
+            icon: cleanIcon
           };
         })
         .filter((a: any) => a.packageName)
         .sort((a: any, b: any) => a.label.localeCompare(b.label));
 
       setAllApps(apps);
+      
+      // Toast Debug: Muncul jika apps berhasil diload
+      if (apps.length > 0) {
+         // console.log("Load Success. Total Apps:", apps.length);
+      } else {
+         ToastAndroid.show("Warning: 0 Apps Found!", ToastAndroid.LONG);
+      }
+
     } catch (e) {
       console.error("Error loading apps:", e);
-      ToastAndroid.show("Gagal memuat aplikasi", ToastAndroid.SHORT);
+      ToastAndroid.show("CRITICAL: Gagal Memuat Aplikasi", ToastAndroid.LONG);
     }
   }, []);
 
@@ -315,7 +213,7 @@ const App = () => {
   useEffect(() => {
     packageListener.current = DeviceEventEmitter.addListener("PACKAGE_CHANGED", () => {
       refreshApps();
-      ToastAndroid.show("Apps Updated", ToastAndroid.SHORT);
+      ToastAndroid.show("Updating App List...", ToastAndroid.SHORT);
     });
     return () => { packageListener.current?.remove(); };
   }, [refreshApps]);
@@ -324,7 +222,6 @@ const App = () => {
     setFilteredApps(showHidden ? allApps : allApps.filter(app => !hiddenPackages.includes(app.packageName)));
   }, [allApps, hiddenPackages, showHidden]);
 
-  // Actions
   const handleLongPress = useCallback((pkg: string, label: string) => {
     const isHidden = hiddenPackages.includes(pkg);
     setActionType(isHidden ? 'unhide' : 'hide');
@@ -340,17 +237,17 @@ const App = () => {
     setHiddenPackages(newList);
     await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newList), 'utf8');
     setActionModal(false);
+    ToastAndroid.show(actionType === 'hide' ? 'App Hidden' : 'App Visible', ToastAndroid.SHORT);
   };
 
   const launchApp = (pkg: string) => {
-    try { RNLauncherKitHelper.launchApplication(pkg); } catch { ToastAndroid.show("Error", ToastAndroid.SHORT); }
+    try { RNLauncherKitHelper.launchApplication(pkg); } catch { ToastAndroid.show("Cannot Open App", ToastAndroid.SHORT); }
   };
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
     <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} />
   ), [handleLongPress]);
 
-  // Save Settings Handlers
   const saveName = async (n: string) => { await RNFS.writeFile(CUSTOM_USER_PATH, n, 'utf8'); setUserName(n); };
   const toggleHidden = async (v: boolean) => { setShowHidden(v); await RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
   const changePhoto = async () => {
@@ -373,10 +270,11 @@ const App = () => {
         keyExtractor={item => item.packageName}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
-        removeClippedSubviews={true}
-        initialNumToRender={20}
-        maxToRenderPerBatch={10}
-        windowSize={5}
+        // Optimasi Performance FlatList (Sangat Penting untuk Gambar)
+        removeClippedSubviews={true} 
+        initialNumToRender={16}
+        maxToRenderPerBatch={12}
+        windowSize={7} 
         getItemLayout={(data, index) => ({ length: 100, offset: 100 * index, index })}
       />
 
@@ -405,22 +303,39 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { paddingTop: 60, paddingBottom: 120 },
   item: { width: ITEM_WIDTH, height: 100, alignItems: 'center', marginBottom: 10 },
+  
+  // Icon Container
+  iconContainer: { 
+    width: 58, 
+    height: 58, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    marginBottom: 5 
+  },
+  
+  // Image Style
+  appIconImage: { 
+    width: 58, 
+    height: 58,
+    borderRadius: 10 // Sedikit rounded biar rapi
+  },
+  
+  // Placeholder jika icon gagal
+  placeholderIcon: { 
+    width: 58, 
+    height: 58, 
+    backgroundColor: 'rgba(255,255,255,0.1)', 
+    borderRadius: 10 
+  },
 
-  // Icon Styles - Updated
-  iconContainer: { width: 56, height: 56, justifyContent: 'center', alignItems: 'center' },
-  appIconImage: { width: 56, height: 56 },
-  placeholderIcon: { width: 56, height: 56, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 },
-
-  label: { color: '#ddd', fontSize: 11, textAlign: 'center', marginTop: 5, marginHorizontal: 4, textShadowColor: '#000', textShadowRadius: 2 },
-
-  // Dock Styles
+  label: { color: '#ddd', fontSize: 11, textAlign: 'center', marginTop: 2, marginHorizontal: 4, textShadowColor: '#000', textShadowRadius: 2 },
+  
+  // Dock & Modal (Sama seperti sebelumnya)
   dockContainer: { position: 'absolute', bottom: 20, left: 16, right: 16 },
   dockContent: { backgroundColor: 'rgba(20,20,20,0.9)', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 20, borderWidth: 1, borderColor: '#333' },
   avatar: { width: 44, height: 44, borderRadius: 22, marginRight: 12 },
   messageBox: { flex: 1 },
   assistantText: { color: '#fff', fontSize: 13 },
-
-  // Modal Styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: width * 0.8, backgroundColor: '#222', padding: 20, borderRadius: 16, borderColor: '#444', borderWidth: 1 },
   modalTitle: { color: '#fff', fontSize: 18, marginBottom: 15, textAlign: 'center' },
