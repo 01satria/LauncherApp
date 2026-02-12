@@ -85,8 +85,11 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
+    // Pake 'NodeJS.Timeout' biar aman kalo pake React Native
+    let timer: NodeJS.Timeout | null = null;
+
     const updateMessage = () => {
-      if (appState.current.match(/inactive|background/)) return;
+      if (appState.current && appState.current.match(/inactive|background/)) return;
 
       const h = new Date().getHours();
 
@@ -107,15 +110,36 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
       }
     };
 
-    updateMessage();
+    const stopTimer = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const startTimer = () => {
+      // Stop dulu biar ga double timer
+      stopTimer();
+      updateMessage();
+      timer = setInterval(updateMessage, 60000);
+    };
+
+    // 1. Jalankan timer saat awal mount
+    startTimer();
+
+    // 2. Listener status aplikasi
     const subscription = AppState.addEventListener('change', nextAppState => {
       appState.current = nextAppState;
-      if (nextAppState === 'active') updateMessage();
+      if (nextAppState === 'active') {
+        startTimer();
+      } else {
+        stopTimer();
+      }
     });
 
-    const timer = setInterval(updateMessage, 60000);
+    // Cleanup Function
     return () => {
-      clearInterval(timer);
+      stopTimer();
       subscription.remove();
     };
   }, [userName]);
@@ -136,7 +160,7 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
           <Image
             source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }}
             style={styles.avatarImage}
-            // resizeMethod="resize"
+          // resizeMethod="resize"
           />
         </TouchableOpacity>
 
@@ -362,6 +386,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     minHeight: 60,
+    zIndex: 2,
   },
 
   // 1. Bubble Kiri
@@ -412,8 +437,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 200, // Tinggi area pudarnya
-    zIndex: 1,   // Pastikan di atas list
+    height: 220,
+    zIndex: 1,
   },
 
   // === MODAL STYLE ===
