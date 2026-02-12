@@ -257,6 +257,7 @@ const App = () => {
         setActionModal(false);
         if (UninstallModule) {
             UninstallModule.uninstallApp(selectedPkg);
+            refreshApps();
         } else {
             ToastAndroid.show("Module Not Found", ToastAndroid.SHORT);
         }
