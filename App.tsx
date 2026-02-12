@@ -45,7 +45,7 @@ const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 // ==================== 1. SAFE IMAGE ====================
-// Penyelamat saat file gambar tiba-tiba hilang
+// Penyelamat saat file icon tiba-tiba hilang!
 const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
   const [error, setError] = useState(false);
   if (error) return <View style={{ width: ICON_SIZE, height: ICON_SIZE }} />; // Render kosong
@@ -57,7 +57,7 @@ const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
       resizeMode="contain"
       resizeMethod="resize"
       fadeDuration={0}
-      onError={() => setError(true)} // Tangkap error native disini
+      onError={() => setError(true)} // Tangkap error nativenya disini
     />
   );
 });
@@ -138,7 +138,7 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
             </View>
 
             {/* INPUT NAMA */}
-            <Text style={styles.inputLabel}>Assistant Name</Text>
+            <Text style={styles.inputLabel}>Ur Name</Text>
             <TextInput
               style={styles.modernInput}
               value={tempName}
@@ -164,16 +164,13 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
             {/* ACTION BUTTONS (Stacked) */}
             <View style={styles.verticalBtnGroup}>
 
-              {/* Tombol 1: Change Avatar (Biru) */}
-              <TouchableOpacity style={[styles.actionBtn, styles.btnBlue]} onPress={onChangePhoto} activeOpacity={0.8}>
+              {/* Tombol Change Avatar */}
+              <TouchableOpacity style={[styles.actionBtn, styles.btnBlue, styles.btnFull]} onPress={onChangePhoto} activeOpacity={0.8}>
                 <Text style={styles.actionBtnText}>Change Avatar</Text>
               </TouchableOpacity>
 
-              {/* Spacer */}
-              <View style={{ height: 10 }} />
-
-              {/* Tombol 2: Save (Hijau) */}
-              <TouchableOpacity style={[styles.actionBtn, styles.btnGreen]} onPress={save} activeOpacity={0.8}>
+              {/* Tombol Save */}
+              <TouchableOpacity style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} onPress={save} activeOpacity={0.8}>
                 <Text style={styles.actionBtnText}>Save Changes</Text>
               </TouchableOpacity>
 
@@ -245,10 +242,6 @@ const App = () => {
       const removedPkgName = typeof pkgData === 'string' ? pkgData : pkgData?.packageName;
 
       if (removedPkgName) {
-        // STEP PENTING:
-        // Kita HANYA membuang app dari list di layar (seperti Hide App).
-        // Kita TIDAK memanggil refreshApps() yang menyuruh sistem scan ulang (Penyebab Crash).
-
         setAllApps((currentApps) =>
           currentApps.filter(app => app.packageName !== removedPkgName)
         );
@@ -302,7 +295,6 @@ const App = () => {
       setActionModal(false);
       if (UninstallModule) {
         UninstallModule.uninstallApp(selectedPkg);
-        // Tidak perlu coding apa-apa disini, biarkan listener yang menangani 'hide' effectnya
       } else {
         ToastAndroid.show("Module Not Found", ToastAndroid.SHORT);
       }
@@ -370,7 +362,7 @@ const App = () => {
             <View style={styles.modalBtnRow}>
 
               {/* Tombol Kiri: Hide/Unhide (Hijau) */}
-              <TouchableOpacity style={[styles.actionBtn, styles.btnGreen]} onPress={doAction} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.actionBtn, styles.btnGreen, styles.btnHalf]} onPress={doAction} activeOpacity={0.8}>
                 <Text style={styles.actionBtnText}>
                   {actionType === 'unhide' ? 'Unhide' : 'Hide'}
                 </Text>
@@ -380,7 +372,7 @@ const App = () => {
               <View style={{ width: 15 }} />
 
               {/* Tombol Kanan: Uninstall (Merah) */}
-              <TouchableOpacity style={[styles.actionBtn, styles.btnRed]} onPress={handleUninstall} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.actionBtn, styles.btnRed, styles.btnHalf]} onPress={handleUninstall} activeOpacity={0.8}>
                 <Text style={styles.actionBtnText}>Uninstall</Text>
               </TouchableOpacity>
 
@@ -419,7 +411,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: width * 0.85,
-    backgroundColor: '#1E1E1E', // Dark Modern
+    backgroundColor: '#000000', // Dark Modern
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
@@ -490,26 +482,36 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  // === BUTTONS ===
+  // === BUTTONS & LAYOUT ===
   verticalBtnGroup: {
     width: '100%',
+    gap: 10,
   },
-  modalBtnRow: { // Untuk modal Action (Hide/Uninstall)
+  modalBtnRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
   },
+
   actionBtn: {
-    width: '100%', // Full width untuk settings
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Warna-warni Tombol
-  btnGreen: { backgroundColor: '#27ae60' }, // Save / Unhide
-  btnBlue: { backgroundColor: '#2980b9' },  // Change Avatar
-  btnRed: { backgroundColor: '#c0392b' },    // Uninstall / Delete
+
+  btnHalf: {
+    flex: 1,
+  },
+
+  btnFull: {
+    width: '100%',
+  },
+
+  // Warna
+  btnGreen: { backgroundColor: '#27ae60' },
+  btnBlue: { backgroundColor: '#2980b9' },
+  btnRed: { backgroundColor: '#c0392b' },
 
   actionBtnText: {
     color: '#fff',
@@ -526,5 +528,7 @@ const styles = StyleSheet.create({
   },
 });
 
-//@2026 Satria Dev - SATRIA LAUNCHER - All Rights Reserved
+// @2026 Satria Dev - SATRIA LAUNCHER - All Rights Reserved
+// Website: https://01satria.vercel.app
+// Github: https://github.com/01satria
 export default App;

@@ -75,8 +75,8 @@ android {
         applicationId "com.satrialauncher"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.1a"
+        versionCode 3
+        versionName "1.1c"
     }
     signingConfigs {
         debug {
