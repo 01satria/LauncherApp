@@ -24,7 +24,7 @@ import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
 
-// Module Java/Kotlin untuk Uninstall
+// Module Java/Kotlin
 const { UninstallModule } = NativeModules;
 
 interface AppData {
@@ -45,14 +45,9 @@ const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 // ==================== 1. SAFE IMAGE (ANTI CRASH) ====================
-// Komponen ini penting: Jika file icon dihapus sistem, dia tidak akan bikin app crash
 const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
   const [error, setError] = useState(false);
-  
-  if (error) {
-    // Tampilkan kotak transparan jika gambar rusak/hilang
-    return <View style={{ width: ICON_SIZE, height: ICON_SIZE }} />;
-  }
+  if (error) return <View style={{ width: ICON_SIZE, height: ICON_SIZE }} />; // Kotak kosong
 
   return (
     <Image
@@ -61,7 +56,7 @@ const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
       resizeMode="contain"
       resizeMethod="resize"
       fadeDuration={0}
-      onError={() => setError(true)} // Tangkap error gambar disini
+      onError={() => setError(true)}
     />
   );
 });
@@ -73,7 +68,6 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
   onLongPress: (pkg: string, label: string) => void;
 }) => {
   const iconSource = item.icon.startsWith('file://') ? item.icon : `file://${item.icon}`;
-
   return (
     <TouchableOpacity
       style={styles.item}
@@ -168,6 +162,7 @@ const App = () => {
   const [selectedPkg, setSelectedPkg] = useState('');
   const [selectedLabel, setSelectedLabel] = useState('');
 
+  // Fungsi load data (BERAT - Jangan dipanggil saat uninstall)
   const refreshApps = useCallback(async () => {
     try {
       const result = await InstalledApps.getSortedApps();
@@ -198,26 +193,26 @@ const App = () => {
     init();
     refreshApps();
 
-    // 1. INSTALL LISTENER
+    // 1. INSTALL LISTENER (Boleh refresh karena file nambah)
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
         ToastAndroid.show("New App Installed", ToastAndroid.SHORT);
         refreshApps();
     });
 
-    // 2. REMOVE LISTENER (REALTIME)
+    // 2. REMOVE LISTENER (SAFE MODE)
+    // JANGAN PANGGIL refreshApps() DISINI! ITU PENYEBAB CRASH.
     const removeSub = InstalledApps.startListeningForAppRemovals((pkg) => {
         const pkgData: any = pkg; 
         const removedPkgName = typeof pkgData === 'string' ? pkgData : pkgData?.packageName;
         
         if (removedPkgName) {
-            // STEP A: Langsung hapus dari data (Agar UI cepat)
+            // Cukup hapus dari State React saja. 
+            // Jangan tanya Native Module untuk data baru (karena Native lagi sibuk hapus file)
             setAllApps((currentApps) => 
                 currentApps.filter(app => app.packageName !== removedPkgName)
             );
             
-            // STEP B: Reset Key FlatList (PENTING!)
-            // Ini memaksa React membuang FlatList lama yang punya referensi gambar rusak
-            // dan membuat FlatList baru yang bersih.
+            // Flush UI
             setListKey(prev => prev + 1);
         }
     });
@@ -257,7 +252,6 @@ const App = () => {
         setActionModal(false);
         if (UninstallModule) {
             UninstallModule.uninstallApp(selectedPkg);
-            refreshApps();
         } else {
             ToastAndroid.show("Module Not Found", ToastAndroid.SHORT);
         }
@@ -291,7 +285,7 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       <FlatList
-        key={listKey} // INI JURUSNYA: Ganti key = Reset List Total
+        key={listKey} // Reset list saat ada perubahan drastis
         data={filteredApps}
         numColumns={4}
         keyExtractor={item => item.packageName}
@@ -314,7 +308,7 @@ const App = () => {
             <Text style={styles.modalTitle}>{actionType === 'unhide' ? 'Unhide' : 'Hide'} {selectedLabel}?</Text>
             <View style={styles.modalBtnRow}>
               <TouchableOpacity onPress={() => setActionModal(false)}><Text style={styles.btnText}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity onPress={doAction}><Text style={styles.btnSave}>Confirm {actionType === 'unhide' ? 'Visible' : 'Hide'}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={doAction}><Text style={styles.btnSave}>Confirm</Text></TouchableOpacity>
             </View>
             <View style={{ height: 1, backgroundColor: '#333', marginVertical: 15, width: '100%' }} />
             <TouchableOpacity style={{ paddingVertical: 10, alignItems: 'center', width: '100%' }} onPress={handleUninstall}>
