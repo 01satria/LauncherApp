@@ -289,6 +289,21 @@ const App = () => {
     ToastAndroid.show(actionType === 'hide' ? 'App Hidden' : 'App Visible', ToastAndroid.SHORT);
   };
 
+  const handleUninstall = () => {
+    try {
+      // Gunakan ACTION_DELETE untuk memanggil konfirmasi uninstall sistem
+      // Format data wajib: "package:com.nama.aplikasi"
+      RNLauncherKitHelper.launchApplication(selectedPkg, {
+        action: 'android.intent.action.DELETE',
+        data: `package:${selectedPkg}`
+      });
+
+      setActionModal(false);
+    } catch (e) {
+      ToastAndroid.show("Gagal membuka uninstall dialog", ToastAndroid.SHORT);
+    }
+  };
+
   const launchApp = (pkg: string) => {
     try { RNLauncherKitHelper.launchApplication(pkg); } catch { ToastAndroid.show("Cannot Open", ToastAndroid.SHORT); }
   };
@@ -344,14 +359,35 @@ const App = () => {
       />
 
       {/* Modal Action */}
+      {/* Modal Action (Hide/Unhide & Uninstall) */}
       <Modal visible={actionModal} transparent animationType="fade" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+
+            {/* Judul Modal */}
             <Text style={styles.modalTitle}>{actionType === 'unhide' ? 'Unhide' : 'Hide'} {selectedLabel}?</Text>
+
+            {/* Tombol Confirm/Cancel untuk Hide/Unhide */}
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity onPress={() => setActionModal(false)}><Text style={styles.btnText}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity onPress={doAction}><Text style={styles.btnSave}>Confirm</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => setActionModal(false)}>
+                <Text style={styles.btnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={doAction}>
+                <Text style={styles.btnSave}>Confirm {actionType === 'unhide' ? 'Visible' : 'Hide'}</Text>
+              </TouchableOpacity>
             </View>
+
+            {/* Garis Pemisah */}
+            <View style={{ height: 1, backgroundColor: '#333', marginVertical: 15, width: '100%' }} />
+
+            {/* Tombol Uninstall (Terpisah di bawah) */}
+            <TouchableOpacity
+              style={{ paddingVertical: 10, alignItems: 'center', width: '100%' }}
+              onPress={handleUninstall}
+            >
+              <Text style={styles.menuButtonTextRed}>Uninstall This App</Text>
+            </TouchableOpacity>
+
           </View>
         </View>
       </Modal>
@@ -450,6 +486,9 @@ const styles = StyleSheet.create({
   modalBtnRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 20 },
   btnText: { color: '#aaa', fontSize: 15 },
   btnSave: { color: '#4caf50', fontSize: 15, fontWeight: 'bold' },
+  menuButton: { paddingVertical: 12, alignItems: 'center' },
+  menuButtonText: { color: '#aaa', fontSize: 16 },
+  menuButtonTextRed: { color: '#ff5252', fontSize: 16, fontWeight: 'bold' },
 });
 
 // @SATRIA: Jangan dihapus ini, penting untuk ekspor komponen utama
