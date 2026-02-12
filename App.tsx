@@ -47,28 +47,28 @@ const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/41
 // ==================== 1. SAFE IMAGE ====================
 // Penyelamat saat file icon tiba-tiba hilang!
 const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
-  const [hasError, setHasError] = useState(false);
-  const [currentUri, setCurrentUri] = useState(
+  const [error, setError] = useState(false);
+  const [uri, setUri] = useState(
     iconUri.startsWith('file://') ? iconUri : `file://${iconUri}`
   );
 
   useEffect(() => {
-    setHasError(false);
-    setCurrentUri(iconUri.startsWith('file://') ? iconUri : `file://${iconUri}`);
+    setError(false);
+    setUri(iconUri.startsWith('file://') ? iconUri : `file://${iconUri}`);
   }, [iconUri]);
 
-  if (hasError) {
-    return <View style={{ width: ICON_SIZE, height: ICON_SIZE, backgroundColor: '#1a1a1a' }} />;
+  if (error) {
+    return <View style={{ width: ICON_SIZE, height: ICON_SIZE, backgroundColor: '#222' }} />;
   }
 
   return (
     <Image
-      source={{ uri: currentUri }}
+      source={{ uri }}
       style={styles.appIconImage}
       resizeMode="contain"
       fadeDuration={0}
-      onError={() => setHasError(true)}
-      onLoad={() => setHasError(false)}
+      onError={() => setError(true)}
+      onLoad={() => setError(false)}
     />
   );
 });
@@ -315,24 +315,26 @@ const App = () => {
   };
 
   const handleUninstall = () => {
-    const pkgToRemove = selectedPkg;   // simpan dulu biar aman
+    const pkgToRemove = selectedPkg;   // simpan dulu
 
     setActionModal(false);
 
-    // 1. Optimistic removal + force remount (paling penting)
+    // Optimistic UI + Bersihkan semua Image instance
     setAllApps(prev => prev.filter(app => app.packageName !== pkgToRemove));
-    setListKey(prev => prev + 1);        // ini membersihkan semua Image instance lama
+    setListKey(prev => prev + 1);
 
-    // 2. Panggil uninstall setelah UI stabil
+    // Panggil uninstall setelah UI stabil
     setTimeout(() => {
-      UninstallModule?.uninstallApp(pkgToRemove);
-    }, 380);
+      if (UninstallModule) {
+        UninstallModule.uninstallApp(pkgToRemove);
+      }
+    }, 420);
 
-    // 3. Aggressive refresh setelah uninstall (ini kuncinya!)
-    // User akan kembali ke launcher setelah konfirmasi uninstall dialog
-    setTimeout(() => refreshApps(), 1600);
-    setTimeout(() => refreshApps(), 4200);   // safety net
-    setTimeout(() => refreshApps(), 7800);   // safety ketiga (jarang dipakai)
+    // === MULTIPLE REFRESH (KUNCI UTAMA) ===
+    // Refresh setelah user selesai konfirmasi uninstall
+    setTimeout(() => refreshApps(), 1800);
+    setTimeout(() => refreshApps(), 4500);
+    setTimeout(() => refreshApps(), 8000);   // safety net
   };
 
   const launchApp = (pkg: string) => {

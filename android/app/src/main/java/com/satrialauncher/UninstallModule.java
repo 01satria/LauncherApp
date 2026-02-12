@@ -21,7 +21,7 @@ public class UninstallModule extends ReactContextBaseJavaModule {
         try {
             Intent intent = new Intent(Intent.ACTION_DELETE);
             intent.setData(Uri.parse("package:" + packageName));
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             getReactApplicationContext().startActivity(intent);
         } catch (Exception e) {
             // ignore
