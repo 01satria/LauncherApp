@@ -230,32 +230,40 @@ const App = () => {
     refreshApps();
 
     // === LISTENER INSTALL (Boleh Refresh) ===
+    // 1. INSTALL LISTENER: (Tetap biarkan refresh)
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
-      ToastAndroid.show("New App Installed", ToastAndroid.SHORT);
       refreshApps();
     });
 
-    // === LISTENER UNINSTALL (ANTI CRASH / MODE HIDE) ===
+    // 2. UNINSTALL LISTENER: (UPDATE INI)
+    // MATIKAN LOGIKANYA. Kosongkan saja.
+    // Kita sudah menghapus icon lewat handleUninstall di atas.
+    // Kalau listener ini aktif, dia akan bentrok rebutan data dan bikin Force Close.
     const removeSub = InstalledApps.startListeningForAppRemovals((pkg) => {
-      // Ambil nama package
-      const pkgData: any = pkg;
-      const removedPkgName = typeof pkgData === 'string' ? pkgData : pkgData?.packageName;
-
-      if (removedPkgName) {
-        setAllApps((currentApps) =>
-          currentApps.filter(app => app.packageName !== removedPkgName)
-        );
-      }
+      // BIARKAN KOSONG
     });
 
-    // === LISTENER APP STATE (SYNC SAAT RESUME) ===
-    // Refresh data asli hanya dilakukan saat user balik ke launcher
+    // 3. RESUME LISTENER: (Pastikan ini ada untuk sinkronisasi akhir)
     const appStateSub = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') {
-        // Delay sedikit biar aman
-        setTimeout(() => refreshApps(), 500);
+        // Refresh data asli 1 detik setelah user balik ke Launcher
+        // (Jaga-jaga kalau user cancel uninstall, icon akan muncul lagi disini)
+        setTimeout(() => refreshApps(), 1000);
       }
     });
+
+    // // === LISTENER UNINSTALL (ANTI CRASH / MODE HIDE) ===
+    // const removeSub = InstalledApps.startListeningForAppRemovals((pkg) => {
+    //   // Ambil nama package
+    //   const pkgData: any = pkg;
+    //   const removedPkgName = typeof pkgData === 'string' ? pkgData : pkgData?.packageName;
+
+    //   if (removedPkgName) {
+    //     setAllApps((currentApps) =>
+    //       currentApps.filter(app => app.packageName !== removedPkgName)
+    //     );
+    //   }
+    // });    
 
     return () => {
       InstalledApps.stopListeningForAppInstallations();
@@ -293,6 +301,11 @@ const App = () => {
   const handleUninstall = () => {
     try {
       setActionModal(false);
+
+      // 1. HAPUS ICON DARI LAYAR DULUAN (Optimistic UI)
+      setAllApps(current => current.filter(app => app.packageName !== selectedPkg));
+
+      // 2. BARU PANGGIL PERINTAH UNINSTALL KE SISTEM
       if (UninstallModule) {
         UninstallModule.uninstallApp(selectedPkg);
       } else {
