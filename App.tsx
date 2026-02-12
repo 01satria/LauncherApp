@@ -14,7 +14,9 @@ import {
   Modal,
   TextInput,
   Switch,
-  AppState, // Penting untuk deteksi background
+  Linking,
+  Platform,
+  AppState,
   ListRenderItem,
 } from 'react-native';
 import type { AppStateStatus } from 'react-native';
@@ -289,18 +291,27 @@ const App = () => {
     ToastAndroid.show(actionType === 'hide' ? 'App Hidden' : 'App Visible', ToastAndroid.SHORT);
   };
 
-  const handleUninstall = () => {
+  const handleUninstall = async () => {
+    if (Platform.OS !== 'android') return;
+
     try {
-      // Gunakan ACTION_DELETE untuk memanggil konfirmasi uninstall sistem
-      // Format data wajib: "package:com.nama.aplikasi"
-      RNLauncherKitHelper.launchApplication(selectedPkg, {
-        action: 'android.intent.action.DELETE',
-        data: `package:${selectedPkg}`
-      });
+      await Linking.sendIntent('android.intent.action.DELETE', [
+        {
+          key: 'android.intent.extra.UNINSTALL_PACKAGE_NAME',  // atau cukup 'package' di beberapa kasus
+          value: selectedPkg,  // tanpa prefix 'package:'
+        },
+        // {
+        //   key: 'android.intent.extra.PACKAGE_NAME',
+        //   value: selectedPkg,
+        // },
+      ]);
 
       setActionModal(false);
-    } catch (e) {
-      ToastAndroid.show("Gagal membuka uninstall dialog", ToastAndroid.SHORT);
+    } catch (e: any) {
+      ToastAndroid.show(
+        `Gagal membuka dialog uninstall: ${e?.message || 'Unknown'}`,
+        ToastAndroid.LONG
+      );
     }
   };
 
