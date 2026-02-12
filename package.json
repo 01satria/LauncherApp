@@ -14,7 +14,8 @@
     "react-native": "0.74.5",
     "react-native-fs": "^2.20.0",
     "react-native-image-picker": "^8.2.1",
-    "react-native-launcher-kit": "^2.1.0"
+    "react-native-launcher-kit": "^2.1.0",
+    "react-native-linear-gradient": "^2.8.3"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

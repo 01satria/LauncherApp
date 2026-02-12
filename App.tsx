@@ -18,6 +18,7 @@ import {
   ListRenderItem,
 } from 'react-native';
 import type { AppStateStatus } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
@@ -56,7 +57,7 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
       onPress={() => onPress(item.packageName)}
       onLongPress={() => onLongPress(item.packageName, item.label)}
       activeOpacity={0.7}
-      delayLongPress={300} // Lebih cepat responsnya
+      delayLongPress={300} // Lebih cepet aja responnya
     >
       <View style={styles.iconContainer}>
         <Image
@@ -64,8 +65,8 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
           style={styles.appIconImage}
           // --- OPTIMASI RAM UTAMA ---
           resizeMode="contain"
-          resizeMethod="resize" // Android: Downsample gambar di CPU sebelum masuk RAM
-          fadeDuration={0} // Matikan animasi fade agar memori cepat lepas
+          resizeMethod="resize"
+          fadeDuration={0}
         />
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
@@ -85,29 +86,23 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
 
   useEffect(() => {
     const updateMessage = () => {
-      // Check to prevent updates in background (Save battery)
       if (appState.current.match(/inactive|background/)) return;
 
       const h = new Date().getHours();
 
       if (h >= 22 || h < 4) {
-        // Late Night (Sleepy & Miss You)
         setMessage(`It's getting late, ${userName}.. 😴 Let's sleep, I want to meet u in my dreams. Good night! ❤️`);
       }
       else if (h >= 4 && h < 11) {
-        // Morning (Excited & Clingy)
         setMessage(`Good morning ${userName}! ☀️ Wake up.. I miss u so much already. Let's do our best today! 😘`);
       }
       else if (h >= 11 && h < 15) {
-        // Midday (Caring about health)
         setMessage(`Don't forget to have lunch, ${userName}.. 🍔 Take care of urself for me. I love u so much! ❤️`);
       }
       else if (h >= 15 && h < 18) {
-        // Afternoon (Concerned & Wanting affection)
         setMessage(`Are u tired, ${userName}? ☕ Take a break. I just want to hug u right now.. 🤗`);
       }
       else {
-        // Early Evening (Quality Time)
         setMessage(`Good evening, ${userName}. 🌙 Not seeing you all day felt like a year.. Stay with me now? 🥰`);
       }
     };
@@ -173,7 +168,6 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
   );
 });
 
-
 // ==================== MAIN APP ====================
 const App = () => {
   const [allApps, setAllApps] = useState<AppData[]>([]);
@@ -192,10 +186,10 @@ const App = () => {
   // 1. Load Data
   const refreshApps = useCallback(async () => {
     try {
-      // Ambil sorted apps (lebih cepat dari sorting manual JS)
+      // Ambil sorted apps (biasanya lebih cepat dari sorting manual pake JS)
       const result = await InstalledApps.getSortedApps();
 
-      // Mapping se-ringan mungkin
+      // Mapping se ringan mungkin
       const apps = result.map((a: any) => ({
         label: a.label || 'App',
         packageName: a.packageName,
@@ -213,7 +207,7 @@ const App = () => {
     const init = async () => {
       await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => { });
 
-      // Load preferences PARALEL (Promise.all) agar lebih cepat
+      // Load preferencesnya dibikin PARALEL (Promise.all) agar lebih cepat
       const [uName, hidden, showH, avt] = await Promise.all([
         RNFS.exists(CUSTOM_USER_PATH).then(e => e ? RNFS.readFile(CUSTOM_USER_PATH, 'utf8') : null),
         RNFS.exists(CUSTOM_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8') : null),
@@ -244,7 +238,7 @@ const App = () => {
 
   // 3. Filtering Logic
   useEffect(() => {
-    // Gunakan requestAnimationFrame agar UI tidak freeze saat filtering banyak data
+    // Pake requestAnimationFrame biar UI tidak freeze saat filtering banyak data sekaligus
     requestAnimationFrame(() => {
       setFilteredApps(showHidden ? allApps : allApps.filter(app => !hiddenPackages.includes(app.packageName)));
     });
@@ -265,7 +259,7 @@ const App = () => {
     else if (!newList.includes(selectedPkg)) newList.push(selectedPkg);
 
     setHiddenPackages(newList);
-    // Simpan file async tanpa await di UI thread agar tidak nge-lag
+    // Simpan file async tanpa await, di UI thread agar tidak ngelag
     RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newList), 'utf8');
     setActionModal(false);
     ToastAndroid.show(actionType === 'hide' ? 'App Hidden' : 'App Visible', ToastAndroid.SHORT);
@@ -305,12 +299,19 @@ const App = () => {
         contentContainerStyle={styles.list}
 
         // === SETTINGAN FLATLIST UNTUK MAXIMUM PERFORMANCE ===
-        initialNumToRender={16} // Hanya render satu layar penuh di awal
-        maxToRenderPerBatch={8} // Render sedikit demi sedikit saat scroll
-        windowSize={3} // SANGAT PENTING: Hanya simpan 3 "layar" di memori. Sisanya buang.
-        removeClippedSubviews={true} // Hapus view yang di luar layar dari RAM native
-        updateCellsBatchingPeriod={50} // Delay render batching (ms)
-        getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })} // Ukuran fix item
+        initialNumToRender={16}
+        maxToRenderPerBatch={8}
+        windowSize={3}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
+        getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })} // Fixed height for better performance
+      />
+
+      <LinearGradient
+        // Warna: Transparan -> Hitam Agak Pekat -> Hitam Pekat
+        colors={['transparent', 'rgba(0,0,0,0.6)', '#000000']}
+        style={styles.gradientFade}
+        pointerEvents="none"
       />
 
       <AssistantDock
@@ -335,10 +336,9 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  // ... (Style container, list, item, dll biarkan sama) ...
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { paddingTop: 50, paddingBottom: 120 },
+  list: { paddingTop: 50, paddingBottom: 130 },
 
   item: { width: ITEM_WIDTH, height: 90, alignItems: 'center', marginBottom: 8 },
   iconContainer: {
@@ -353,18 +353,18 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3
   },
 
-  // === STYLE DOCK BARU (AUTO HEIGHT & HD) ===
+  // === STYLE DOCK (AUTO HEIGHT) ===
   dockWrapper: {
     position: 'absolute',
     bottom: 24,
     left: 20,
     right: 20,
     flexDirection: 'row',
-    alignItems: 'flex-end', // PENTING: Avatar tetap di bawah jika pesan panjang
-    minHeight: 60, // Ganti height jadi minHeight agar bisa melar
+    alignItems: 'flex-end',
+    minHeight: 60,
   },
 
-  // 1. Bubble Kiri (Avatar)
+  // 1. Bubble Kiri
   avatarBubble: {
     width: 60,
     height: 60,
@@ -379,21 +379,22 @@ const styles = StyleSheet.create({
   },
 
   avatarImage: {
-    width: 60, // Full size dalam bubble
-    height: 60,
+    width: 55,
+    height: 55,
     borderRadius: 35,
   },
 
-  // 2. Bubble Kanan (Pesan)
+  // 2. Bubble Kanan
   messageBubble: {
     flex: 1,
-    minHeight: 60, // Tinggi minimal sama dengan avatar
+    minHeight: 60,
     backgroundColor: '#000000',
     borderRadius: 35,
-    justifyContent: 'center', // Teks vertikal center jika pendek
+    justifyContent: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15, // Padding atas bawah agar teks tidak mepet
+    paddingVertical: 15,
     borderWidth: 1,
+    borderStyle: 'dashed',
     borderColor: '#333',
     elevation: 5,
   },
@@ -402,10 +403,20 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '500',
-    lineHeight: 20, // Jarak antar baris agar nyaman dibaca
+    lineHeight: 20,
   },
 
-  // ... (Style Modal tetap sama) ...
+  // Gradient Fade
+  gradientFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 200, // Tinggi area pudarnya
+    zIndex: 1,   // Pastikan di atas list
+  },
+
+  // === MODAL STYLE ===
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: width * 0.8, backgroundColor: '#1c1c1c', padding: 20, borderRadius: 16, borderColor: '#333', borderWidth: 1 },
   modalTitle: { color: '#fff', fontSize: 18, marginBottom: 15, textAlign: 'center' },
@@ -415,4 +426,7 @@ const styles = StyleSheet.create({
   btnText: { color: '#aaa', fontSize: 15 },
   btnSave: { color: '#4caf50', fontSize: 15, fontWeight: 'bold' },
 });
+
+// @SATRIA: Jangan dihapus ini, penting untuk ekspor komponen utama
+// @SATRIA_LAUNCHER_APP 2026
 export default App;
