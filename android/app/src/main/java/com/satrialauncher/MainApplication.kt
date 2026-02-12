@@ -1,6 +1,7 @@
 package com.satrialauncher
 
 import android.app.Application
+import com.satrialauncher.UninstallPackage
 import android.content.Intent
 import android.content.IntentFilter
 import com.facebook.react.PackageList
@@ -25,6 +26,8 @@ class MainApplication : Application(), ReactApplication {
             PackageList(this).packages.apply {
               // Packages that cannot be autolinked yet can be added manually here, for example:
               // add(MyReactNativePackage())
+
+                add(UninstallPackage())  // ← Tambahkan ini
             }
 
         override fun getJSMainModuleName(): String = "index"

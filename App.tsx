@@ -18,6 +18,7 @@ import {
   Platform,
   AppState,
   ListRenderItem,
+  NativeModules
 } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -25,7 +26,7 @@ import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
 
-
+const { UninstallModule } = NativeModules;
 interface AppData {
   label: string;
   packageName: string;
@@ -307,8 +308,7 @@ const App = () => {
       //   // },
       // ]);
 
-      await Linking.openURL(`package:${selectedPkg}`);
-
+      UninstallModule.uninstallApp(selectedPkg);
       setActionModal(false);
     } catch (e: any) {
       ToastAndroid.show(
