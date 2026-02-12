@@ -24,7 +24,7 @@ import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
 
-// Panggil Module Java/Kotlin
+// Module Java/Kotlin untuk Uninstall
 const { UninstallModule } = NativeModules;
 
 interface AppData {
@@ -37,7 +37,6 @@ const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4;
 const ICON_SIZE = 56;
 
-// Path Constants
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
@@ -45,14 +44,14 @@ const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
-// ==================== 1. SAFE IMAGE COMPONENT (ANTI CRASH) ====================
-// Komponen ini menangani gambar yang filenya tiba-tiba hilang saat uninstall
+// ==================== 1. SAFE IMAGE (ANTI CRASH) ====================
+// Komponen ini penting: Jika file icon dihapus sistem, dia tidak akan bikin app crash
 const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
-  const [hasError, setHasError] = useState(false);
-
-  if (hasError) {
-    // Jika file icon hilang/rusak, tampilkan kotak transparan (jangan crash)
-    return <View style={styles.placeholderIcon} />;
+  const [error, setError] = useState(false);
+  
+  if (error) {
+    // Tampilkan kotak transparan jika gambar rusak/hilang
+    return <View style={{ width: ICON_SIZE, height: ICON_SIZE }} />;
   }
 
   return (
@@ -62,8 +61,7 @@ const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
       resizeMode="contain"
       resizeMethod="resize"
       fadeDuration={0}
-      // PENTING: Tangkap error jika file sudah dihapus sistem
-      onError={() => setHasError(true)} 
+      onError={() => setError(true)} // Tangkap error gambar disini
     />
   );
 });
@@ -85,15 +83,12 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
       delayLongPress={300}
     >
       <View style={styles.iconContainer}>
-        {/* Gunakan SafeAppIcon bukan Image biasa */}
         <SafeAppIcon iconUri={iconSource} />
       </View>
       <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </TouchableOpacity>
   );
-}, (prev, next) => {
-  return prev.item.packageName === next.item.packageName && prev.item.icon === next.item.icon;
-});
+}, (prev, next) => prev.item.packageName === next.item.packageName && prev.item.icon === next.item.icon);
 
 // ==================== DOCK ASSISTANT ====================
 const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShowHidden, onChangePhoto, avatarSource }: any) => {
@@ -104,27 +99,24 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-
     const updateMessage = () => {
       if (appState.current && appState.current.match(/inactive|background/)) return;
       const h = new Date().getHours();
-      
-      if (h >= 22 || h < 4) setMessage(`It's getting late, ${userName}.. 😴 Let's sleep, I want to meet u in my dreams. Good night! ❤️`);
-      else if (h >= 4 && h < 11) setMessage(`Good morning ${userName}! ☀️ Wake up.. I miss u so much already. Let's do our best today! 😘`);
-      else if (h >= 11 && h < 15) setMessage(`Don't forget to have lunch, ${userName}.. 🍔 Take care of urself for me. I love u so much! ❤️`);
-      else if (h >= 15 && h < 18) setMessage(`Are u tired, ${userName}? ☕ Take a break. I just want to hug u right now.. 🤗`);
-      else setMessage(`Good evening, ${userName}. 🌙 Not seeing you all day felt like a year.. Stay with me now? 🥰`);
+      if (h >= 22 || h < 4) setMessage(`It's getting late, ${userName}.. 😴 Good night! ❤️`);
+      else if (h >= 4 && h < 11) setMessage(`Good morning ${userName}! ☀️ Let's do our best today! 😘`);
+      else if (h >= 11 && h < 15) setMessage(`Don't forget lunch, ${userName}.. 🍔 I love u! ❤️`);
+      else if (h >= 15 && h < 18) setMessage(`Tired, ${userName}? ☕ I want to hug u.. 🤗`);
+      else setMessage(`Good evening, ${userName}. 🌙 Stay with me? 🥰`);
     };
 
     const stopTimer = () => { if (timer) { clearInterval(timer); timer = null; } };
     const startTimer = () => { stopTimer(); updateMessage(); timer = setInterval(updateMessage, 60000); };
-
+    
     startTimer();
     const subscription = AppState.addEventListener('change', nextAppState => {
-      appState.current = nextAppState;
-      if (nextAppState === 'active') startTimer(); else stopTimer();
+        appState.current = nextAppState;
+        if (nextAppState === 'active') startTimer(); else stopTimer();
     });
-
     return () => { stopTimer(); subscription.remove(); };
   }, [userName]);
 
@@ -138,7 +130,6 @@ const AssistantDock = memo(({ userName, showHidden, onSaveUserName, onToggleShow
         </TouchableOpacity>
         <View style={styles.messageBubble}><Text style={styles.assistantText}>{message}</Text></View>
       </View>
-
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -168,8 +159,8 @@ const App = () => {
   const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
-  
-  // State Key untuk memaksa FlatList refresh total saat uninstall
+
+  // KUNCI ANTI GLITCH: Key ini memaksa FlatList dibuat ulang saat uninstall
   const [listKey, setListKey] = useState(0);
 
   const [actionModal, setActionModal] = useState(false);
@@ -186,9 +177,7 @@ const App = () => {
           icon: a.icon
       }));
       setAllApps(apps);
-    } catch (e) {
-      ToastAndroid.show("Failed to load apps", ToastAndroid.SHORT);
-    }
+    } catch (e) { }
   }, []);
 
   useEffect(() => {
@@ -209,29 +198,28 @@ const App = () => {
     init();
     refreshApps();
 
+    // 1. INSTALL LISTENER
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
-        ToastAndroid.show("New App Found", ToastAndroid.SHORT);
+        ToastAndroid.show("New App Installed", ToastAndroid.SHORT);
         refreshApps();
     });
 
+    // 2. REMOVE LISTENER (REALTIME)
     const removeSub = InstalledApps.startListeningForAppRemovals((pkg) => {
         const pkgData: any = pkg; 
         const removedPkgName = typeof pkgData === 'string' ? pkgData : pkgData?.packageName;
         
         if (removedPkgName) {
-            // 1. Hapus dari state
-            setAllApps((currentApps: AppData[]) => 
+            // STEP A: Langsung hapus dari data (Agar UI cepat)
+            setAllApps((currentApps) => 
                 currentApps.filter(app => app.packageName !== removedPkgName)
             );
-            // 2. FORCE RE-MOUNT FLATLIST
-            // Ini akan menghancurkan list lama dan membuat baru, membuang referensi gambar yang rusak
+            
+            // STEP B: Reset Key FlatList (PENTING!)
+            // Ini memaksa React membuang FlatList lama yang punya referensi gambar rusak
+            // dan membuat FlatList baru yang bersih.
             setListKey(prev => prev + 1);
         }
-
-        // 3. Refresh data sistem setelah jeda aman
-        setTimeout(() => {
-            refreshApps();
-        }, 1500); 
     });
 
     return () => {
@@ -266,11 +254,11 @@ const App = () => {
 
   const handleUninstall = () => {
     try {
-        setActionModal(false); 
+        setActionModal(false);
         if (UninstallModule) {
             UninstallModule.uninstallApp(selectedPkg);
         } else {
-            ToastAndroid.show("Native Module not found", ToastAndroid.LONG);
+            ToastAndroid.show("Module Not Found", ToastAndroid.SHORT);
         }
     } catch (e) {
         ToastAndroid.show("Error", ToastAndroid.SHORT);
@@ -301,10 +289,8 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-
       <FlatList
-        // PENTING: Key berubah = Component Reset Total
-        key={listKey} 
+        key={listKey} // INI JURUSNYA: Ganti key = Reset List Total
         data={filteredApps}
         numColumns={4}
         keyExtractor={item => item.packageName}
@@ -313,18 +299,14 @@ const App = () => {
         initialNumToRender={16}
         maxToRenderPerBatch={8}
         windowSize={3}
-        // Matikan sementara jika masih crash, tapi dengan key={listKey} ini harusnya aman
-        removeClippedSubviews={true} 
+        removeClippedSubviews={true}
         getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
       />
-
       <LinearGradient colors={['transparent', 'rgba(0,0,0,0.6)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
-
       <AssistantDock
         userName={userName} showHidden={showHidden} avatarSource={avatarSource}
         onSaveUserName={saveName} onToggleShowHidden={toggleHidden} onChangePhoto={changePhoto}
       />
-
       <Modal visible={actionModal} transparent animationType="fade" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -351,7 +333,6 @@ const styles = StyleSheet.create({
   item: { width: ITEM_WIDTH, height: 90, alignItems: 'center', marginBottom: 8 },
   iconContainer: { width: ICON_SIZE, height: ICON_SIZE, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   appIconImage: { width: ICON_SIZE, height: ICON_SIZE },
-  placeholderIcon: { width: ICON_SIZE, height: ICON_SIZE, backgroundColor: 'transparent' }, // Placeholder aman
   label: { color: '#eee', fontSize: 11, textAlign: 'center', marginHorizontal: 4, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3 },
   dockWrapper: { position: 'absolute', bottom: 24, left: 20, right: 20, flexDirection: 'row', alignItems: 'flex-end', minHeight: 60, zIndex: 2 },
   avatarBubble: { width: 60, height: 60, backgroundColor: '#000000', borderRadius: 35, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333', marginRight: 12, elevation: 5 },
