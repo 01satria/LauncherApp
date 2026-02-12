@@ -17,13 +17,15 @@ import {
   Linking,
   Platform,
   AppState,
-  ListRenderItem,
+  ListRenderItem, NativeModules
 } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
+
+const { UninstallModule } = NativeModules;
 
 interface AppData {
   label: string;
@@ -295,16 +297,19 @@ const App = () => {
     if (Platform.OS !== 'android') return;
 
     try {
-      await Linking.sendIntent('android.intent.action.DELETE', [
-        {
-          key: 'android.intent.extra.UNINSTALL_PACKAGE_NAME',  // atau cukup 'package' di beberapa kasus
-          value: selectedPkg,  // tanpa prefix 'package:'
-        },
-        // {
-        //   key: 'android.intent.extra.PACKAGE_NAME',
-        //   value: selectedPkg,
-        // },
-      ]);
+      // await Linking.sendIntent('android.intent.action.DELETE', [
+      //   {
+      //     key: 'android.intent.extra.UNINSTALL_PACKAGE_NAME',  // atau cukup 'package' di beberapa kasus
+      //     value: ,  // tanpa prefix 'package:'
+      //   },
+      //   // {
+      //   //   key: 'android.intent.extra.PACKAGE_NAME',
+      //   //   value: selectedPkg,
+      //   // },
+      // ]);
+
+      UninstallModule.uninstallApp(selectedPkg);
+
 
       setActionModal(false);
     } catch (e: any) {
