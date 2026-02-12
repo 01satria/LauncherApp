@@ -45,9 +45,10 @@ const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 // ==================== 1. SAFE IMAGE (ANTI CRASH) ====================
+// Penyelamat saat file gambar tiba-tiba hilang
 const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
   const [error, setError] = useState(false);
-  if (error) return <View style={{ width: ICON_SIZE, height: ICON_SIZE }} />; // Kotak kosong
+  if (error) return <View style={{ width: ICON_SIZE, height: ICON_SIZE }} />; // Render kosong
 
   return (
     <Image
@@ -56,7 +57,7 @@ const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
       resizeMode="contain"
       resizeMethod="resize"
       fadeDuration={0}
-      onError={() => setError(true)}
+      onError={() => setError(true)} // Tangkap error native disini
     />
   );
 });
@@ -154,15 +155,12 @@ const App = () => {
   const [showHidden, setShowHidden] = useState(false);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
 
-  // KUNCI ANTI GLITCH: Key ini memaksa FlatList dibuat ulang saat uninstall
-  const [listKey, setListKey] = useState(0);
-
   const [actionModal, setActionModal] = useState(false);
   const [actionType, setActionType] = useState<'hide' | 'unhide'>('hide');
   const [selectedPkg, setSelectedPkg] = useState('');
   const [selectedLabel, setSelectedLabel] = useState('');
 
-  // Fungsi load data (BERAT - Jangan dipanggil saat uninstall)
+  // Flag untuk load data
   const refreshApps = useCallback(async () => {
     try {
       const result = await InstalledApps.getSortedApps();
@@ -193,42 +191,53 @@ const App = () => {
     init();
     refreshApps();
 
-    // 1. INSTALL LISTENER (Boleh refresh karena file nambah)
+    // === LISTENER INSTALL (Boleh Refresh) ===
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
         ToastAndroid.show("New App Installed", ToastAndroid.SHORT);
         refreshApps();
     });
 
-    // 2. REMOVE LISTENER (SAFE MODE)
-    // JANGAN PANGGIL refreshApps() DISINI! ITU PENYEBAB CRASH.
+    // === LISTENER UNINSTALL (ANTI CRASH / MODE HIDE) ===
     const removeSub = InstalledApps.startListeningForAppRemovals((pkg) => {
+        // Ambil nama package
         const pkgData: any = pkg; 
         const removedPkgName = typeof pkgData === 'string' ? pkgData : pkgData?.packageName;
         
         if (removedPkgName) {
-            // Cukup hapus dari State React saja. 
-            // Jangan tanya Native Module untuk data baru (karena Native lagi sibuk hapus file)
+            // STEP PENTING:
+            // Kita HANYA membuang app dari list di layar (seperti Hide App).
+            // Kita TIDAK memanggil refreshApps() yang menyuruh sistem scan ulang (Penyebab Crash).
+            
             setAllApps((currentApps) => 
                 currentApps.filter(app => app.packageName !== removedPkgName)
             );
-            
-            // Flush UI
-            setListKey(prev => prev + 1);
+        }
+    });
+
+    // === LISTENER APP STATE (SYNC SAAT RESUME) ===
+    // Refresh data asli hanya dilakukan saat user balik ke launcher
+    const appStateSub = AppState.addEventListener('change', nextAppState => {
+        if (nextAppState === 'active') {
+            // Delay sedikit biar aman
+            setTimeout(() => refreshApps(), 500);
         }
     });
 
     return () => {
       InstalledApps.stopListeningForAppInstallations();
       InstalledApps.stopListeningForAppRemovals();
+      appStateSub.remove();
     };
   }, [refreshApps]);
 
+  // Filtering Logic (Untuk Hide & Uninstall Realtime)
   useEffect(() => {
     requestAnimationFrame(() => {
         setFilteredApps(showHidden ? allApps : allApps.filter(app => !hiddenPackages.includes(app.packageName)));
     });
   }, [allApps, hiddenPackages, showHidden]);
 
+  // Actions
   const handleLongPress = useCallback((pkg: string, label: string) => {
     const isHidden = hiddenPackages.includes(pkg);
     setActionType(isHidden ? 'unhide' : 'hide');
@@ -252,6 +261,7 @@ const App = () => {
         setActionModal(false);
         if (UninstallModule) {
             UninstallModule.uninstallApp(selectedPkg);
+            // Tidak perlu coding apa-apa disini, biarkan listener yang menangani 'hide' effectnya
         } else {
             ToastAndroid.show("Module Not Found", ToastAndroid.SHORT);
         }
@@ -285,7 +295,6 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       <FlatList
-        key={listKey} // Reset list saat ada perubahan drastis
         data={filteredApps}
         numColumns={4}
         keyExtractor={item => item.packageName}
