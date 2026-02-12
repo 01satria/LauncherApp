@@ -197,6 +197,7 @@ const App = () => {
   const [actionType, setActionType] = useState<'hide' | 'unhide'>('hide');
   const [selectedPkg, setSelectedPkg] = useState('');
   const [selectedLabel, setSelectedLabel] = useState('');
+  const [listKey, setListKey] = useState(0);
 
   // Flag untuk load data
   const refreshApps = useCallback(async () => {
@@ -302,15 +303,24 @@ const App = () => {
     try {
       setActionModal(false);
 
-      // 1. HAPUS ICON DARI LAYAR DULUAN (Optimistic UI)
+      // 1. RESET LIST TOTAL (Jurus Utama)
+      // Ini memaksa React membuang semua memori gambar lama SEBELUM file dihapus.
+      setListKey(prev => prev + 1);
+
+      // 2. HAPUS DATA DARI STATE (Visual)
       setAllApps(current => current.filter(app => app.packageName !== selectedPkg));
 
-      // 2. BARU PANGGIL PERINTAH UNINSTALL KE SISTEM
-      if (UninstallModule) {
-        UninstallModule.uninstallApp(selectedPkg);
-      } else {
-        ToastAndroid.show("Module Not Found", ToastAndroid.SHORT);
-      }
+      // 3. JEDA EKSEKUSI (Penting!)
+      // Tunggu 500ms agar React selesai bersih-bersih memori,
+      // BARU panggil perintah uninstall ke sistem.
+      setTimeout(() => {
+        if (UninstallModule) {
+          UninstallModule.uninstallApp(selectedPkg);
+        } else {
+          ToastAndroid.show("Module Not Found", ToastAndroid.SHORT);
+        }
+      }, 500);
+
     } catch (e) {
       ToastAndroid.show("Error", ToastAndroid.SHORT);
     }
@@ -341,6 +351,7 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       <FlatList
+        key={listKey}
         data={filteredApps}
         numColumns={4}
         keyExtractor={item => item.packageName}
