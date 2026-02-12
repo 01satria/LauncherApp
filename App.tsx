@@ -239,9 +239,9 @@ const App = () => {
     // MATIKAN LOGIKANYA. Kosongkan saja.
     // Kita sudah menghapus icon lewat handleUninstall di atas.
     // Kalau listener ini aktif, dia akan bentrok rebutan data dan bikin Force Close.
-    const removeSub = InstalledApps.startListeningForAppRemovals((pkg) => {
-      // BIARKAN KOSONG
-    });
+    // const removeSub = InstalledApps.startListeningForAppRemovals((pkg) => {
+    //   // BIARKAN KOSONG
+    // });
 
     // 3. RESUME LISTENER: (Pastikan ini ada untuk sinkronisasi akhir)
     const appStateSub = AppState.addEventListener('change', nextAppState => {
@@ -267,7 +267,7 @@ const App = () => {
 
     return () => {
       InstalledApps.stopListeningForAppInstallations();
-      InstalledApps.stopListeningForAppRemovals();
+      // InstalledApps.stopListeningForAppRemovals();
       appStateSub.remove();
     };
   }, [refreshApps]);
