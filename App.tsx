@@ -17,7 +17,7 @@ import {
   Linking,
   Platform,
   AppState,
-  ListRenderItem, NativeModules
+  ListRenderItem,
 } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -25,7 +25,6 @@ import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import RNFS from 'react-native-fs';
 import * as ImagePicker from 'react-native-image-picker';
 
-const { UninstallModule } = NativeModules;
 
 interface AppData {
   label: string;
@@ -308,8 +307,7 @@ const App = () => {
       //   // },
       // ]);
 
-      UninstallModule.uninstallApp(selectedPkg);
-
+      await Linking.openURL(`package:${selectedPkg}`);
 
       setActionModal(false);
     } catch (e: any) {
