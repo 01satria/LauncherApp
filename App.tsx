@@ -235,7 +235,6 @@ const App = () => {
     const init = async () => {
       await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => { });
 
-      // Load preferencesnya dibikin PARALEL (Promise.all) agar lebih cepat
       const [uName, hidden, showH, avt] = await Promise.all([
         RNFS.exists(CUSTOM_USER_PATH).then(e => e ? RNFS.readFile(CUSTOM_USER_PATH, 'utf8') : null),
         RNFS.exists(CUSTOM_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8') : null),
@@ -254,16 +253,38 @@ const App = () => {
     init();
     refreshApps();
 
-    // Listeners v2.1.0
-    const installSub = InstalledApps.startListeningForAppInstallations(() => refreshApps());
-    const removeSub = InstalledApps.startListeningForAppRemovals(() => refreshApps());
+    // Listener Install
+    const installSub = InstalledApps.startListeningForAppInstallations((app) => {
+      ToastAndroid.show("New App Installed", ToastAndroid.SHORT);
+      refreshApps();
+    });
+
+    // Listener Uninstall (Fixed Error 'never')
+    const removeSub = InstalledApps.startListeningForAppRemovals((pkg) => {
+      // Cek tipe data pkg (bisa string atau object tergantung versi library)
+      // Gunakan 'any' untuk pkg agar aman dari error type mismatch di library
+      const pkgData: any = pkg;
+      const removedPkgName = typeof pkgData === 'string' ? pkgData : pkgData?.packageName;
+
+      if (removedPkgName) {
+        // === PERBAIKAN DI SINI ===
+        // Tambahkan ': AppData[]' agar TypeScript tau isi array-nya
+        setAllApps((currentApps: AppData[]) =>
+          currentApps.filter(app => app.packageName !== removedPkgName)
+        );
+      }
+
+      // Delay refresh untuk mencegah crash
+      setTimeout(() => {
+        refreshApps();
+      }, 1000);
+    });
 
     return () => {
       InstalledApps.stopListeningForAppInstallations();
       InstalledApps.stopListeningForAppRemovals();
     };
   }, [refreshApps]);
-
   // 3. Filtering Logic
   useEffect(() => {
     // Pake requestAnimationFrame biar UI tidak freeze saat filtering banyak data sekaligus
