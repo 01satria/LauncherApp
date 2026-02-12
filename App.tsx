@@ -309,7 +309,7 @@ const App = () => {
       setActionModal(false);
     } catch (e: any) {
       ToastAndroid.show(
-        `Gagal membuka dialog uninstall: ${e?.message || 'Unknown'}`,
+        `${e?.message || 'Unknown'}`,
         ToastAndroid.LONG
       );
     }
