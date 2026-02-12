@@ -47,17 +47,28 @@ const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/41
 // ==================== 1. SAFE IMAGE ====================
 // Penyelamat saat file icon tiba-tiba hilang!
 const SafeAppIcon = memo(({ iconUri }: { iconUri: string }) => {
-  const [error, setError] = useState(false);
-  if (error) return <View style={{ width: ICON_SIZE, height: ICON_SIZE }} />; // Render kosong
+  const [hasError, setHasError] = useState(false);
+  const [currentUri, setCurrentUri] = useState(
+    iconUri.startsWith('file://') ? iconUri : `file://${iconUri}`
+  );
+
+  useEffect(() => {
+    setHasError(false);
+    setCurrentUri(iconUri.startsWith('file://') ? iconUri : `file://${iconUri}`);
+  }, [iconUri]);
+
+  if (hasError) {
+    return <View style={{ width: ICON_SIZE, height: ICON_SIZE, backgroundColor: '#1a1a1a' }} />;
+  }
 
   return (
     <Image
-      source={{ uri: iconUri }}
+      source={{ uri: currentUri }}
       style={styles.appIconImage}
       resizeMode="contain"
-      resizeMethod="resize"
       fadeDuration={0}
-      onError={() => setError(true)} // Tangkap error nativenya disini
+      onError={() => setHasError(true)}
+      onLoad={() => setHasError(false)}
     />
   );
 });
@@ -206,10 +217,14 @@ const App = () => {
       const apps = result.map((a: any) => ({
         label: a.label || 'App',
         packageName: a.packageName,
-        icon: a.icon
+        icon: a.icon,
       }));
       setAllApps(apps);
-    } catch (e) { }
+    } catch (e) {
+      console.error('refreshApps failed:', e);
+      // Optional: fallback ke state kosong sementara
+      // setAllApps([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -300,30 +315,24 @@ const App = () => {
   };
 
   const handleUninstall = () => {
-    try {
-      setActionModal(false);
+    const pkgToRemove = selectedPkg;   // simpan dulu biar aman
 
-      // 1. RESET LIST TOTAL (Jurus Utama)
-      // Ini memaksa React membuang semua memori gambar lama SEBELUM file dihapus.
-      setListKey(prev => prev + 1);
+    setActionModal(false);
 
-      // 2. HAPUS DATA DARI STATE (Visual)
-      setAllApps(current => current.filter(app => app.packageName !== selectedPkg));
+    // 1. Optimistic removal + force remount (paling penting)
+    setAllApps(prev => prev.filter(app => app.packageName !== pkgToRemove));
+    setListKey(prev => prev + 1);        // ini membersihkan semua Image instance lama
 
-      // 3. JEDA EKSEKUSI (Penting!)
-      // Tunggu 500ms agar React selesai bersih-bersih memori,
-      // BARU panggil perintah uninstall ke sistem.
-      setTimeout(() => {
-        if (UninstallModule) {
-          UninstallModule.uninstallApp(selectedPkg);
-        } else {
-          ToastAndroid.show("Module Not Found", ToastAndroid.SHORT);
-        }
-      }, 500);
+    // 2. Panggil uninstall setelah UI stabil
+    setTimeout(() => {
+      UninstallModule?.uninstallApp(pkgToRemove);
+    }, 380);
 
-    } catch (e) {
-      ToastAndroid.show("Error", ToastAndroid.SHORT);
-    }
+    // 3. Aggressive refresh setelah uninstall (ini kuncinya!)
+    // User akan kembali ke launcher setelah konfirmasi uninstall dialog
+    setTimeout(() => refreshApps(), 1600);
+    setTimeout(() => refreshApps(), 4200);   // safety net
+    setTimeout(() => refreshApps(), 7800);   // safety ketiga (jarang dipakai)
   };
 
   const launchApp = (pkg: string) => {
