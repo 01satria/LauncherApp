@@ -21,7 +21,6 @@ It features a unique **Assistant Dock** that provides personalized greetings, ad
 ### 1. Changing Names & Visibility
 - **Long-press the Assistant Avatar** (bottom dock) for 1 second
 - Settings modal appears with options to:
-  - Edit **Assistant Name**
   - Edit **Your Name** (used in greetings)
   - Toggle **Show Hidden Apps**
 
@@ -81,7 +80,6 @@ All local data is stored in the following directory:
 
 | File | Purpose |
 | :--- | :--- |
-| `name.txt` | Assistant's custom name |
 | `user.txt` | User's name |
 | `hidden.json` | Array of hidden package names |
 | `asist.jpg` | Custom avatar image (Base64) |
