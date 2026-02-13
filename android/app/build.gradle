@@ -43,14 +43,15 @@ react {
     //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
     // extraPackagerArgs = []
 
-    /* Hermes Commands */  // Tambahan: Optimasi flags Hermes untuk size lebih kecil
-    hermesFlags = ["-O", "-output-source-map"]  // Tambah ini untuk optimasi lebih lanjut
+    /* Hermes Commands */
+    // Optimasi flags Hermes untuk size lebih kecil dan performa
+    hermesFlags = ["-O", "-output-source-map"]
 }
 
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = true  // Ubah ke true untuk optimasi RAM & size
+def enableProguardInReleaseBuilds = true // Optimasi RAM & size aktif
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -78,6 +79,7 @@ android {
         versionCode 3
         versionName "1.1c"
     }
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -85,18 +87,35 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        
+        // KONFIGURASI RELEASE (Mendukung Lokal & GitHub Actions)
+        release {
+            if (System.getenv("MYAPP_RELEASE_STORE_FILE")) {
+                // Jika env var ditemukan (di GitHub Actions), pakai config ini
+                storeFile file(System.getenv("MYAPP_RELEASE_STORE_FILE"))
+                storePassword System.getenv("MYAPP_RELEASE_STORE_PASSWORD")
+                keyAlias System.getenv("MYAPP_RELEASE_KEY_ALIAS")
+                keyPassword System.getenv("MYAPP_RELEASE_KEY_PASSWORD")
+            }
+        }
     }
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
-            minifyEnabled enableProguardInReleaseBuilds  // Pastikan ini true
-            shrinkResources true  // Tambah ini: Hapus resource unused untuk hemat RAM
-            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"  // Ubah ke -optimize.txt untuk optimasi lebih baik
+            // Logika Signing:
+            // Jika ada env var (GitHub Actions), gunakan signingConfigs.release.
+            // Jika tidak ada (Local Build tanpa setup), dia akan skip signing (atau bisa diatur fallback ke debug jika mau).
+            if (System.getenv("MYAPP_RELEASE_STORE_FILE")) {
+                signingConfig signingConfigs.release
+            }
+            
+            // Optimasi Size & Obfuscation
+            minifyEnabled enableProguardInReleaseBuilds
+            shrinkResources true // Hapus resource tidak terpakai
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
 }
