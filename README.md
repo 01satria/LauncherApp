@@ -104,7 +104,7 @@ Pull requests for:
 * New features
 * Better witty toasts
 * Performance improvements
-* AI Agent Intergrated
+* AI Agent Integrated
 
 ...are very welcome!
 
