@@ -69,7 +69,6 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
     }).start();
   }, [fadeAnim]);
 
-  // iOS-style rounded corners (22% of size for perfect iOS look)
   const borderRadius = size * 0.22;
 
   if (error) {
@@ -81,13 +80,11 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
       width: size, 
       height: size, 
       borderRadius,
-      overflow: 'hidden',
       opacity: fadeAnim,
     }}>
       <Image
         source={{ uri }}
-        style={{ width: '110%', height: '110%' }}
-        resizeMode="cover"
+        style={{ width: '100%', height: '100%' }}
         fadeDuration={0}
         onError={() => setError(true)}
         onLoad={handleLoad}
