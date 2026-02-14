@@ -195,14 +195,12 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: {
   );
 }, (prev, next) => prev.app.packageName === next.app.packageName);
 
-// ==================== PAGE INDICATOR ====================
-const PageIndicator = memo(({ isActive, opacity }: { isActive: boolean; opacity: Animated.Value }) => {
+// ==================== PAGE INDICATOR (iOS-style) ====================
+const PageIndicator = memo(({ activeIndex, opacity }: { activeIndex: number; opacity: Animated.Value }) => {
   return (
     <Animated.View style={[styles.indicatorContainer, { opacity }]}>
-      <View style={styles.indicatorDots}>
-        <View style={[styles.dot, !isActive && styles.dotActive]} />
-        <View style={[styles.dot, isActive && styles.dotActive]} />
-      </View>
+      <View style={[styles.dot, activeIndex === 0 && styles.dotActive]} />
+      <View style={[styles.dot, activeIndex === 1 && styles.dotActive]} />
     </Animated.View>
   );
 });
@@ -232,123 +230,112 @@ const AssistantDock = memo(({
   const settingsModalAnim = useRef(new Animated.Value(0)).current;
   const indicatorOpacity = useRef(new Animated.Value(0)).current;
   const indicatorTimeout = useRef<NodeJS.Timeout | null>(null);
-  const bounceAnim = useRef(new Animated.Value(0)).current;
-  const dragOffset = useRef(new Animated.Value(0)).current;
 
-  // ==================== SWIPE GESTURE HANDLER WITH DIRECTIONAL LOCK ====================
+  // Helper function untuk menampilkan indicator
+  const showIndicatorTemporary = useCallback(() => {
+    if (indicatorTimeout.current) {
+      clearTimeout(indicatorTimeout.current);
+    }
+
+    Animated.timing(indicatorOpacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+
+    indicatorTimeout.current = setTimeout(() => {
+      Animated.timing(indicatorOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }, 2000);
+  }, [indicatorOpacity]);
+
+  // ==================== SWIPE GESTURE HANDLER ====================
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        const horizontalSwipe = Math.abs(gestureState.dx) > 20 && 
+                               Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        
+        if (!horizontalSwipe) return false;
+
+        // Directional lock: hanya izinkan swipe sesuai kondisi
+        if (showDockView) {
+          // Di Dock Apps: hanya izinkan swipe kanan ke kiri (dx < 0)
+          return gestureState.dx < -20;
+        } else {
+          // Di Message: hanya izinkan swipe kiri ke kanan (dx > 0)
+          return gestureState.dx > 20;
+        }
       },
       onPanResponderGrant: () => {
-        // Show indicator saat mulai gesture
-        if (indicatorTimeout.current) {
-          clearTimeout(indicatorTimeout.current);
-        }
-        Animated.timing(indicatorOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
+        showIndicatorTemporary();
       },
       onPanResponderMove: (_, gestureState) => {
-        const { dx } = gestureState;
-        const isOnMessage = !showDockView;
-        const isOnDockApps = showDockView;
-
-        // Directional lock logic
-        if (isOnMessage && dx > 0) {
-          // Di message, swipe kanan -> allowed (switch to dock apps)
-          dragOffset.setValue(Math.min(dx * 0.5, width * 0.3));
-        } else if (isOnDockApps && dx < 0) {
-          // Di dock apps, swipe kiri -> allowed (switch to message)
-          dragOffset.setValue(Math.max(dx * 0.5, -width * 0.3));
-        } else {
-          // Tidak diijinkan, buat bounce effect
-          const resistance = Math.abs(dx) * 0.1;
-          dragOffset.setValue(dx > 0 ? resistance : -resistance);
+        const progress = Math.abs(gestureState.dx) / (width * 0.5);
+        const clampedProgress = Math.max(0, Math.min(1, progress));
+        
+        if (showDockView && gestureState.dx < 0) {
+          // Swipe left from dock apps
+          slideAnim.setValue(1 - clampedProgress);
+        } else if (!showDockView && gestureState.dx > 0) {
+          // Swipe right from message
+          slideAnim.setValue(clampedProgress);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        const { dx, vx } = gestureState;
-        const swipeThreshold = 60;
-        const velocityThreshold = 0.5;
-        const isOnMessage = !showDockView;
-        const isOnDockApps = showDockView;
-        
-        const isFastSwipe = Math.abs(vx) > velocityThreshold;
-        const isLongSwipe = Math.abs(dx) > swipeThreshold;
+        const threshold = width * 0.25;
+        const shouldToggle = Math.abs(gestureState.dx) > threshold;
 
-        let shouldSwitch = false;
-
-        // Check directional rules
-        if (isOnMessage && dx > 0 && (isLongSwipe || isFastSwipe)) {
-          shouldSwitch = true;
-        } else if (isOnDockApps && dx < 0 && (isLongSwipe || isFastSwipe)) {
-          shouldSwitch = true;
-        }
-
-        if (shouldSwitch) {
-          // Valid swipe - switch view
-          Animated.spring(dragOffset, {
-            toValue: 0,
-            friction: 8,
-            tension: 80,
-            useNativeDriver: true,
-          }).start(() => {
+        if (shouldToggle) {
+          // Valid swipe - toggle view
+          const targetValue = showDockView ? 0 : 1;
+          
+          Animated.parallel([
+            Animated.spring(slideAnim, {
+              toValue: targetValue,
+              friction: 8,
+              tension: 80,
+              useNativeDriver: true,
+            }),
+            Animated.timing(rotateAnim, {
+              toValue: targetValue,
+              duration: 250,
+              easing: Easing.out(Easing.ease),
+              useNativeDriver: true,
+            })
+          ]).start(() => {
             onToggleDockView();
           });
         } else {
-          // Invalid swipe or tidak cukup jauh - bounce back
-          Animated.sequence([
-            Animated.spring(bounceAnim, {
-              toValue: dx > 0 ? 8 : -8,
-              friction: 3,
-              tension: 150,
-              useNativeDriver: true,
-            }),
-            Animated.spring(bounceAnim, {
-              toValue: 0,
-              friction: 5,
-              tension: 100,
-              useNativeDriver: true,
-            })
-          ]).start();
-          
-          Animated.spring(dragOffset, {
-            toValue: 0,
+          // Snap back
+          Animated.spring(slideAnim, {
+            toValue: showDockView ? 1 : 0,
             friction: 8,
             tension: 80,
             useNativeDriver: true,
           }).start();
         }
-
-        // Hide indicator setelah 1 detik
-        indicatorTimeout.current = setTimeout(() => {
-          Animated.timing(indicatorOpacity, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }).start();
-        }, 1000);
       },
     })
   ).current;
 
+  // Sync slideAnim with showDockView prop
   useEffect(() => {
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: showDockView ? 1 : 0,
-        friction: 9,
-        tension: 90,
+        friction: 8,
+        tension: 80,
         useNativeDriver: true,
       }),
       Animated.timing(rotateAnim, {
         toValue: showDockView ? 1 : 0,
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
+        duration: 250,
+        easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       })
     ]).start();
@@ -367,36 +354,20 @@ const AssistantDock = memo(({
     }
   }, [modalVisible, settingsModalAnim]);
 
-  // Smooth animation dengan easing curves
-  const messageTranslateX = Animated.add(
-    slideAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, -width],
-    }),
-    dragOffset
-  );
+  // Animasi slide dengan arah yang benar
+  const messageTranslateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -width], // Message keluar ke kiri saat dock apps masuk
+  });
 
-  const dockTranslateX = Animated.add(
-    slideAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [width, 0],
-    }),
-    dragOffset
-  );
+  const dockTranslateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [width, 0], // Dock apps masuk dari kanan
+  });
 
   const avatarRotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg']
-  });
-
-  const messageOpacity = slideAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [1, 0.5, 0]
-  });
-
-  const dockOpacity = slideAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0, 0.5, 1]
   });
 
   useEffect(() => {
@@ -405,13 +376,11 @@ const AssistantDock = memo(({
       rotateAnim.stopAnimation();
       settingsModalAnim.stopAnimation();
       indicatorOpacity.stopAnimation();
-      bounceAnim.stopAnimation();
-      dragOffset.stopAnimation();
       if (indicatorTimeout.current) {
         clearTimeout(indicatorTimeout.current);
       }
     };
-  }, [slideAnim, rotateAnim, settingsModalAnim, indicatorOpacity, bounceAnim, dragOffset]);
+  }, [slideAnim, rotateAnim, settingsModalAnim, indicatorOpacity]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -438,12 +407,17 @@ const AssistantDock = memo(({
 
   const save = () => { onSaveUserName(tempName); setModalVisible(false); };
 
+  const handleAvatarPress = () => {
+    onToggleDockView();
+    showIndicatorTemporary();
+  };
+
   return (
     <>
       <View style={styles.dockWrapper} {...panResponder.panHandlers}>
         <TouchableOpacity 
           style={styles.avatarBubble} 
-          onPress={onToggleDockView}
+          onPress={handleAvatarPress}
           onLongPress={() => { setTempName(userName); setModalVisible(true); }} 
           activeOpacity={0.8}
         >
@@ -453,14 +427,13 @@ const AssistantDock = memo(({
           />
         </TouchableOpacity>
 
-        <Animated.View style={[styles.contentWrapper, { transform: [{ translateX: bounceAnim }] }]}>
+        <View style={styles.contentWrapper}>
           {/* MESSAGE VIEW */}
           <Animated.View 
             style={[
               styles.messageBubble, 
               { 
                 transform: [{ translateX: messageTranslateX }],
-                opacity: messageOpacity,
               }
             ]}
             pointerEvents={showDockView ? 'none' : 'auto'}
@@ -474,7 +447,10 @@ const AssistantDock = memo(({
               styles.dockAppsContainer, 
               { 
                 transform: [{ translateX: dockTranslateX }],
-                opacity: dockOpacity,
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
               }
             ]}
             pointerEvents={showDockView ? 'auto' : 'none'}
@@ -494,11 +470,11 @@ const AssistantDock = memo(({
               </View>
             )}
           </Animated.View>
-        </Animated.View>
-      </View>
+        </View>
 
-      {/* PAGE INDICATOR */}
-      <PageIndicator isActive={showDockView} opacity={indicatorOpacity} />
+        {/* PAGE INDICATOR (iOS-style) */}
+        <PageIndicator activeIndex={showDockView ? 1 : 0} opacity={indicatorOpacity} />
+      </View>
 
       <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
@@ -692,7 +668,7 @@ const App = () => {
     } else {
       if (!newList.includes(selectedPkg)) newList.push(selectedPkg);
       
-      // BUG FIX: Auto-remove from dock when hiding
+      // Auto-remove from dock when hiding
       if (dockPackages.includes(selectedPkg)) {
         const newDock = dockPackages.filter(p => p !== selectedPkg);
         setDockPackages(newDock);
@@ -846,10 +822,9 @@ const App = () => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSubtitle}>Select an action for this app</Text>
+            <Text style={styles.modalSubtitle}>Select an action for this app:</Text>
 
             <View style={styles.verticalBtnGroup}>
-              {/* Pin/Unpin Button */}
               <TouchableOpacity 
                 style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]} 
                 onPress={pinToDock} 
@@ -860,7 +835,6 @@ const App = () => {
                 </Text>
               </TouchableOpacity>
 
-              {/* Hide/Unhide Button */}
               <TouchableOpacity 
                 style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} 
                 onPress={doAction} 
@@ -871,7 +845,6 @@ const App = () => {
                 </Text>
               </TouchableOpacity>
 
-              {/* Uninstall Button */}
               <TouchableOpacity 
                 style={[styles.actionBtn, styles.btnRed, styles.btnFull]} 
                 onPress={handleUninstall} 
@@ -897,19 +870,36 @@ const styles = StyleSheet.create({
   dockWrapper: { position: 'absolute', bottom: 24, left: 20, right: 20, flexDirection: 'row', alignItems: 'flex-end', height: 60, zIndex: 2 },
   avatarBubble: { width: 60, height: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333', marginRight: 12, elevation: 5 },
   avatarImage: { width: 55, height: 55, borderRadius: 27.5 },
-  contentWrapper: { flex: 1, height: 60, position: 'relative', overflow: 'hidden' },
-  messageBubble: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 15, borderWidth: 1, borderStyle: 'dashed', borderColor: '#333', elevation: 5 },
+  contentWrapper: { flex: 1, height: 60, position: 'relative' },
+  messageBubble: { flex: 1, minHeight: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 15, borderWidth: 1, borderStyle: 'dashed', borderColor: '#333', elevation: 5 },
   assistantText: { color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20 },
-  dockAppsContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 15, paddingVertical: 10, borderWidth: 1, borderColor: '#333', elevation: 5 },
+  dockAppsContainer: { flex: 1, height: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 15, paddingVertical: 10, borderWidth: 1, borderColor: '#333', elevation: 5 },
   dockAppsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', gap: 8 },
   dockAppItem: { width: DOCK_ICON_SIZE, height: DOCK_ICON_SIZE, justifyContent: 'center', alignItems: 'center' },
   emptyDockText: { color: '#424242', fontSize: 13, textAlign: 'center', fontStyle: 'italic' },
+  indicatorContainer: { 
+    position: 'absolute', 
+    bottom: -20, 
+    left: 0, 
+    right: 0, 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 6,
+    paddingVertical: 5,
+  },
+  dot: { 
+    width: 6, 
+    height: 6, 
+    borderRadius: 3, 
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  dotActive: { 
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    width: 6,
+    height: 6,
+  },
   gradientFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220, zIndex: 1 },
-  // iOS-style Page Indicator
-  indicatorContainer: { position: 'absolute', bottom: 92, left: 0, right: 0, alignItems: 'center', zIndex: 3 },
-  indicatorDots: { flexDirection: 'row', backgroundColor: 'rgba(0, 0, 0, 0.4)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 15, gap: 6 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255, 255, 255, 0.4)' },
-  dotActive: { backgroundColor: 'rgba(255, 255, 255, 0.95)' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: width * 0.85, backgroundColor: '#000000', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#333', elevation: 10 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
