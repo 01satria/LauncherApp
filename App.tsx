@@ -252,59 +252,80 @@ const AssistantDock = memo(({
     }, 2000);
   }, [indicatorOpacity]);
 
-  // ==================== SWIPE GESTURE HANDLER ====================
+  // ==================== PULL UP GESTURE HANDLER (Samsung-style) ====================
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        const horizontalSwipe = Math.abs(gestureState.dx) > 20 && 
-                               Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+        // Deteksi vertical swipe (pull up/down)
+        const verticalSwipe = Math.abs(gestureState.dy) > 15 && 
+                             Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
         
-        if (!horizontalSwipe) return false;
+        if (!verticalSwipe) return false;
 
-        // Directional lock: hanya izinkan swipe sesuai kondisi
-        if (showDockView) {
-          // Di Dock Apps: hanya izinkan swipe kanan ke kiri (dx < 0)
-          return gestureState.dx < -20;
-        } else {
-          // Di Message: hanya izinkan swipe kiri ke kanan (dx > 0)
-          return gestureState.dx > 20;
+        // Pull up dari message untuk show dock apps
+        if (!showDockView && gestureState.dy < -15) {
+          return true;
         }
+        
+        // Pull down dari dock apps untuk kembali ke message
+        if (showDockView && gestureState.dy > 15) {
+          return true;
+        }
+
+        return false;
       },
       onPanResponderGrant: () => {
         showIndicatorTemporary();
       },
       onPanResponderMove: (_, gestureState) => {
-        const progress = Math.abs(gestureState.dx) / (width * 0.5);
-        const clampedProgress = Math.max(0, Math.min(1, progress));
+        const { dy } = gestureState;
+        const pullThreshold = 80;
         
-        if (showDockView && gestureState.dx < 0) {
-          // Swipe left from dock apps
-          slideAnim.setValue(1 - clampedProgress);
-        } else if (!showDockView && gestureState.dx > 0) {
-          // Swipe right from message
-          slideAnim.setValue(clampedProgress);
+        if (!showDockView && dy < 0) {
+          // Pull up dari message
+          const progress = Math.min(Math.abs(dy) / pullThreshold, 1);
+          slideAnim.setValue(progress);
+        } else if (showDockView && dy > 0) {
+          // Pull down dari dock apps
+          const progress = Math.max(1 - (dy / pullThreshold), 0);
+          slideAnim.setValue(progress);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        const threshold = width * 0.25;
-        const shouldToggle = Math.abs(gestureState.dx) > threshold;
+        const { dy, vy } = gestureState;
+        const threshold = 40;
+        const velocityThreshold = 0.5;
+        
+        const isFastSwipe = Math.abs(vy) > velocityThreshold;
+        const isPullEnough = Math.abs(dy) > threshold;
+        
+        let shouldToggle = false;
+
+        // Pull up dari message
+        if (!showDockView && dy < 0 && (isPullEnough || isFastSwipe)) {
+          shouldToggle = true;
+        }
+        
+        // Pull down dari dock apps
+        if (showDockView && dy > 0 && (isPullEnough || isFastSwipe)) {
+          shouldToggle = true;
+        }
 
         if (shouldToggle) {
-          // Valid swipe - toggle view
           const targetValue = showDockView ? 0 : 1;
           
           Animated.parallel([
             Animated.spring(slideAnim, {
               toValue: targetValue,
-              friction: 8,
-              tension: 80,
+              friction: 9,
+              tension: 85,
               useNativeDriver: true,
             }),
             Animated.timing(rotateAnim, {
               toValue: targetValue,
-              duration: 250,
-              easing: Easing.out(Easing.ease),
+              duration: 300,
+              easing: Easing.bezier(0.25, 0.1, 0.25, 1),
               useNativeDriver: true,
             })
           ]).start(() => {
@@ -314,8 +335,8 @@ const AssistantDock = memo(({
           // Snap back
           Animated.spring(slideAnim, {
             toValue: showDockView ? 1 : 0,
-            friction: 8,
-            tension: 80,
+            friction: 9,
+            tension: 85,
             useNativeDriver: true,
           }).start();
         }
@@ -328,14 +349,14 @@ const AssistantDock = memo(({
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: showDockView ? 1 : 0,
-        friction: 8,
-        tension: 80,
+        friction: 9,
+        tension: 85,
         useNativeDriver: true,
       }),
       Animated.timing(rotateAnim, {
         toValue: showDockView ? 1 : 0,
-        duration: 250,
-        easing: Easing.out(Easing.ease),
+        duration: 300,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
         useNativeDriver: true,
       })
     ]).start();
@@ -354,15 +375,37 @@ const AssistantDock = memo(({
     }
   }, [modalVisible, settingsModalAnim]);
 
-  // Animasi slide dengan arah yang benar
-  const messageTranslateX = slideAnim.interpolate({
+  // ==================== SAMSUNG-STYLE FLIP ANIMATION ====================
+  // Message bubble: rotateX dari 0 ke -90deg (flip ke belakang)
+  const messageRotateX = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -width], // Message keluar ke kiri saat dock apps masuk
+    outputRange: ['0deg', '-90deg']
   });
 
-  const dockTranslateX = slideAnim.interpolate({
+  const messageOpacity = slideAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 0.5, 0]
+  });
+
+  const messageTranslateY = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [width, 0], // Dock apps masuk dari kanan
+    outputRange: [0, -20]
+  });
+
+  // Dock apps: translateY dari bawah naik ke atas + rotateX dari 90deg ke 0
+  const dockTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [80, 0] // Mulai dari bawah (80px), naik ke posisi normal (0)
+  });
+
+  const dockRotateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['90deg', '0deg'] // Dari terlipat (90deg) ke terbuka (0deg)
+  });
+
+  const dockOpacity = slideAnim.interpolate({
+    inputRange: [0, 0.3, 1],
+    outputRange: [0, 0.5, 1]
   });
 
   const avatarRotate = rotateAnim.interpolate({
@@ -428,12 +471,18 @@ const AssistantDock = memo(({
         </TouchableOpacity>
 
         <View style={styles.contentWrapper}>
-          {/* MESSAGE VIEW */}
+          {/* MESSAGE VIEW - Flip ke belakang */}
           <Animated.View 
             style={[
               styles.messageBubble, 
               { 
-                transform: [{ translateX: messageTranslateX }],
+                transform: [
+                  { perspective: 1000 },
+                  { rotateX: messageRotateX },
+                  { translateY: messageTranslateY }
+                ],
+                opacity: messageOpacity,
+                zIndex: showDockView ? 0 : 1,
               }
             ]}
             pointerEvents={showDockView ? 'none' : 'auto'}
@@ -441,16 +490,22 @@ const AssistantDock = memo(({
             <Text style={styles.assistantText}>{message}</Text>
           </Animated.View>
 
-          {/* DOCK APPS VIEW */}
+          {/* DOCK APPS VIEW - Muncul dari bawah dengan flip */}
           <Animated.View 
             style={[
               styles.dockAppsContainer, 
               { 
-                transform: [{ translateX: dockTranslateX }],
+                transform: [
+                  { perspective: 1000 },
+                  { translateY: dockTranslateY },
+                  { rotateX: dockRotateX }
+                ],
+                opacity: dockOpacity,
                 position: 'absolute',
                 bottom: 0,
                 left: 0,
                 right: 0,
+                zIndex: showDockView ? 1 : 0,
               }
             ]}
             pointerEvents={showDockView ? 'auto' : 'none'}
@@ -870,7 +925,7 @@ const styles = StyleSheet.create({
   dockWrapper: { position: 'absolute', bottom: 24, left: 20, right: 20, flexDirection: 'row', alignItems: 'flex-end', height: 60, zIndex: 2 },
   avatarBubble: { width: 60, height: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333', marginRight: 12, elevation: 5 },
   avatarImage: { width: 55, height: 55, borderRadius: 27.5 },
-  contentWrapper: { flex: 1, height: 60, position: 'relative' },
+  contentWrapper: { flex: 1, height: 60, position: 'relative', overflow: 'visible' },
   messageBubble: { flex: 1, minHeight: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 15, borderWidth: 1, borderStyle: 'dashed', borderColor: '#333', elevation: 5 },
   assistantText: { color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20 },
   dockAppsContainer: { flex: 1, height: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 15, paddingVertical: 10, borderWidth: 1, borderColor: '#333', elevation: 5 },
