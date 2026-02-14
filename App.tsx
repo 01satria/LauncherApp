@@ -276,17 +276,20 @@ const AssistantDock = memo(({
     }
   }, [modalVisible, settingsModalAnim]);
 
-  // Animasi dinamis mengikuti arah swipe
+  // Animasi dinamis mengikuti arah swipe - INFINITE LOOP
+  // Swipe kanan: elemen masuk dari kiri | Swipe kiri: elemen masuk dari kanan
   const messageTranslateX = slideAnim.interpolate({
     inputRange: [0, 1],
-    // Swipe kanan: message keluar ke kanan | Swipe kiri: message keluar ke kiri
-    outputRange: animDirection === 'right' ? [0, width] : [0, -width]
+    outputRange: animDirection === 'right' 
+      ? [-width, 0]  // Swipe kanan: message masuk dari kiri
+      : [width, 0]   // Swipe kiri: message masuk dari kanan
   });
 
   const dockTranslateX = slideAnim.interpolate({
     inputRange: [0, 1],
-    // Swipe kanan: dock masuk dari kiri | Swipe kiri: dock masuk dari kanan
-    outputRange: animDirection === 'right' ? [-width, 0] : [width, 0]
+    outputRange: animDirection === 'right' 
+      ? [-width, 0]  // Swipe kanan: dock masuk dari kiri
+      : [width, 0]   // Swipe kiri: dock masuk dari kanan
   });
 
   const avatarRotate = rotateAnim.interpolate({
@@ -348,7 +351,11 @@ const AssistantDock = memo(({
             style={[
               styles.messageBubble, 
               { 
-                transform: [{ translateX: messageTranslateX }],
+                transform: [{ 
+                  translateX: showDockView 
+                    ? (animDirection === 'right' ? width : -width)  // Sembunyikan di sisi berlawanan
+                    : messageTranslateX 
+                }],
                 position: 'absolute',
                 bottom: 0,
                 left: 0,
@@ -365,7 +372,11 @@ const AssistantDock = memo(({
             style={[
               styles.dockAppsContainer, 
               { 
-                transform: [{ translateX: dockTranslateX }],
+                transform: [{ 
+                  translateX: showDockView 
+                    ? dockTranslateX 
+                    : (animDirection === 'right' ? width : -width)  // Sembunyikan di sisi berlawanan
+                }],
                 position: 'absolute',
                 bottom: 0,
                 left: 0,
