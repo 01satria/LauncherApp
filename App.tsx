@@ -80,6 +80,7 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
       width: size, 
       height: size, 
       borderRadius,
+      overflow: 'hidden',
       opacity: fadeAnim,
     }}>
       <Image
