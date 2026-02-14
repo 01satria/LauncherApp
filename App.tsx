@@ -42,6 +42,7 @@ const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
 const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const CUSTOM_DOCK_PATH = `${CUSTOM_AVATAR_DIR}/dock.json`;
+const CUSTOM_SHOW_NAMES_PATH = `${CUSTOM_AVATAR_DIR}/show_names.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 // ==================== SAFE IMAGE (OPTIMIZED) ====================
@@ -65,10 +66,11 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
 });
 
 // ==================== ITEM LIST (OPTIMIZED) ====================
-const MemoizedItem = memo(({ item, onPress, onLongPress }: {
+const MemoizedItem = memo(({ item, onPress, onLongPress, showNames }: {
   item: AppData;
   onPress: (pkg: string) => void;
   onLongPress: (pkg: string, label: string) => void;
+  showNames: boolean;
 }) => (
   <TouchableOpacity
     style={styles.item}
@@ -80,9 +82,9 @@ const MemoizedItem = memo(({ item, onPress, onLongPress }: {
     <View style={styles.iconContainer}>
       <SafeAppIcon iconUri={item.icon} />
     </View>
-    <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
+    {showNames && <Text style={styles.label} numberOfLines={1}>{item.label}</Text>}
   </TouchableOpacity>
-), (prev, next) => prev.item.packageName === next.item.packageName);
+), (prev, next) => prev.item.packageName === next.item.packageName && prev.showNames === next.showNames);
 
 // ==================== DOCK APP ITEM ====================
 const DockAppItem = memo(({ app, onPress, onLongPress }: {
@@ -105,8 +107,10 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: {
 const AssistantDock = memo(({ 
   userName, 
   showHidden, 
+  showNames,
   onSaveUserName, 
-  onToggleShowHidden, 
+  onToggleShowHidden,
+  onToggleShowNames,
   onChangePhoto, 
   avatarSource,
   dockApps,
@@ -211,6 +215,16 @@ const AssistantDock = memo(({
               />
             </View>
 
+            <View style={styles.rowBetween}>
+              <Text style={styles.settingText}>Show App Names</Text>
+              <Switch
+                value={showNames}
+                onValueChange={onToggleShowNames}
+                thumbColor={showNames ? "#27ae60" : "#f4f3f4"}
+                trackColor={{ false: "#767577", true: "#2ecc7130" }}
+              />
+            </View>
+
             <View style={styles.divider} />
 
             <View style={styles.verticalBtnGroup}>
@@ -238,6 +252,7 @@ const App = () => {
   const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
   const [dockPackages, setDockPackages] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
+  const [showNames, setShowNames] = useState(true);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
   const [showDockView, setShowDockView] = useState(false);
 
@@ -264,18 +279,20 @@ const App = () => {
   useEffect(() => {
     const init = async () => {
       await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => { });
-      const [uName, hidden, showH, avt, dock] = await Promise.all([
+      const [uName, hidden, showH, avt, dock, showN] = await Promise.all([
         RNFS.exists(CUSTOM_USER_PATH).then(e => e ? RNFS.readFile(CUSTOM_USER_PATH, 'utf8') : null),
         RNFS.exists(CUSTOM_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8') : null),
         RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8') : null),
         RNFS.exists(CUSTOM_AVATAR_PATH).then(e => e ? RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64') : null),
         RNFS.exists(CUSTOM_DOCK_PATH).then(e => e ? RNFS.readFile(CUSTOM_DOCK_PATH, 'utf8') : null),
+        RNFS.exists(CUSTOM_SHOW_NAMES_PATH).then(e => e ? RNFS.readFile(CUSTOM_SHOW_NAMES_PATH, 'utf8') : null),
       ]);
       if (uName) setUserName(uName);
       if (hidden) setHiddenPackages(JSON.parse(hidden));
       if (showH) setShowHidden(showH === 'true');
       if (avt) setAvatarSource(`data:image/jpeg;base64,${avt}`);
       if (dock) setDockPackages(JSON.parse(dock));
+      if (showN !== null) setShowNames(showN === 'true');
       setLoading(false);
     };
     init();
@@ -320,10 +337,20 @@ const App = () => {
 
   const doAction = async () => {
     let newList = [...hiddenPackages];
-    if (actionType === 'unhide') newList = newList.filter(p => p !== selectedPkg);
-    else if (!newList.includes(selectedPkg)) newList.push(selectedPkg);
+    if (actionType === 'unhide') {
+      newList = newList.filter(p => p !== selectedPkg);
+    } else {
+      if (!newList.includes(selectedPkg)) newList.push(selectedPkg);
+      
+      // BUG FIX: Auto-remove from dock when hiding
+      if (dockPackages.includes(selectedPkg)) {
+        const newDock = dockPackages.filter(p => p !== selectedPkg);
+        setDockPackages(newDock);
+        await RNFS.writeFile(CUSTOM_DOCK_PATH, JSON.stringify(newDock), 'utf8');
+      }
+    }
     setHiddenPackages(newList);
-    RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newList), 'utf8');
+    await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newList), 'utf8');
     setActionModal(false);
     ToastAndroid.show(actionType === 'hide' ? 'App Hidden' : 'App Visible', ToastAndroid.SHORT);
   };
@@ -378,11 +405,12 @@ const App = () => {
   };
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
-    <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} />
-  ), [handleLongPress]);
+    <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} showNames={showNames} />
+  ), [handleLongPress, showNames]);
 
   const saveName = (n: string) => { setUserName(n); RNFS.writeFile(CUSTOM_USER_PATH, n, 'utf8'); };
   const toggleHidden = (v: boolean) => { setShowHidden(v); RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
+  const toggleShowNames = (v: boolean) => { setShowNames(v); RNFS.writeFile(CUSTOM_SHOW_NAMES_PATH, v ? 'true' : 'false', 'utf8'); };
   const toggleDockView = () => setShowDockView(prev => !prev);
   
   const changePhoto = async () => {
@@ -417,12 +445,14 @@ const App = () => {
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
       <AssistantDock
         userName={userName} 
-        showHidden={showHidden} 
+        showHidden={showHidden}
+        showNames={showNames}
         avatarSource={avatarSource}
         dockApps={dockApps}
         showDockView={showDockView}
         onSaveUserName={saveName} 
-        onToggleShowHidden={toggleHidden} 
+        onToggleShowHidden={toggleHidden}
+        onToggleShowNames={toggleShowNames}
         onChangePhoto={changePhoto}
         onLaunchApp={launchApp}
         onLongPressApp={handleLongPress}
