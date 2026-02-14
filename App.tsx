@@ -230,13 +230,21 @@ const AssistantDock = memo(({
       onPanResponderRelease: (_, gestureState) => {
         const swipeThreshold = 50;
         
-        // Swipe ke kanan (dx > 0) atau kiri (dx < 0)
+        // Deteksi arah swipe
         if (Math.abs(gestureState.dx) > swipeThreshold) {
+          const swipeRight = gestureState.dx > 0; // true jika swipe ke kanan
+          
+          // Set arah animasi sebelum toggle
+          setAnimDirection(swipeRight ? 'right' : 'left');
+          
+          // Toggle view (infinite loop)
           onToggleDockView();
         }
       },
     })
   ).current;
+
+  const [animDirection, setAnimDirection] = useState<'left' | 'right'>('right');
 
   useEffect(() => {
     Animated.parallel([
@@ -268,14 +276,17 @@ const AssistantDock = memo(({
     }
   }, [modalVisible, settingsModalAnim]);
 
+  // Animasi dinamis mengikuti arah swipe
   const messageTranslateX = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, width]
+    // Swipe kanan: message keluar ke kanan | Swipe kiri: message keluar ke kiri
+    outputRange: animDirection === 'right' ? [0, width] : [0, -width]
   });
 
   const dockTranslateX = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-width, 0]
+    // Swipe kanan: dock masuk dari kiri | Swipe kiri: dock masuk dari kanan
+    outputRange: animDirection === 'right' ? [-width, 0] : [width, 0]
   });
 
   const avatarRotate = rotateAnim.interpolate({
@@ -727,7 +738,7 @@ const App = () => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSubtitle}>Select an action for this app</Text>
+            <Text style={styles.modalSubtitle}>Choose an action</Text>
 
             <View style={styles.verticalBtnGroup}>
               {/* Pin/Unpin Button */}
