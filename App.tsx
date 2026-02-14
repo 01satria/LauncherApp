@@ -94,50 +94,58 @@ const DraggableItem = memo(({
 }: DraggableItemProps) => {
   const pan = useRef(new Animated.ValueXY()).current;
   const [isDragging, setIsDragging] = useState(false);
+  const [isDragEnabled, setIsDragEnabled] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const hasMoved = useRef(false);
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
-        return isDragging || (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
-      },
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => isDragEnabled,
       
       onPanResponderGrant: (evt: GestureResponderEvent) => {
         hasMoved.current = false;
+        setIsDragEnabled(false);
         
-        // Timer 1 detik untuk long press
+        // Timer 1 detik untuk enable drag atau show modal
         longPressTimer.current = setTimeout(() => {
           if (!hasMoved.current) {
-            // Hold tanpa drag = show modal
-            onLongPress(item.packageName, item.label);
+            // Setelah 1 detik hold
+            setIsDragEnabled(true);
+            // Jika masih tidak bergerak, show modal
+            setTimeout(() => {
+              if (!hasMoved.current) {
+                onLongPress(item.packageName, item.label);
+                setIsDragEnabled(false);
+              }
+            }, 100);
           }
         }, 1000);
       },
       
       onPanResponderMove: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
-        hasMoved.current = true;
+        const moved = Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
         
-        // Clear timer begitu user mulai drag
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
+        if (moved) {
+          hasMoved.current = true;
         }
-
-        // Mulai drag mode
-        if (!isDragging && (Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10)) {
-          setIsDragging(true);
-          onDragStart(item, evt.nativeEvent.pageY);
-        }
-
-        if (isDragging) {
-          Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false })(evt, gestureState);
-          onDragMove(evt.nativeEvent.pageY);
+        
+        // Jika drag enabled dan user gerak, mulai drag
+        if (isDragEnabled && moved) {
+          if (!isDragging) {
+            setIsDragging(true);
+            onDragStart(item, evt.nativeEvent.pageY);
+          }
+          
+          if (isDragging) {
+            pan.setValue({ x: gestureState.dx, y: gestureState.dy });
+            onDragMove(evt.nativeEvent.pageY);
+          }
         }
       },
       
       onPanResponderRelease: (evt: GestureResponderEvent) => {
+        // Clear timer
         if (longPressTimer.current) {
           clearTimeout(longPressTimer.current);
           longPressTimer.current = null;
@@ -154,11 +162,16 @@ const DraggableItem = memo(({
             friction: 7,
           }).start(() => {
             setIsDragging(false);
+            setIsDragEnabled(false);
           });
-        } else if (!hasMoved.current) {
-          // Tap biasa (tidak hold, tidak drag)
+        } else if (!hasMoved.current && !isDragEnabled) {
+          // Tap cepat = buka app
           onPress(item.packageName);
         }
+        
+        // Reset
+        hasMoved.current = false;
+        setIsDragEnabled(false);
       },
       
       onPanResponderTerminate: () => {
@@ -172,7 +185,10 @@ const DraggableItem = memo(({
           useNativeDriver: false,
         }).start(() => {
           setIsDragging(false);
+          setIsDragEnabled(false);
         });
+        
+        hasMoved.current = false;
       },
     })
   ).current;
@@ -191,12 +207,10 @@ const DraggableItem = memo(({
       ]}
       {...panResponder.panHandlers}
     >
-      <View style={styles.itemTouchable}>
-        <View style={styles.iconContainer}>
-          <SafeAppIcon iconUri={item.icon} />
-        </View>
-        <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
+      <View style={styles.iconContainer}>
+        <SafeAppIcon iconUri={item.icon} />
       </View>
+      <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
     </Animated.View>
   );
 }, (prev, next) => 
@@ -757,11 +771,6 @@ const styles = StyleSheet.create({
     height: 90, 
     alignItems: 'center', 
     marginBottom: 8,
-  },
-  itemTouchable: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
   },
   itemDragging: {
     opacity: 0.7,
