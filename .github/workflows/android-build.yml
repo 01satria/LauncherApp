@@ -30,8 +30,6 @@ jobs:
         run: npm ci
 
       # === 1. DECODE KEYSTORE ===
-      # Mengambil secret BASE64 dan mengubahnya jadi file fisik
-      # Lokasi: android/app/release.keystore
       - name: Decode Keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -41,8 +39,6 @@ jobs:
       # === 2. BUILD RELEASE APK ===
       - name: Build Release APK
         env:
-          # Variable ini HARUS SAMA dengan logic di build.gradle
-          # File keystore sudah ada di dalam folder android/app/
           MYAPP_RELEASE_STORE_FILE: release.keystore
           MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -53,13 +49,10 @@ jobs:
           ./gradlew assembleRelease
 
       # === 3. DEBUGGING (CEK FILE) ===
-      # Langkah ini akan menampilkan daftar file yang berhasil dibuat di log.
-      # Sangat berguna jika upload gagal.
       - name: List Output Files
         run: ls -R android/app/build/outputs/apk/
 
       # === 4. UPLOAD HASIL (DENGAN WILDCARD) ===
-      # Menggunakan *.apk agar file apapun yang terbentuk tetap terupload
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
