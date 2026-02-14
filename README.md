@@ -325,7 +325,7 @@ Dock: 48px
 | **Cold Start** | ~2.5s | ⭐⭐⭐⭐ |
 | **Hot Start** | ~0.8s | ⭐⭐⭐⭐⭐ |
 | **RAM (Idle)** | ~65MB | ⭐⭐⭐⭐⭐ |
-| **RAM (Active)** | ~88MB | ⭐⭐⭐⭐⭐ |
+| **RAM (Active)** | ~108MB | ⭐⭐⭐⭐⭐ |
 | **Animation FPS** | 60 locked | ⭐⭐⭐⭐⭐ |
 | **Scroll Performance** | Buttery smooth | ⭐⭐⭐⭐⭐ |
 | **Battery Impact** | Minimal | ⭐⭐⭐⭐⭐ |
@@ -471,7 +471,7 @@ npx react-native run-android
 ### Developer
 **Satria Dev**  
 Full-Stack Developer | React Native Enthusiast  
-🌐 [Website](https://01satria.vercel.app) | 💼 [GitHub](https://github.com/01satria) | 🐦 [Twitter](https://twitter.com/01satria)
+🌐 [Website](https://01satria.vercel.app) | 💼 [GitHub](https://github.com/01satria)
 
 ---
 
@@ -481,7 +481,7 @@ Full-Stack Developer | React Native Enthusiast
 
 This project is proprietary software. Unauthorized copying, modification, distribution, or use of this software, via any medium, is strictly prohibited without explicit written permission from the copyright holder.
 
-For licensing inquiries, contact: [contact@01satria.dev](mailto:contact@01satria.dev)
+For licensing inquiries, contact: [contact@01satria.dev](mailto:see.cloudys@gmail.com)
 
 ---
 
