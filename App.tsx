@@ -85,9 +85,9 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
       opacity: fadeAnim,
       backgroundColor: '#1a1a1a' // Subtle bg for transparent icons
     }}>
-      <Animated.Image
+      <Image
         source={{ uri }}
-        style={{ width: size, height: size }}
+        style={{ width: '100%', height: '100%' }}
         resizeMode="cover"
         fadeDuration={0}
         onError={() => setError(true)}
@@ -219,6 +219,7 @@ const AssistantDock = memo(({
   const appState = useRef(AppState.currentState);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const settingsModalAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -236,6 +237,19 @@ const AssistantDock = memo(({
       })
     ]).start();
   }, [showDockView, slideAnim, rotateAnim]);
+
+  useEffect(() => {
+    if (modalVisible) {
+      Animated.spring(settingsModalAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      settingsModalAnim.setValue(0);
+    }
+  }, [modalVisible, settingsModalAnim]);
 
   const messageTranslateX = slideAnim.interpolate({
     inputRange: [0, 1],
@@ -256,8 +270,9 @@ const AssistantDock = memo(({
     return () => {
       slideAnim.stopAnimation();
       rotateAnim.stopAnimation();
+      settingsModalAnim.stopAnimation();
     };
-  }, [slideAnim, rotateAnim]);
+  }, [slideAnim, rotateAnim, settingsModalAnim]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -307,6 +322,7 @@ const AssistantDock = memo(({
               { 
                 transform: [{ translateX: messageTranslateX }],
                 position: 'absolute',
+                bottom: 0,
                 left: 0,
                 right: 0,
               }
@@ -323,6 +339,7 @@ const AssistantDock = memo(({
               { 
                 transform: [{ translateX: dockTranslateX }],
                 position: 'absolute',
+                bottom: 0,
                 left: 0,
                 right: 0,
               }
@@ -347,9 +364,25 @@ const AssistantDock = memo(({
         </View>
       </View>
 
-      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
+      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <Animated.View style={styles.modalContent}>
+          <Animated.View 
+            style={[
+              styles.modalContent,
+              {
+                transform: [
+                  { scale: settingsModalAnim },
+                  {
+                    translateY: settingsModalAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [50, 0]
+                    })
+                  }
+                ],
+                opacity: settingsModalAnim
+              }
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Settings</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
@@ -677,7 +710,7 @@ const App = () => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSubtitle}>Select an action for this app</Text>
+            <Text style={styles.modalSubtitle}>Select an action for this app:</Text>
 
             <View style={styles.verticalBtnGroup}>
               {/* Pin/Unpin Button */}
@@ -725,16 +758,16 @@ const styles = StyleSheet.create({
   item: { width: ITEM_WIDTH, height: 90, alignItems: 'center', marginBottom: 8 },
   iconContainer: { width: ICON_SIZE, height: ICON_SIZE, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   label: { color: '#eee', fontSize: 11, textAlign: 'center', marginHorizontal: 4, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3 },
-  dockWrapper: { position: 'absolute', bottom: 24, left: 20, right: 20, flexDirection: 'row', alignItems: 'flex-end', minHeight: 60, zIndex: 2 },
+  dockWrapper: { position: 'absolute', bottom: 24, left: 20, right: 20, flexDirection: 'row', alignItems: 'flex-end', height: 60, zIndex: 2 },
   avatarBubble: { width: 60, height: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333', marginRight: 12, elevation: 5 },
   avatarImage: { width: 55, height: 55, borderRadius: 27.5 },
-  contentWrapper: { flex: 1, minHeight: 60, position: 'relative' },
-  messageBubble: { flex: 1, minHeight: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 15, borderWidth: 1, borderStyle: 'dashed', borderColor: '#333', elevation: 5 },
+  contentWrapper: { flex: 1, height: 60, position: 'relative' },
+  messageBubble: { flex: 1, height: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 15, borderWidth: 1, borderStyle: 'dashed', borderColor: '#333', elevation: 5 },
   assistantText: { color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20 },
-  dockAppsContainer: { flex: 1, minHeight: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 15, paddingVertical: 10, borderWidth: 1, borderColor: '#333', elevation: 5 },
+  dockAppsContainer: { flex: 1, height: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 15, paddingVertical: 10, borderWidth: 1, borderColor: '#333', elevation: 5 },
   dockAppsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', gap: 8 },
   dockAppItem: { width: DOCK_ICON_SIZE, height: DOCK_ICON_SIZE, justifyContent: 'center', alignItems: 'center' },
-  emptyDockText: { color: '#666', fontSize: 13, textAlign: 'center', fontStyle: 'italic' },
+  emptyDockText: { color: '#424242', fontSize: 13, textAlign: 'center', fontStyle: 'italic' },
   gradientFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220, zIndex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: width * 0.85, backgroundColor: '#000000', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#333', elevation: 10 },
@@ -750,11 +783,11 @@ const styles = StyleSheet.create({
   verticalBtnGroup: { width: '100%', gap: 10 },
   actionBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   btnFull: { width: '100%' },
-  btnGreen: { backgroundColor: '#1e7c45' },
-  btnBlue: { backgroundColor: '#1d5981' },
-  btnRed: { backgroundColor: '#a52f22' },
-  btnPurple: { backgroundColor: '#6c2986' },
-  btnOrange: { backgroundColor: '#924e13' },
+  btnGreen: { backgroundColor: '#27ae60' },
+  btnBlue: { backgroundColor: '#2980b9' },
+  btnRed: { backgroundColor: '#c0392b' },
+  btnPurple: { backgroundColor: '#8e44ad' },
+  btnOrange: { backgroundColor: '#e67e22' },
   actionBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold', letterSpacing: 0.5 },
   modalSubtitle: { color: '#aaa', fontSize: 14, marginBottom: 25 },
 });
