@@ -1,22 +1,68 @@
-name: Build Android APK
-on: [push]
+name: Build Signed Android APK
+
+on:
+  push:
+    branches: [ "main" ] # Jalan saat push ke main
+  workflow_dispatch:      # Jalan manual lewat tombol Actions
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-      - uses: actions/setup-node@v4
+          cache: 'gradle'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: 'npm'
-      - run: npm install
-      - run: cd android && chmod +x gradlew
-      - run: cd android && ./gradlew assembleRelease
-      - uses: actions/upload-artifact@v4
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # === 1. DECODE KEYSTORE ===
+      # Mengambil secret BASE64 dan mengubahnya jadi file fisik
+      # Lokasi: android/app/release.keystore
+      - name: Decode Keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+
+      # === 2. BUILD RELEASE APK ===
+      - name: Build Release APK
+        env:
+          # Variable ini HARUS SAMA dengan logic di build.gradle
+          # File keystore sudah ada di dalam folder android/app/
+          MYAPP_RELEASE_STORE_FILE: release.keystore
+          MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      # === 3. DEBUGGING (CEK FILE) ===
+      # Langkah ini akan menampilkan daftar file yang berhasil dibuat di log.
+      # Sangat berguna jika upload gagal.
+      - name: List Output Files
+        run: ls -R android/app/build/outputs/apk/
+
+      # === 4. UPLOAD HASIL (DENGAN WILDCARD) ===
+      # Menggunakan *.apk agar file apapun yang terbentuk tetap terupload
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: launcher-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: app-release
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 7
