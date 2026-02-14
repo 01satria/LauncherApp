@@ -49,7 +49,7 @@ It features a unique **Assistant Dock** with personalized greetings, advanced ap
 
 | Home Screen | Dock View | Action Modal | Settings |
 |------------|-----------|--------------|----------|
-| ![Home](screenshots/home.png) | ![Dock](screenshots/dock.png) | ![Actions](screenshots/actions.png) | ![Settings](screenshots/settings.png) |
+| ![Home](screenshots/home.jpg) | ![Dock](screenshots/dock.jpg) | ![Actions](screenshots/actions.jpg) | ![Settings](screenshots/settings.jpg) |
 
 ---
 
