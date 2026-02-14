@@ -17,6 +17,8 @@ import {
   AppState,
   ListRenderItem,
   NativeModules,
+  Animated,
+  Easing,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
@@ -48,22 +50,52 @@ const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/41
 // ==================== SAFE IMAGE (OPTIMIZED) ====================
 const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size?: number }) => {
   const [error, setError] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const uri = iconUri.startsWith('file://') ? iconUri : `file://${iconUri}`;
 
+  useEffect(() => {
+    return () => {
+      fadeAnim.stopAnimation();
+    };
+  }, [fadeAnim]);
+
+  const handleLoad = useCallback(() => {
+    setError(false);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 150,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
+
+  // iOS-style rounded corners (22% of size for perfect iOS look)
+  const borderRadius = size * 0.22;
+
   if (error) {
-    return <View style={{ width: size, height: size, backgroundColor: '#222', borderRadius: size * 0.2 }} />;
+    return <View style={{ width: size, height: size, backgroundColor: '#222', borderRadius }} />;
   }
 
   return (
-    <Image
-      source={{ uri }}
-      style={{ width: size, height: size, borderRadius: size * 0.2 }}
-      resizeMode="contain"
-      fadeDuration={0}
-      onError={() => setError(true)}
-    />
+    <Animated.View style={{ 
+      width: size, 
+      height: size, 
+      borderRadius, 
+      overflow: 'hidden',
+      opacity: fadeAnim,
+      backgroundColor: '#1a1a1a' // Subtle bg for transparent icons
+    }}>
+      <Animated.Image
+        source={{ uri }}
+        style={{ width: size, height: size }}
+        resizeMode="cover"
+        fadeDuration={0}
+        onError={() => setError(true)}
+        onLoad={handleLoad}
+      />
+    </Animated.View>
   );
-});
+}, (prev, next) => prev.iconUri === next.iconUri && prev.size === next.size);
 
 // ==================== ITEM LIST (OPTIMIZED) ====================
 const MemoizedItem = memo(({ item, onPress, onLongPress, showNames }: {
@@ -71,37 +103,99 @@ const MemoizedItem = memo(({ item, onPress, onLongPress, showNames }: {
   onPress: (pkg: string) => void;
   onLongPress: (pkg: string, label: string) => void;
   showNames: boolean;
-}) => (
-  <TouchableOpacity
-    style={styles.item}
-    onPress={() => onPress(item.packageName)}
-    onLongPress={() => onLongPress(item.packageName, item.label)}
-    activeOpacity={0.7}
-    delayLongPress={300}
-  >
-    <View style={styles.iconContainer}>
-      <SafeAppIcon iconUri={item.icon} />
-    </View>
-    {showNames && <Text style={styles.label} numberOfLines={1}>{item.label}</Text>}
-  </TouchableOpacity>
-), (prev, next) => prev.item.packageName === next.item.packageName && prev.showNames === next.showNames);
+}) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.85,
+      friction: 5,
+      tension: 100,
+      useNativeDriver: true,
+    }).start();
+  }, [scaleAnim]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 5,
+      tension: 100,
+      useNativeDriver: true,
+    }).start();
+  }, [scaleAnim]);
+
+  useEffect(() => {
+    return () => {
+      scaleAnim.stopAnimation();
+    };
+  }, [scaleAnim]);
+
+  return (
+    <TouchableOpacity
+      style={styles.item}
+      onPress={() => onPress(item.packageName)}
+      onLongPress={() => onLongPress(item.packageName, item.label)}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      activeOpacity={1}
+      delayLongPress={300}
+    >
+      <Animated.View style={[styles.iconContainer, { transform: [{ scale: scaleAnim }] }]}>
+        <SafeAppIcon iconUri={item.icon} />
+      </Animated.View>
+      {showNames && <Text style={styles.label} numberOfLines={1}>{item.label}</Text>}
+    </TouchableOpacity>
+  );
+}, (prev, next) => prev.item.packageName === next.item.packageName && prev.showNames === next.showNames);
 
 // ==================== DOCK APP ITEM ====================
 const DockAppItem = memo(({ app, onPress, onLongPress }: {
   app: AppData;
   onPress: (pkg: string) => void;
   onLongPress: (pkg: string, label: string) => void;
-}) => (
-  <TouchableOpacity
-    style={styles.dockAppItem}
-    onPress={() => onPress(app.packageName)}
-    onLongPress={() => onLongPress(app.packageName, app.label)}
-    activeOpacity={0.7}
-    delayLongPress={300}
-  >
-    <SafeAppIcon iconUri={app.icon} size={DOCK_ICON_SIZE} />
-  </TouchableOpacity>
-));
+}) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.8,
+      friction: 5,
+      tension: 100,
+      useNativeDriver: true,
+    }).start();
+  }, [scaleAnim]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 5,
+      tension: 100,
+      useNativeDriver: true,
+    }).start();
+  }, [scaleAnim]);
+
+  useEffect(() => {
+    return () => {
+      scaleAnim.stopAnimation();
+    };
+  }, [scaleAnim]);
+
+  return (
+    <TouchableOpacity
+      style={styles.dockAppItem}
+      onPress={() => onPress(app.packageName)}
+      onLongPress={() => onLongPress(app.packageName, app.label)}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      activeOpacity={1}
+      delayLongPress={300}
+    >
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <SafeAppIcon iconUri={app.icon} size={DOCK_ICON_SIZE} />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}, (prev, next) => prev.app.packageName === next.app.packageName);
 
 // ==================== DOCK ASSISTANT ====================
 const AssistantDock = memo(({ 
@@ -123,6 +217,47 @@ const AssistantDock = memo(({
   const [modalVisible, setModalVisible] = useState(false);
   const [tempName, setTempName] = useState(userName);
   const appState = useRef(AppState.currentState);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(slideAnim, {
+        toValue: showDockView ? 1 : 0,
+        friction: 8,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(rotateAnim, {
+        toValue: showDockView ? 1 : 0,
+        duration: 250,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, [showDockView, slideAnim, rotateAnim]);
+
+  const messageTranslateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, width]
+  });
+
+  const dockTranslateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-width, 0]
+  });
+
+  const avatarRotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
+  useEffect(() => {
+    return () => {
+      slideAnim.stopAnimation();
+      rotateAnim.stopAnimation();
+    };
+  }, [slideAnim, rotateAnim]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -156,14 +291,44 @@ const AssistantDock = memo(({
           style={styles.avatarBubble} 
           onPress={onToggleDockView}
           onLongPress={() => { setTempName(userName); setModalVisible(true); }} 
-          activeOpacity={0.7}
+          activeOpacity={0.8}
         >
-          <Image source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} style={styles.avatarImage} />
+          <Animated.Image 
+            source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+            style={[styles.avatarImage, { transform: [{ rotate: avatarRotate }] }]} 
+          />
         </TouchableOpacity>
 
-        {/* MESSAGE OR DOCK APPS */}
-        {showDockView ? (
-          <View style={styles.dockAppsContainer}>
+        <View style={styles.contentWrapper}>
+          {/* MESSAGE VIEW */}
+          <Animated.View 
+            style={[
+              styles.messageBubble, 
+              { 
+                transform: [{ translateX: messageTranslateX }],
+                position: 'absolute',
+                left: 0,
+                right: 0,
+              }
+            ]}
+            pointerEvents={showDockView ? 'none' : 'auto'}
+          >
+            <Text style={styles.assistantText}>{message}</Text>
+          </Animated.View>
+
+          {/* DOCK APPS VIEW */}
+          <Animated.View 
+            style={[
+              styles.dockAppsContainer, 
+              { 
+                transform: [{ translateX: dockTranslateX }],
+                position: 'absolute',
+                left: 0,
+                right: 0,
+              }
+            ]}
+            pointerEvents={showDockView ? 'auto' : 'none'}
+          >
             {dockApps.length === 0 ? (
               <Text style={styles.emptyDockText}>Long press any app to pin here</Text>
             ) : (
@@ -178,17 +343,13 @@ const AssistantDock = memo(({
                 ))}
               </View>
             )}
-          </View>
-        ) : (
-          <View style={styles.messageBubble}>
-            <Text style={styles.assistantText}>{message}</Text>
-          </View>
-        )}
+          </Animated.View>
+        </View>
       </View>
 
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <Animated.View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Settings</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
@@ -236,7 +397,7 @@ const AssistantDock = memo(({
                 <Text style={styles.actionBtnText}>Save Changes</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </>
@@ -261,6 +422,26 @@ const App = () => {
   const [selectedPkg, setSelectedPkg] = useState('');
   const [selectedLabel, setSelectedLabel] = useState('');
   const [listKey, setListKey] = useState(0);
+  const modalScaleAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (actionModal) {
+      Animated.spring(modalScaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      modalScaleAnim.setValue(0);
+    }
+  }, [actionModal, modalScaleAnim]);
+
+  useEffect(() => {
+    return () => {
+      modalScaleAnim.stopAnimation();
+    };
+  }, [modalScaleAnim]);
 
   const refreshApps = useCallback(async () => {
     try {
@@ -357,6 +538,7 @@ const App = () => {
 
   const pinToDock = async () => {
     const isDocked = dockPackages.includes(selectedPkg);
+    const isHidden = hiddenPackages.includes(selectedPkg);
     let newDock = [...dockPackages];
     
     if (isDocked) {
@@ -369,7 +551,16 @@ const App = () => {
         return;
       }
       newDock.push(selectedPkg);
-      ToastAndroid.show('Pinned to Dock', ToastAndroid.SHORT);
+      
+      // Auto-unhide when pinning to dock
+      if (isHidden) {
+        const newHidden = hiddenPackages.filter(p => p !== selectedPkg);
+        setHiddenPackages(newHidden);
+        await RNFS.writeFile(CUSTOM_HIDDEN_PATH, JSON.stringify(newHidden), 'utf8');
+        ToastAndroid.show('Pinned to Dock & Unhidden', ToastAndroid.SHORT);
+      } else {
+        ToastAndroid.show('Pinned to Dock', ToastAndroid.SHORT);
+      }
     }
     
     setDockPackages(newDock);
@@ -436,10 +627,11 @@ const App = () => {
         keyExtractor={item => item.packageName}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
-        initialNumToRender={16}
-        maxToRenderPerBatch={8}
-        windowSize={3}
+        initialNumToRender={20}
+        maxToRenderPerBatch={10}
+        windowSize={5}
         removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
         getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
       />
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
@@ -459,9 +651,25 @@ const App = () => {
         onToggleDockView={toggleDockView}
       />
       
-      <Modal visible={actionModal} transparent animationType="fade" onRequestClose={() => setActionModal(false)}>
+      <Modal visible={actionModal} transparent animationType="none" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <Animated.View 
+            style={[
+              styles.modalContent,
+              {
+                transform: [
+                  { scale: modalScaleAnim },
+                  {
+                    translateY: modalScaleAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [50, 0]
+                    })
+                  }
+                ],
+                opacity: modalScaleAnim
+              }
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle} numberOfLines={1}>{selectedLabel}</Text>
               <TouchableOpacity onPress={() => setActionModal(false)} style={styles.closeBtn}>
@@ -469,7 +677,7 @@ const App = () => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalSubtitle}>Select an action for this app:</Text>
+            <Text style={styles.modalSubtitle}>Select an action for this app</Text>
 
             <View style={styles.verticalBtnGroup}>
               {/* Pin/Unpin Button */}
@@ -503,7 +711,7 @@ const App = () => {
                 <Text style={styles.actionBtnText}>🗑️ Uninstall</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -520,6 +728,7 @@ const styles = StyleSheet.create({
   dockWrapper: { position: 'absolute', bottom: 24, left: 20, right: 20, flexDirection: 'row', alignItems: 'flex-end', minHeight: 60, zIndex: 2 },
   avatarBubble: { width: 60, height: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333', marginRight: 12, elevation: 5 },
   avatarImage: { width: 55, height: 55, borderRadius: 27.5 },
+  contentWrapper: { flex: 1, minHeight: 60, position: 'relative' },
   messageBubble: { flex: 1, minHeight: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 20, paddingVertical: 15, borderWidth: 1, borderStyle: 'dashed', borderColor: '#333', elevation: 5 },
   assistantText: { color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20 },
   dockAppsContainer: { flex: 1, minHeight: 60, backgroundColor: '#000000', borderRadius: 30, justifyContent: 'center', paddingHorizontal: 15, paddingVertical: 10, borderWidth: 1, borderColor: '#333', elevation: 5 },
@@ -541,11 +750,11 @@ const styles = StyleSheet.create({
   verticalBtnGroup: { width: '100%', gap: 10 },
   actionBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   btnFull: { width: '100%' },
-  btnGreen: { backgroundColor: '#27ae60' },
-  btnBlue: { backgroundColor: '#2980b9' },
-  btnRed: { backgroundColor: '#c0392b' },
-  btnPurple: { backgroundColor: '#8e44ad' },
-  btnOrange: { backgroundColor: '#e67e22' },
+  btnGreen: { backgroundColor: '#1e7c45' },
+  btnBlue: { backgroundColor: '#1d5981' },
+  btnRed: { backgroundColor: '#a52f22' },
+  btnPurple: { backgroundColor: '#6c2986' },
+  btnOrange: { backgroundColor: '#924e13' },
   actionBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold', letterSpacing: 0.5 },
   modalSubtitle: { color: '#aaa', fontSize: 14, marginBottom: 25 },
 });
