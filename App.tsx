@@ -73,36 +73,25 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
   const borderRadius = size * 0.22;
 
   if (error) {
-    return <View style={{ width: size, height: size, backgroundColor: '#222', borderRadius }} />;
+    return <View style={{ width: size, height: size, borderRadius }} />;
   }
 
   return (
-    <Animated.View style={{
-      width: size,
-      height: size,
+    <Animated.View style={{ 
+      width: size, 
+      height: size, 
       borderRadius,
       overflow: 'hidden',
       opacity: fadeAnim,
-      backgroundColor: '#1a1a1a' // Subtle bg for transparent icons
     }}>
-      <View
-        style={{
-          width: 60, // Adjust size as needed for your icons
-          height: 60, // Same as width for square shape
-          overflow: 'hidden', // Clips content neatly to edges
-          backgroundColor: 'transparent', // No background remnants
-          borderRadius: 0, // Sharp square corners (set >0 for rounded if wanted)
-        }}
-      >
-        <Image
-          source={{ uri }}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover" // Fills and crops to fit square without gaps
-          fadeDuration={0}
-          onError={() => setError(true)}
-          onLoad={handleLoad}
-        />
-      </View>
+      <Image
+        source={{ uri }}
+        style={{ width: '110%', height: '110%' }}
+        resizeMode="cover"
+        fadeDuration={0}
+        onError={() => setError(true)}
+        onLoad={handleLoad}
+      />
     </Animated.View>
   );
 }, (prev, next) => prev.iconUri === next.iconUri && prev.size === next.size);
@@ -208,14 +197,14 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: {
 }, (prev, next) => prev.app.packageName === next.app.packageName);
 
 // ==================== DOCK ASSISTANT ====================
-const AssistantDock = memo(({
-  userName,
-  showHidden,
+const AssistantDock = memo(({ 
+  userName, 
+  showHidden, 
   showNames,
-  onSaveUserName,
+  onSaveUserName, 
   onToggleShowHidden,
   onToggleShowNames,
-  onChangePhoto,
+  onChangePhoto, 
   avatarSource,
   dockApps,
   onLaunchApp,
@@ -312,24 +301,24 @@ const AssistantDock = memo(({
   return (
     <>
       <View style={styles.dockWrapper}>
-        <TouchableOpacity
-          style={styles.avatarBubble}
+        <TouchableOpacity 
+          style={styles.avatarBubble} 
           onPress={onToggleDockView}
-          onLongPress={() => { setTempName(userName); setModalVisible(true); }}
+          onLongPress={() => { setTempName(userName); setModalVisible(true); }} 
           activeOpacity={0.8}
         >
-          <Animated.Image
-            source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }}
-            style={[styles.avatarImage, { transform: [{ rotate: avatarRotate }] }]}
+          <Animated.Image 
+            source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+            style={[styles.avatarImage, { transform: [{ rotate: avatarRotate }] }]} 
           />
         </TouchableOpacity>
 
         <View style={styles.contentWrapper}>
           {/* MESSAGE VIEW */}
-          <Animated.View
+          <Animated.View 
             style={[
-              styles.messageBubble,
-              {
+              styles.messageBubble, 
+              { 
                 transform: [{ translateX: messageTranslateX }],
                 position: 'absolute',
                 bottom: 0,
@@ -343,10 +332,10 @@ const AssistantDock = memo(({
           </Animated.View>
 
           {/* DOCK APPS VIEW */}
-          <Animated.View
+          <Animated.View 
             style={[
-              styles.dockAppsContainer,
-              {
+              styles.dockAppsContainer, 
+              { 
                 transform: [{ translateX: dockTranslateX }],
                 position: 'absolute',
                 bottom: 0,
@@ -361,9 +350,9 @@ const AssistantDock = memo(({
             ) : (
               <View style={styles.dockAppsRow}>
                 {dockApps.map((app: AppData) => (
-                  <DockAppItem
-                    key={app.packageName}
-                    app={app}
+                  <DockAppItem 
+                    key={app.packageName} 
+                    app={app} 
                     onPress={onLaunchApp}
                     onLongPress={onLongPressApp}
                   />
@@ -376,7 +365,7 @@ const AssistantDock = memo(({
 
       <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <Animated.View
+          <Animated.View 
             style={[
               styles.modalContent,
               {
@@ -541,8 +530,8 @@ const App = () => {
   // Filter apps: exclude dock apps from main list
   useEffect(() => {
     requestAnimationFrame(() => {
-      const filtered = allApps.filter(app =>
-        !dockPackages.includes(app.packageName) &&
+      const filtered = allApps.filter(app => 
+        !dockPackages.includes(app.packageName) && 
         (showHidden || !hiddenPackages.includes(app.packageName))
       );
       setFilteredApps(filtered);
@@ -565,7 +554,7 @@ const App = () => {
       newList = newList.filter(p => p !== selectedPkg);
     } else {
       if (!newList.includes(selectedPkg)) newList.push(selectedPkg);
-
+      
       // BUG FIX: Auto-remove from dock when hiding
       if (dockPackages.includes(selectedPkg)) {
         const newDock = dockPackages.filter(p => p !== selectedPkg);
@@ -583,7 +572,7 @@ const App = () => {
     const isDocked = dockPackages.includes(selectedPkg);
     const isHidden = hiddenPackages.includes(selectedPkg);
     let newDock = [...dockPackages];
-
+    
     if (isDocked) {
       newDock = newDock.filter(p => p !== selectedPkg);
       ToastAndroid.show('Unpinned from Dock', ToastAndroid.SHORT);
@@ -594,7 +583,7 @@ const App = () => {
         return;
       }
       newDock.push(selectedPkg);
-
+      
       // Auto-unhide when pinning to dock
       if (isHidden) {
         const newHidden = hiddenPackages.filter(p => p !== selectedPkg);
@@ -605,7 +594,7 @@ const App = () => {
         ToastAndroid.show('Pinned to Dock', ToastAndroid.SHORT);
       }
     }
-
+    
     setDockPackages(newDock);
     await RNFS.writeFile(CUSTOM_DOCK_PATH, JSON.stringify(newDock), 'utf8');
     setActionModal(false);
@@ -646,7 +635,7 @@ const App = () => {
   const toggleHidden = (v: boolean) => { setShowHidden(v); RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
   const toggleShowNames = (v: boolean) => { setShowNames(v); RNFS.writeFile(CUSTOM_SHOW_NAMES_PATH, v ? 'true' : 'false', 'utf8'); };
   const toggleDockView = () => setShowDockView(prev => !prev);
-
+  
   const changePhoto = async () => {
     const res = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true, maxWidth: 200, maxHeight: 200 });
     if (res.assets?.[0]?.base64) {
@@ -679,13 +668,13 @@ const App = () => {
       />
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
       <AssistantDock
-        userName={userName}
+        userName={userName} 
         showHidden={showHidden}
         showNames={showNames}
         avatarSource={avatarSource}
         dockApps={dockApps}
         showDockView={showDockView}
-        onSaveUserName={saveName}
+        onSaveUserName={saveName} 
         onToggleShowHidden={toggleHidden}
         onToggleShowNames={toggleShowNames}
         onChangePhoto={changePhoto}
@@ -693,10 +682,10 @@ const App = () => {
         onLongPressApp={handleLongPress}
         onToggleDockView={toggleDockView}
       />
-
+      
       <Modal visible={actionModal} transparent animationType="none" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
-          <Animated.View
+          <Animated.View 
             style={[
               styles.modalContent,
               {
@@ -724,9 +713,9 @@ const App = () => {
 
             <View style={styles.verticalBtnGroup}>
               {/* Pin/Unpin Button */}
-              <TouchableOpacity
-                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]}
-                onPress={pinToDock}
+              <TouchableOpacity 
+                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]} 
+                onPress={pinToDock} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
@@ -735,9 +724,9 @@ const App = () => {
               </TouchableOpacity>
 
               {/* Hide/Unhide Button */}
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.btnGreen, styles.btnFull]}
-                onPress={doAction}
+              <TouchableOpacity 
+                style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} 
+                onPress={doAction} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
@@ -746,9 +735,9 @@ const App = () => {
               </TouchableOpacity>
 
               {/* Uninstall Button */}
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.btnRed, styles.btnFull]}
-                onPress={handleUninstall}
+              <TouchableOpacity 
+                style={[styles.actionBtn, styles.btnRed, styles.btnFull]} 
+                onPress={handleUninstall} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>🗑️ Uninstall</Text>

@@ -76,8 +76,11 @@ android {
         applicationId "com.satrialauncher"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.1c"
+        versionCode 4
+        versionName "1.2"
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a"
+        }
     }
 
     signingConfigs {
@@ -114,10 +117,20 @@ android {
             
             // Optimasi Size & Obfuscation
             minifyEnabled enableProguardInReleaseBuilds
-            shrinkResources true // Hapus resource tidak terpakai
+            shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
+
+    splits {
+        abi {
+            reset()
+            enable true                          
+            universalApk false                   
+            include "armeabi-v7a", "arm64-v8a"
+        }
+    }
+
 }
 
 dependencies {
