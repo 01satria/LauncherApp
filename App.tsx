@@ -19,6 +19,8 @@ import {
   NativeModules,
   Animated,
   PanResponder,
+  GestureResponderEvent,
+  PanResponderGestureState,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
@@ -39,6 +41,7 @@ const ITEM_WIDTH = width / 4;
 const ICON_SIZE = 56;
 const DOCK_ICON_SIZE = 52;
 const MAX_DOCK_APPS = 5;
+const DOCK_DROP_ZONE_HEIGHT = 120;
 
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
@@ -69,69 +72,137 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
   );
 });
 
-// ==================== ITEM LIST ====================
-const MemoizedItem = memo(({ item, onPress, onLongPress, onDragStart }: {
+// ==================== DRAGGABLE APP ITEM ====================
+interface DraggableItemProps {
   item: AppData;
   onPress: (pkg: string) => void;
   onLongPress: (pkg: string, label: string) => void;
-  onDragStart: (item: AppData) => void;
-}) => {
+  onDragStart: (item: AppData, pageY: number) => void;
+  onDragMove: (pageY: number) => void;
+  onDragEnd: (item: AppData, pageY: number) => void;
+  isBeingDragged: boolean;
+}
+
+const DraggableItem = memo(({ 
+  item, 
+  onPress, 
+  onLongPress, 
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  isBeingDragged 
+}: DraggableItemProps) => {
   const pan = useRef(new Animated.ValueXY()).current;
   const [isDragging, setIsDragging] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const hasMoved = useRef(false);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      onMoveShouldSetPanResponder: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+        return isDragging || (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
       },
-      onPanResponderGrant: () => {
-        setIsDragging(true);
-        onDragStart(item);
-        Animated.spring(pan, {
-          toValue: { x: 0, y: -20 },
-          useNativeDriver: false,
-        }).start();
+      
+      onPanResponderGrant: (evt: GestureResponderEvent) => {
+        hasMoved.current = false;
+        
+        // Timer 1 detik untuk long press
+        longPressTimer.current = setTimeout(() => {
+          if (!hasMoved.current) {
+            // Hold tanpa drag = show modal
+            onLongPress(item.packageName, item.label);
+          }
+        }, 1000);
       },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: () => {
-        setIsDragging(false);
+      
+      onPanResponderMove: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+        hasMoved.current = true;
+        
+        // Clear timer begitu user mulai drag
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+
+        // Mulai drag mode
+        if (!isDragging && (Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10)) {
+          setIsDragging(true);
+          onDragStart(item, evt.nativeEvent.pageY);
+        }
+
+        if (isDragging) {
+          Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false })(evt, gestureState);
+          onDragMove(evt.nativeEvent.pageY);
+        }
+      },
+      
+      onPanResponderRelease: (evt: GestureResponderEvent) => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+
+        if (isDragging) {
+          // User drag dan release
+          onDragEnd(item, evt.nativeEvent.pageY);
+          
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: false,
+            tension: 50,
+            friction: 7,
+          }).start(() => {
+            setIsDragging(false);
+          });
+        } else if (!hasMoved.current) {
+          // Tap biasa (tidak hold, tidak drag)
+          onPress(item.packageName);
+        }
+      },
+      
+      onPanResponderTerminate: () => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+        
         Animated.spring(pan, {
           toValue: { x: 0, y: 0 },
           useNativeDriver: false,
-        }).start();
+        }).start(() => {
+          setIsDragging(false);
+        });
       },
     })
   ).current;
+
+  useEffect(() => {
+    pan.setValue({ x: 0, y: 0 });
+  }, [item.packageName]);
 
   return (
     <Animated.View
       style={[
         styles.item,
         isDragging && styles.itemDragging,
+        isBeingDragged && { opacity: 0.3 },
         { transform: pan.getTranslateTransform() },
       ]}
       {...panResponder.panHandlers}
     >
-      <TouchableOpacity
-        style={styles.itemTouchable}
-        onPress={() => onPress(item.packageName)}
-        onLongPress={() => onLongPress(item.packageName, item.label)}
-        activeOpacity={0.7}
-        delayLongPress={300}
-      >
+      <View style={styles.itemTouchable}>
         <View style={styles.iconContainer}>
           <SafeAppIcon iconUri={item.icon} />
         </View>
         <Text style={styles.label} numberOfLines={1}>{item.label}</Text>
-      </TouchableOpacity>
+      </View>
     </Animated.View>
   );
-}, (prev, next) =>
-  prev.item.packageName === next.item.packageName &&
-  prev.item.icon === next.item.icon
+}, (prev, next) => 
+  prev.item.packageName === next.item.packageName && 
+  prev.item.icon === next.item.icon &&
+  prev.isBeingDragged === next.isBeingDragged
 );
 
 // ==================== NOTIFICATION ASSISTANT ====================
@@ -153,7 +224,6 @@ const AssistantNotification = memo(({ userName, onDismiss, avatarSource }: any) 
       useNativeDriver: true,
     }).start();
 
-    // Auto dismiss after 8 seconds
     const timer = setTimeout(() => {
       Animated.timing(slideAnim, {
         toValue: -100,
@@ -190,24 +260,26 @@ const AssistantNotification = memo(({ userName, onDismiss, avatarSource }: any) 
 });
 
 // ==================== DOCK COMPONENT ====================
-const DockComponent = memo(({ dockApps, onLaunch, onLongPress, onDrop, isDragging }: any) => {
+const DockComponent = memo(({ dockApps, onLaunch, onLongPress, isDropZone }: any) => {
   return (
     <View style={styles.dockContainer}>
-      <View style={[styles.dockBackground, isDragging && styles.dockHighlight]}>
-        {dockApps.map((app: AppData, index: number) => (
+      <View style={[styles.dockBackground, isDropZone && styles.dockHighlight]}>
+        {dockApps.map((app: AppData) => (
           <TouchableOpacity
             key={app.packageName}
             style={styles.dockItem}
             onPress={() => onLaunch(app.packageName)}
             onLongPress={() => onLongPress(app.packageName, app.label)}
             activeOpacity={0.7}
+            delayLongPress={300}
           >
             <SafeAppIcon iconUri={app.icon} size={DOCK_ICON_SIZE} />
           </TouchableOpacity>
         ))}
+        
         {dockApps.length < MAX_DOCK_APPS && (
-          <View style={styles.dockPlaceholder}>
-            <Text style={styles.dockPlaceholderText}>+</Text>
+          <View style={styles.dockEmptySlot}>
+            <View style={styles.dockEmptyDot} />
           </View>
         )}
       </View>
@@ -294,9 +366,10 @@ const App = () => {
   const [selectedPkg, setSelectedPkg] = useState('');
   const [selectedLabel, setSelectedLabel] = useState('');
   const [listKey, setListKey] = useState(0);
-
+  
   const [draggingApp, setDraggingApp] = useState<AppData | null>(null);
-  const dockDropZone = useRef<any>(null);
+  const [isOverDock, setIsOverDock] = useState(false);
+  const dockZoneY = useRef(height - DOCK_DROP_ZONE_HEIGHT);
 
   const refreshApps = useCallback(async () => {
     try {
@@ -314,16 +387,16 @@ const App = () => {
 
   useEffect(() => {
     const init = async () => {
-      await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => { });
+      await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => {});
       const [uName, hidden, showH, avt, dock, notifS] = await Promise.all([
-        RNFS.exists(CUSTOM_USER_PATH).then(e => e ? RNFS.readFile(CUSTOM_USER_PATH, 'utf8') : null),
-        RNFS.exists(CUSTOM_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8') : null),
-        RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8') : null),
-        RNFS.exists(CUSTOM_AVATAR_PATH).then(e => e ? RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64') : null),
-        RNFS.exists(CUSTOM_DOCK_PATH).then(e => e ? RNFS.readFile(CUSTOM_DOCK_PATH, 'utf8') : null),
-        RNFS.exists(CUSTOM_NOTIF_SHOWN_PATH).then(e => e ? RNFS.readFile(CUSTOM_NOTIF_SHOWN_PATH, 'utf8') : null),
+        RNFS.exists(CUSTOM_USER_PATH).then((e: boolean) => e ? RNFS.readFile(CUSTOM_USER_PATH, 'utf8') : null),
+        RNFS.exists(CUSTOM_HIDDEN_PATH).then((e: boolean) => e ? RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8') : null),
+        RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH).then((e: boolean) => e ? RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8') : null),
+        RNFS.exists(CUSTOM_AVATAR_PATH).then((e: boolean) => e ? RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64') : null),
+        RNFS.exists(CUSTOM_DOCK_PATH).then((e: boolean) => e ? RNFS.readFile(CUSTOM_DOCK_PATH, 'utf8') : null),
+        RNFS.exists(CUSTOM_NOTIF_SHOWN_PATH).then((e: boolean) => e ? RNFS.readFile(CUSTOM_NOTIF_SHOWN_PATH, 'utf8') : null),
       ]);
-
+      
       if (uName) setUserName(uName);
       if (hidden) setHiddenPackages(JSON.parse(hidden));
       if (showH) setShowHidden(showH === 'true');
@@ -332,8 +405,7 @@ const App = () => {
         const dockData = JSON.parse(dock);
         setDockApps(dockData);
       }
-
-      // Check if notification shown today
+      
       const today = new Date().toDateString();
       if (notifS !== today) {
         setShowNotification(true);
@@ -341,7 +413,7 @@ const App = () => {
       } else {
         setNotifShown(true);
       }
-
+      
       setLoading(false);
     };
     init();
@@ -351,15 +423,14 @@ const App = () => {
       refreshApps();
     });
 
-    const appStateSub = AppState.addEventListener('change', nextAppState => {
+    const appStateSub = AppState.addEventListener('change', (nextAppState: string) => {
       if (nextAppState === 'active') {
         setTimeout(() => refreshApps(), 1000);
-
-        // Check notification on app resume
+        
         const today = new Date().toDateString();
-        RNFS.exists(CUSTOM_NOTIF_SHOWN_PATH).then(exists => {
+        RNFS.exists(CUSTOM_NOTIF_SHOWN_PATH).then((exists: boolean) => {
           if (exists) {
-            RNFS.readFile(CUSTOM_NOTIF_SHOWN_PATH, 'utf8').then(date => {
+            RNFS.readFile(CUSTOM_NOTIF_SHOWN_PATH, 'utf8').then((date: string) => {
               if (date !== today && !notifShown) {
                 setShowNotification(true);
               }
@@ -379,8 +450,8 @@ const App = () => {
 
   // Filtering Logic
   useEffect(() => {
-    const dockPackages = dockApps.map(app => app.packageName);
-    const filtered = allApps.filter(app => {
+    const dockPackages = dockApps.map((app: AppData) => app.packageName);
+    const filtered = allApps.filter((app: AppData) => {
       if (dockPackages.includes(app.packageName)) return false;
       if (!showHidden && hiddenPackages.includes(app.packageName)) return false;
       return true;
@@ -390,24 +461,24 @@ const App = () => {
 
   // Update dock apps when allApps changes
   useEffect(() => {
-    setDockApps(prevDock => {
-      return prevDock.map(dockApp => {
-        const updatedApp = allApps.find(app => app.packageName === dockApp.packageName);
+    setDockApps((prevDock: AppData[]) => {
+      return prevDock.map((dockApp: AppData) => {
+        const updatedApp = allApps.find((app: AppData) => app.packageName === dockApp.packageName);
         return updatedApp || dockApp;
-      }).filter(app => allApps.some(a => a.packageName === app.packageName));
+      }).filter((app: AppData) => allApps.some((a: AppData) => a.packageName === app.packageName));
     });
   }, [allApps]);
 
   const handleLongPress = useCallback((pkg: string, label: string) => {
     const isHidden = hiddenPackages.includes(pkg);
-    const isInDock = dockApps.some(app => app.packageName === pkg);
-
+    const isInDock = dockApps.some((app: AppData) => app.packageName === pkg);
+    
     if (isInDock) {
       setActionType('remove_dock');
     } else {
       setActionType(isHidden ? 'unhide' : 'hide');
     }
-
+    
     setSelectedPkg(pkg);
     setSelectedLabel(label);
     setActionModal(true);
@@ -415,14 +486,14 @@ const App = () => {
 
   const doAction = async () => {
     if (actionType === 'remove_dock') {
-      const newDock = dockApps.filter(app => app.packageName !== selectedPkg);
+      const newDock = dockApps.filter((app: AppData) => app.packageName !== selectedPkg);
       setDockApps(newDock);
       await RNFS.writeFile(CUSTOM_DOCK_PATH, JSON.stringify(newDock), 'utf8');
       ToastAndroid.show('App removed from dock', ToastAndroid.SHORT);
     } else {
       let newList = [...hiddenPackages];
       if (actionType === 'unhide') {
-        newList = newList.filter(p => p !== selectedPkg);
+        newList = newList.filter((p: string) => p !== selectedPkg);
       } else if (!newList.includes(selectedPkg)) {
         newList.push(selectedPkg);
       }
@@ -437,14 +508,13 @@ const App = () => {
     const pkgToRemove = selectedPkg;
     setActionModal(false);
 
-    // Remove from dock if exists
-    setDockApps(prev => {
-      const newDock = prev.filter(app => app.packageName !== pkgToRemove);
+    setDockApps((prev: AppData[]) => {
+      const newDock = prev.filter((app: AppData) => app.packageName !== pkgToRemove);
       RNFS.writeFile(CUSTOM_DOCK_PATH, JSON.stringify(newDock), 'utf8');
       return newDock;
     });
 
-    setAllApps(prev => prev.filter(app => app.packageName !== pkgToRemove));
+    setAllApps((prev: AppData[]) => prev.filter((app: AppData) => app.packageName !== pkgToRemove));
     setListKey(prev => prev + 1);
 
     setTimeout(() => {
@@ -458,30 +528,42 @@ const App = () => {
   };
 
   const launchApp = (pkg: string) => {
-    try {
-      RNLauncherKitHelper.launchApplication(pkg);
-    } catch {
-      ToastAndroid.show("Cannot Open", ToastAndroid.SHORT);
+    try { 
+      RNLauncherKitHelper.launchApplication(pkg); 
+    } catch { 
+      ToastAndroid.show("Cannot Open", ToastAndroid.SHORT); 
     }
   };
 
-  const handleDragStart = useCallback((item: AppData) => {
+  // Drag handlers
+  const handleDragStart = useCallback((item: AppData, pageY: number) => {
     setDraggingApp(item);
+    setIsOverDock(pageY > dockZoneY.current);
   }, []);
 
-  const handleDockDrop = useCallback(() => {
-    if (draggingApp && dockApps.length < MAX_DOCK_APPS) {
-      const alreadyInDock = dockApps.some(app => app.packageName === draggingApp.packageName);
-      if (!alreadyInDock) {
-        const newDock = [...dockApps, draggingApp];
-        setDockApps(newDock);
-        RNFS.writeFile(CUSTOM_DOCK_PATH, JSON.stringify(newDock), 'utf8');
-        ToastAndroid.show('Added to dock', ToastAndroid.SHORT);
+  const handleDragMove = useCallback((pageY: number) => {
+    setIsOverDock(pageY > dockZoneY.current);
+  }, []);
+
+  const handleDragEnd = useCallback((item: AppData, pageY: number) => {
+    const isOverDockNow = pageY > dockZoneY.current;
+    
+    if (isOverDockNow && draggingApp) {
+      if (dockApps.length >= MAX_DOCK_APPS) {
+        ToastAndroid.show('Dock is full (max 5 apps)', ToastAndroid.SHORT);
+      } else {
+        const alreadyInDock = dockApps.some((app: AppData) => app.packageName === item.packageName);
+        if (!alreadyInDock) {
+          const newDock = [...dockApps, item];
+          setDockApps(newDock);
+          RNFS.writeFile(CUSTOM_DOCK_PATH, JSON.stringify(newDock), 'utf8');
+          ToastAndroid.show(`${item.label} added to dock`, ToastAndroid.SHORT);
+        }
       }
-    } else if (dockApps.length >= MAX_DOCK_APPS) {
-      ToastAndroid.show('Dock is full', ToastAndroid.SHORT);
     }
+    
     setDraggingApp(null);
+    setIsOverDock(false);
   }, [draggingApp, dockApps]);
 
   const dismissNotification = useCallback(() => {
@@ -491,31 +573,34 @@ const App = () => {
     RNFS.writeFile(CUSTOM_NOTIF_SHOWN_PATH, today, 'utf8');
   }, []);
 
-  const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
-    <MemoizedItem
-      item={item}
-      onPress={launchApp}
+  const renderItem: ListRenderItem<AppData> = useCallback(({ item }: { item: AppData }) => (
+    <DraggableItem 
+      item={item} 
+      onPress={launchApp} 
       onLongPress={handleLongPress}
       onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
+      onDragEnd={handleDragEnd}
+      isBeingDragged={draggingApp?.packageName === item.packageName}
     />
-  ), [handleLongPress, handleDragStart]);
+  ), [handleLongPress, handleDragStart, handleDragMove, handleDragEnd, draggingApp]);
 
-  const saveName = (n: string) => {
-    setUserName(n);
-    RNFS.writeFile(CUSTOM_USER_PATH, n, 'utf8');
+  const saveName = (n: string) => { 
+    setUserName(n); 
+    RNFS.writeFile(CUSTOM_USER_PATH, n, 'utf8'); 
   };
-
-  const toggleHidden = (v: boolean) => {
-    setShowHidden(v);
-    RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8');
+  
+  const toggleHidden = (v: boolean) => { 
+    setShowHidden(v); 
+    RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); 
   };
-
+  
   const changePhoto = async () => {
-    const res = await ImagePicker.launchImageLibrary({
-      mediaType: 'photo',
-      includeBase64: true,
-      maxWidth: 200,
-      maxHeight: 200
+    const res = await ImagePicker.launchImageLibrary({ 
+      mediaType: 'photo', 
+      includeBase64: true, 
+      maxWidth: 200, 
+      maxHeight: 200 
     });
     if (res.assets?.[0]?.base64) {
       const b64 = res.assets[0].base64;
@@ -535,9 +620,9 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-
+      
       {/* Settings Gear Icon */}
-      <TouchableOpacity
+      <TouchableOpacity 
         style={styles.settingsButton}
         onPress={() => setSettingsModal(true)}
         activeOpacity={0.7}
@@ -550,46 +635,38 @@ const App = () => {
         key={listKey}
         data={filteredApps}
         numColumns={4}
-        keyExtractor={item => item.packageName}
+        keyExtractor={(item: AppData) => item.packageName}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         initialNumToRender={20}
         maxToRenderPerBatch={10}
         windowSize={5}
         removeClippedSubviews={true}
-        getItemLayout={(data, index) => ({
-          length: 90,
-          offset: 90 * Math.floor(index / 4),
-          index
+        getItemLayout={(data, index) => ({ 
+          length: 90, 
+          offset: 90 * Math.floor(index / 4), 
+          index 
         })}
       />
 
       {/* Gradient Fade */}
-      <LinearGradient
-        colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']}
-        style={styles.gradientFade}
-        pointerEvents="none"
+      <LinearGradient 
+        colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} 
+        style={styles.gradientFade} 
+        pointerEvents="none" 
       />
 
       {/* Dock */}
-      <View
-        onTouchEnd={handleDockDrop}
-        onLayout={(e) => {
-          dockDropZone.current = e.nativeEvent.layout;
-        }}
-      >
-        <DockComponent
-          dockApps={dockApps}
-          onLaunch={launchApp}
-          onLongPress={handleLongPress}
-          onDrop={handleDockDrop}
-          isDragging={draggingApp !== null}
-        />
-      </View>
+      <DockComponent 
+        dockApps={dockApps}
+        onLaunch={launchApp}
+        onLongPress={handleLongPress}
+        isDropZone={isOverDock}
+      />
 
       {/* Assistant Notification */}
       {showNotification && !notifShown && (
-        <AssistantNotification
+        <AssistantNotification 
           userName={userName}
           avatarSource={avatarSource}
           onDismiss={dismissNotification}
@@ -597,7 +674,7 @@ const App = () => {
       )}
 
       {/* Settings Modal */}
-      <SettingsModal
+      <SettingsModal 
         visible={settingsModal}
         onClose={() => setSettingsModal(false)}
         userName={userName}
@@ -609,10 +686,10 @@ const App = () => {
       />
 
       {/* Action Modal */}
-      <Modal
-        visible={actionModal}
-        transparent
-        animationType="fade"
+      <Modal 
+        visible={actionModal} 
+        transparent 
+        animationType="fade" 
         onRequestClose={() => setActionModal(false)}
       >
         <View style={styles.modalOverlay}>
@@ -627,9 +704,9 @@ const App = () => {
             <Text style={styles.modalSubtitle}>Select an action for this app:</Text>
 
             <View style={styles.modalBtnRow}>
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.btnGreen, styles.btnHalf]}
-                onPress={doAction}
+              <TouchableOpacity 
+                style={[styles.actionBtn, styles.btnGreen, styles.btnHalf]} 
+                onPress={doAction} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
@@ -639,9 +716,9 @@ const App = () => {
 
               <View style={{ width: 15 }} />
 
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.btnRed, styles.btnHalf]}
-                onPress={handleUninstall}
+              <TouchableOpacity 
+                style={[styles.actionBtn, styles.btnRed, styles.btnHalf]} 
+                onPress={handleUninstall} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>Uninstall</Text>
@@ -658,8 +735,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { paddingTop: 50, paddingBottom: 140 },
-
-  // Settings Button
+  
   settingsButton: {
     position: 'absolute',
     top: 40,
@@ -676,11 +752,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
 
-  // App Item
-  item: {
-    width: ITEM_WIDTH,
-    height: 90,
-    alignItems: 'center',
+  item: { 
+    width: ITEM_WIDTH, 
+    height: 90, 
+    alignItems: 'center', 
     marginBottom: 8,
   },
   itemTouchable: {
@@ -689,26 +764,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   itemDragging: {
-    opacity: 0.5,
-    transform: [{ scale: 1.1 }],
+    opacity: 0.7,
+    transform: [{ scale: 1.15 }],
+    elevation: 10,
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  iconContainer: {
-    width: ICON_SIZE,
-    height: ICON_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4
+  iconContainer: { 
+    width: ICON_SIZE, 
+    height: ICON_SIZE, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 4 
   },
-  label: {
-    color: '#eee',
-    fontSize: 11,
-    textAlign: 'center',
-    marginHorizontal: 4,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowRadius: 3
+  label: { 
+    color: '#eee', 
+    fontSize: 11, 
+    textAlign: 'center', 
+    marginHorizontal: 4, 
+    textShadowColor: 'rgba(0,0,0,0.8)', 
+    textShadowRadius: 3 
   },
 
-  // Notification
   notificationContainer: {
     position: 'absolute',
     top: 60,
@@ -765,7 +844,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-  // Dock
   dockContainer: {
     position: 'absolute',
     bottom: 20,
@@ -775,55 +853,52 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   dockBackground: {
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+    backgroundColor: 'rgba(30, 30, 30, 0.85)',
     borderRadius: 24,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(20px)',
+    elevation: 8,
   },
   dockHighlight: {
     borderColor: '#27ae60',
     borderWidth: 2,
+    backgroundColor: 'rgba(39, 174, 96, 0.15)',
   },
   dockItem: {
     width: 60,
     height: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 6,
+    marginHorizontal: 4,
   },
-  dockPlaceholder: {
+  dockEmptySlot: {
     width: 60,
     height: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 6,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: '#555',
+    marginHorizontal: 4,
   },
-  dockPlaceholderText: {
-    color: '#555',
-    fontSize: 28,
-    fontWeight: '300',
+  dockEmptyDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#555',
   },
 
-  gradientFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 220,
-    zIndex: 1
+  gradientFade: { 
+    position: 'absolute', 
+    left: 0, 
+    right: 0, 
+    bottom: 0, 
+    height: 220, 
+    zIndex: 1 
   },
 
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -871,7 +946,6 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
 
-  // Form Elements
   inputLabel: {
     color: '#aaa',
     fontSize: 12,
@@ -909,7 +983,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  // Buttons
   verticalBtnGroup: {
     width: '100%',
     gap: 10,
