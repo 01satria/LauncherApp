@@ -386,54 +386,6 @@ const App = () => {
   const [listKey, setListKey] = useState(0);
   const modalScaleAnim = useRef(new Animated.Value(0)).current;
   const settingsModalAnim = useRef(new Animated.Value(0)).current;
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const touchStartY = useRef(0);
-  const hasScrolled = useRef(false);
-
-  // PanResponder untuk detect long press di background
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        // Detect jika ada scroll vertical
-        if (Math.abs(gestureState.dy) > 10) {
-          hasScrolled.current = true;
-          if (longPressTimer.current) {
-            clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-          }
-          return false;
-        }
-        return false;
-      },
-      onPanResponderGrant: (e) => {
-        hasScrolled.current = false;
-        touchStartY.current = e.nativeEvent.pageY;
-        
-        // Start long press timer
-        if (longPressTimer.current) clearTimeout(longPressTimer.current);
-        longPressTimer.current = setTimeout(() => {
-          if (!hasScrolled.current) {
-            handleOpenSettings();
-          }
-        }, 600);
-      },
-      onPanResponderRelease: () => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-        hasScrolled.current = false;
-      },
-      onPanResponderTerminate: () => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-        hasScrolled.current = false;
-      },
-    })
-  ).current;
 
   // Check if notification should show (daily reset at 01:00)
   const checkNotificationStatus = useCallback(async () => {
@@ -505,9 +457,6 @@ const App = () => {
     return () => {
       modalScaleAnim.stopAnimation();
       settingsModalAnim.stopAnimation();
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
-      }
     };
   }, [modalScaleAnim, settingsModalAnim]);
 
@@ -703,27 +652,31 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       
-      {/* Wrapper dengan PanResponder untuk long press detection */}
-      <View 
-        style={styles.homeScreenWrapper}
-        {...panResponder.panHandlers}
-      >
-        <FlatList
-          key={listKey}
-          data={filteredApps}
-          numColumns={4}
-          keyExtractor={item => item.packageName}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          initialNumToRender={20}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={50}
-          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-          scrollEnabled={true}
-          showsVerticalScrollIndicator={false}
-        />
+      <View style={styles.homeScreenWrapper}>
+        {/* Touch handler untuk area kosong */}
+        <TouchableOpacity
+          style={styles.emptyAreaHandler}
+          activeOpacity={1}
+          onLongPress={handleOpenSettings}
+          delayLongPress={500}
+        >
+          <FlatList
+            key={listKey}
+            data={filteredApps}
+            numColumns={4}
+            keyExtractor={item => item.packageName}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            initialNumToRender={20}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
+            updateCellsBatchingPeriod={50}
+            getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+            scrollEnabled={true}
+            showsVerticalScrollIndicator={false}
+          />
+        </TouchableOpacity>
       </View>
       
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
@@ -900,6 +853,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   homeScreenWrapper: { flex: 1 },
+  emptyAreaHandler: { flex: 1 },
   list: { paddingTop: 50, paddingBottom: 140 },
   item: { 
     width: ITEM_WIDTH, 
