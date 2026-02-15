@@ -11,7 +11,6 @@ import {
   Animated,
   ListRenderItem,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import * as ImagePicker from 'react-native-image-picker';
 import { AppData } from './types';
@@ -35,6 +34,7 @@ import AppActionModal from './components/AppActionModal';
 const App = () => {
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
+  const scrollY = useRef(new Animated.Value(0)).current;
   
   // Modals
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -241,14 +241,28 @@ const App = () => {
     setSettingsVisible(false);
   };
 
-  const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
-    <AppItem 
-      item={item} 
-      onPress={launchApp} 
-      onLongPress={handleLongPress} 
-      showNames={showNames} 
-    />
-  ), [handleLongPress, showNames]);
+  const renderItem: ListRenderItem<AppData> = useCallback(({ item, index }) => {
+    // Calculate fade based on item position from bottom
+    const totalItems = filteredApps.length;
+    const itemsFromEnd = totalItems - index;
+    const shouldFade = itemsFromEnd <= 8; // Last 8 items (2 rows)
+    
+    // Calculate opacity: 1.0 for far items, gradually to 0.2 for closest
+    let opacity = 1;
+    if (shouldFade) {
+      opacity = Math.max(0.2, itemsFromEnd / 8);
+    }
+
+    return (
+      <AppItem 
+        item={item} 
+        onPress={launchApp} 
+        onLongPress={handleLongPress} 
+        showNames={showNames}
+        opacity={opacity}
+      />
+    );
+  }, [handleLongPress, showNames, filteredApps.length]);
 
   const dockApps = allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5);
   const isDocked = dockPackages.includes(selectedPkg);
@@ -283,12 +297,11 @@ const App = () => {
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={<View style={styles.listFooter} />}
-        />
-        {/* Subtle fade at bottom - only fades apps, not background */}
-        <LinearGradient
-          colors={['transparent', 'rgba(0, 0, 0, 0.3)']}
-          style={styles.fadeOverlay}
-          pointerEvents="none"
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          scrollEventThrottle={16}
         />
       </View>
 
@@ -353,14 +366,6 @@ const styles = StyleSheet.create({
   },
   listFooter: {
     height: 120,
-  },
-  fadeOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80, // Smaller fade area
-    zIndex: 1,
   },
 });
 

@@ -9,9 +9,10 @@ interface AppItemProps {
   onPress: (pkg: string) => void;
   onLongPress: (pkg: string, label: string) => void;
   showNames: boolean;
+  opacity?: number;
 }
 
-const AppItem = memo(({ item, onPress, onLongPress, showNames }: AppItemProps) => {
+const AppItem = memo(({ item, onPress, onLongPress, showNames, opacity = 1 }: AppItemProps) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = useCallback(() => {
@@ -39,7 +40,7 @@ const AppItem = memo(({ item, onPress, onLongPress, showNames }: AppItemProps) =
   }, [scaleAnim]);
 
   return (
-    <View style={styles.item}>
+    <View style={[styles.item, { opacity }]}>
       <TouchableOpacity
         style={styles.itemTouchable}
         onPress={() => onPress(item.packageName)}
@@ -56,7 +57,11 @@ const AppItem = memo(({ item, onPress, onLongPress, showNames }: AppItemProps) =
       </TouchableOpacity>
     </View>
   );
-}, (prev, next) => prev.item.packageName === next.item.packageName && prev.showNames === next.showNames);
+}, (prev, next) => 
+  prev.item.packageName === next.item.packageName && 
+  prev.showNames === next.showNames &&
+  prev.opacity === next.opacity
+);
 
 const styles = StyleSheet.create({
   item: { 
