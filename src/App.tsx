@@ -10,6 +10,7 @@ import {
   AppState,
   Animated,
   ListRenderItem,
+  Dimensions,
 } from 'react-native';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import * as ImagePicker from 'react-native-image-picker';
@@ -32,8 +33,11 @@ import SettingsModal from './components/SettingsModal';
 import AppActionModal from './components/AppActionModal';
 
 const App = () => {
+  const { height: screenHeight } = Dimensions.get('window');
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
+  const [contentHeight, setContentHeight] = useState(0);
+  const scrollY = useRef(new Animated.Value(0)).current;
   
   // Modals
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -163,19 +167,6 @@ const App = () => {
   }, [modalScaleAnim, settingsModalAnim]);
 
   // Handlers
-  const handleDismissNotification = async () => {
-    setShowNotification(false);
-    await saveNotificationDismissed();
-  };
-
-  const handleNewPeriod = useCallback(async () => {
-    // Ketika periode berubah, tampilkan notifikasi lagi
-    const shouldShow = await checkNotificationStatus();
-    if (shouldShow) {
-      setShowNotification(true);
-    }
-  }, []);
-
   const handleOpenSettings = () => {
     setTempName(userName);
     setTempAssistantName(assistantName);
@@ -241,30 +232,33 @@ const App = () => {
   };
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item, index }) => {
-    // Static opacity calculation - hanya hitung sekali per item
-    const totalItems = filteredApps.length;
-    const rowNumber = Math.floor(index / 4); // 4 items per row
-    const totalRows = Math.ceil(totalItems / 4);
-    const rowsFromEnd = totalRows - rowNumber;
+    const itemRow = Math.floor(index / 4);
+    const itemYPosition = itemRow * 90; // Each row is 90px tall
     
-    // Fade last 3 rows
-    let opacity = 1;
-    if (rowsFromEnd <= 3) {
-      // Row terakhir: 0.3, row ke-2: 0.6, row ke-3: 0.85
-      opacity = 0.3 + (rowsFromEnd - 1) * 0.275;
-    }
+    // Fade when item is close to bottom of screen (within 200px of dock)
+    // Screen bottom is at scrollY + screenHeight - dockHeight (80px)
+    const fadeZoneStart = screenHeight - 200; // 200px from bottom
+    
+    const opacity = scrollY.interpolate({
+      inputRange: [
+        itemYPosition - fadeZoneStart + 100,
+        itemYPosition - fadeZoneStart + 200,
+      ],
+      outputRange: [1, 0.2],
+      extrapolate: 'clamp',
+    });
 
     return (
-      <View style={{ opacity }}>
+      <Animated.View style={{ opacity }}>
         <AppItem 
           item={item} 
           onPress={launchApp} 
           onLongPress={handleLongPress} 
           showNames={showNames}
         />
-      </View>
+      </Animated.View>
     );
-  }, [handleLongPress, showNames, filteredApps.length]);
+  }, [handleLongPress, showNames, scrollY, screenHeight]);
 
   const dockApps = allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5);
   const isDocked = dockPackages.includes(selectedPkg);
@@ -299,6 +293,11 @@ const App = () => {
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={<View style={styles.listFooter} />}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          scrollEventThrottle={16}
         />
       </View>
 
