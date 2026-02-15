@@ -210,7 +210,8 @@ const AssistantNotification = memo(({
   onDismiss: () => void;
 }) => {
   const [message, setMessage] = useState("");
-  const slideAnim = useRef(new Animated.Value(-200)).current;
+  const slideAnim = useRef(new Animated.Value(-250)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
@@ -225,13 +226,21 @@ const AssistantNotification = memo(({
 
     updateMessage();
 
-    // Slide in animation
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      friction: 9,
-      tension: 80,
-      useNativeDriver: true,
-    }).start();
+    // Smooth slide in with opacity
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      })
+    ]).start();
 
     let timer: NodeJS.Timeout | null = null;
     const startTimer = () => {
@@ -252,16 +261,25 @@ const AssistantNotification = memo(({
       if (timer) clearInterval(timer);
       subscription.remove();
       slideAnim.stopAnimation();
+      opacityAnim.stopAnimation();
     };
-  }, [userName, slideAnim]);
+  }, [userName, slideAnim, opacityAnim]);
 
   const handleDismiss = () => {
-    Animated.timing(slideAnim, {
-      toValue: -200,
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: -250,
+        duration: 300,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      })
+    ]).start(() => {
       onDismiss();
     });
   };
@@ -270,7 +288,10 @@ const AssistantNotification = memo(({
     <Animated.View 
       style={[
         styles.notificationCard,
-        { transform: [{ translateY: slideAnim }] }
+        { 
+          transform: [{ translateY: slideAnim }],
+          opacity: opacityAnim,
+        }
       ]}
     >
       <View style={styles.notifTopRow}>
@@ -303,24 +324,24 @@ const SimpleDock = memo(({
   dockApps,
   onLaunchApp,
   onLongPressApp,
-  onOpenSettings,
 }: {
   dockApps: AppData[];
   onLaunchApp: (pkg: string) => void;
   onLongPressApp: (pkg: string, label: string) => void;
-  onOpenSettings: () => void;
 }) => {
+  // Calculate dynamic width based on app count
+  const appCount = dockApps.length;
+  const minWidth = 150; // Minimum width for empty state
+  const iconWidth = DOCK_ICON_SIZE + 8; // Icon + spacing
+  const padding = 24; // Horizontal padding
+  const calculatedWidth = appCount > 0 ? (iconWidth * appCount) + padding : minWidth;
+
   return (
     <View style={styles.simpleDockContainer}>
-      <TouchableOpacity
-        style={styles.simpleDockCard}
-        activeOpacity={1}
-        onLongPress={onOpenSettings}
-        delayLongPress={500}
-      >
+      <View style={[styles.simpleDockCard, { width: calculatedWidth }]}>
         {dockApps.length === 0 ? (
           <View style={styles.emptyDockContainer}>
-            <Text style={styles.emptyDockText}>Long press any app to pin here</Text>
+            <Text style={styles.emptyDockText}>Long press any app to pin</Text>
           </View>
         ) : (
           <View style={styles.dockAppsRow}>
@@ -334,7 +355,7 @@ const SimpleDock = memo(({
             ))}
           </View>
         )}
-      </TouchableOpacity>
+      </View>
     </View>
   );
 });
@@ -628,20 +649,30 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-      <FlatList
-        key={listKey}
-        data={filteredApps}
-        numColumns={4}
-        keyExtractor={item => item.packageName}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        initialNumToRender={20}
-        maxToRenderPerBatch={10}
-        windowSize={5}
-        removeClippedSubviews={true}
-        updateCellsBatchingPeriod={50}
-        getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-      />
+      
+      {/* Background Long Press untuk Settings */}
+      <TouchableOpacity
+        style={styles.backgroundTouchable}
+        activeOpacity={1}
+        onLongPress={handleOpenSettings}
+        delayLongPress={600}
+      >
+        <FlatList
+          key={listKey}
+          data={filteredApps}
+          numColumns={4}
+          keyExtractor={item => item.packageName}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+        />
+      </TouchableOpacity>
+      
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
       
       {/* ASSISTANT NOTIFICATION */}
@@ -659,7 +690,6 @@ const App = () => {
         dockApps={dockApps}
         onLaunchApp={launchApp}
         onLongPressApp={handleLongPress}
-        onOpenSettings={handleOpenSettings}
       />
 
       {/* SETTINGS MODAL */}
@@ -816,6 +846,7 @@ const App = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  backgroundTouchable: { flex: 1 },
   list: { paddingTop: 50, paddingBottom: 140 },
   item: { width: ITEM_WIDTH, height: 90, alignItems: 'center', marginBottom: 8 },
   iconContainer: { width: ICON_SIZE, height: ICON_SIZE, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
@@ -841,7 +872,7 @@ const styles = StyleSheet.create({
   },
   notifTopRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 16,
   },
   notifAvatarContainer: {
@@ -860,6 +891,7 @@ const styles = StyleSheet.create({
   notifContent: {
     flex: 1,
     marginLeft: 12,
+    justifyContent: 'center',
   },
   notifTitle: {
     color: '#27ae60',
@@ -887,12 +919,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-  // ==================== SIMPLE DOCK STYLES ====================
+  // ==================== SIMPLE DOCK STYLES (DYNAMIC WIDTH) ====================
   simpleDockContainer: {
     position: 'absolute',
     bottom: 20,
-    left: 16,
-    right: 16,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
     zIndex: 2,
   },
   simpleDockCard: {
@@ -913,11 +946,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   emptyDockText: {
     color: 'rgba(255, 255, 255, 0.3)',
-    fontSize: 12,
+    fontSize: 11,
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -926,7 +959,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-evenly',
     flex: 1,
-    paddingHorizontal: 4,
   },
   dockAppItem: {
     width: DOCK_ICON_SIZE,
