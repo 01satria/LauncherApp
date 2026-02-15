@@ -1,14 +1,18 @@
-import React, { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { memo, useState } from 'react';
+import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import DockAppItem from './DockAppItem';
+import AssistantPopup from './AssistantPopup';
 import { AppData } from '../types';
-import { DOCK_ICON_SIZE } from '../constants';
+import { DOCK_ICON_SIZE, DEFAULT_ASSISTANT_AVATAR } from '../constants';
 
 interface SimpleDockProps {
   dockApps: AppData[];
   onLaunchApp: (pkg: string) => void;
   onLongPressApp: (pkg: string, label: string) => void;
   onOpenSettings: () => void;
+  avatarSource: string | null;
+  assistantName: string;
+  userName: string;
 }
 
 const SimpleDock = memo(({ 
@@ -16,40 +20,77 @@ const SimpleDock = memo(({
   onLaunchApp,
   onLongPressApp,
   onOpenSettings,
+  avatarSource,
+  assistantName,
+  userName,
 }: SimpleDockProps) => {
-  // Calculate dynamic width based on app count
+  const [showPopup, setShowPopup] = useState(false);
+
+  // Calculate dynamic width
   const appCount = dockApps.length;
-  const minWidth = 150;
-  const iconWidth = DOCK_ICON_SIZE + 8;
-  const padding = 24;
-  const calculatedWidth = appCount > 0 ? (iconWidth * appCount) + padding : minWidth;
+  const avatarWidth = DOCK_ICON_SIZE + 16; // Avatar + padding
+  const separatorWidth = appCount > 0 ? 20 : 0; // Separator only if there are apps
+  const iconWidth = DOCK_ICON_SIZE + 8; // Icon + spacing
+  const appsWidth = appCount > 0 ? (iconWidth * appCount) + 12 : 0;
+  const totalWidth = avatarWidth + separatorWidth + appsWidth;
+  const minWidth = avatarWidth + 32; // Avatar + padding
+
+  const calculatedWidth = Math.max(totalWidth, minWidth);
 
   return (
-    <View style={styles.simpleDockContainer}>
-      <TouchableOpacity
-        style={[styles.simpleDockCard, { width: calculatedWidth }]}
-        activeOpacity={1}
-        onLongPress={onOpenSettings}
-        delayLongPress={500}
-      >
-        {dockApps.length === 0 ? (
-          <View style={styles.emptyDockContainer}>
-            <Text style={styles.emptyDockText}>Long press any app to pin</Text>
-          </View>
-        ) : (
-          <View style={styles.dockAppsRow}>
-            {dockApps.map((app: AppData) => (
-              <DockAppItem 
-                key={app.packageName} 
-                app={app} 
-                onPress={onLaunchApp}
-                onLongPress={onLongPressApp}
+    <>
+      {/* Assistant Popup */}
+      {showPopup && (
+        <AssistantPopup
+          onClose={() => setShowPopup(false)}
+          userName={userName}
+          assistantName={assistantName}
+        />
+      )}
+
+      {/* Dock Container */}
+      <View style={styles.simpleDockContainer}>
+        <TouchableOpacity
+          style={[styles.simpleDockCard, { width: calculatedWidth }]}
+          activeOpacity={1}
+          onLongPress={onOpenSettings}
+          delayLongPress={500}
+        >
+          <View style={styles.dockContent}>
+            {/* Avatar Assistant (Always on Left) */}
+            <TouchableOpacity
+              style={styles.avatarContainer}
+              onPress={() => setShowPopup(true)}
+              activeOpacity={0.7}
+            >
+              <Image 
+                source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+                style={styles.avatar} 
               />
-            ))}
+            </TouchableOpacity>
+
+            {/* Separator (Only if there are dock apps) */}
+            {appCount > 0 && (
+              <View style={styles.separator} />
+            )}
+
+            {/* Dock Apps (Right side) */}
+            {appCount > 0 && (
+              <View style={styles.dockAppsRow}>
+                {dockApps.slice(0, 4).map((app: AppData) => (
+                  <DockAppItem 
+                    key={app.packageName} 
+                    app={app} 
+                    onPress={onLaunchApp}
+                    onLongPress={onLongPressApp}
+                  />
+                ))}
+              </View>
+            )}
           </View>
-        )}
-      </TouchableOpacity>
-    </View>
+        </TouchableOpacity>
+      </View>
+    </>
   );
 });
 
@@ -63,11 +104,11 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   simpleDockCard: {
-    height: 68,
+    minHeight: 68,
     backgroundColor: 'rgba(0, 0, 0, 0.92)',
     borderRadius: 26,
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 6,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     elevation: 8,
@@ -76,23 +117,34 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  emptyDockContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  dockContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    justifyContent: 'flex-start',
   },
-  emptyDockText: {
-    color: 'rgba(255, 255, 255, 0.3)',
-    fontSize: 11,
-    textAlign: 'center',
-    fontStyle: 'italic',
+  avatarContainer: {
+    width: DOCK_ICON_SIZE,
+    height: DOCK_ICON_SIZE,
+    borderRadius: DOCK_ICON_SIZE / 2,
+    overflow: 'hidden',
+    backgroundColor: '#1a1a1a',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  separator: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginHorizontal: 10,
   },
   dockAppsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-evenly',
-    flex: 1,
+    gap: 8,
   },
 });
 
