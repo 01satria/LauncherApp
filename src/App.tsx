@@ -227,32 +227,14 @@ const App = () => {
     setSettingsVisible(false);
   };
 
-  const renderItem: ListRenderItem<AppData> = useCallback(({ item, index }) => {
-    // Simple calculation: fade last 3 rows based on position
-    const totalItems = filteredApps.length;
-    const totalRows = Math.ceil(totalItems / 4);
-    const itemRow = Math.floor(index / 4);
-    const rowsFromBottom = totalRows - itemRow;
-    
-    // Calculate static opacity
-    let opacity = 1;
-    if (rowsFromBottom <= 3) {
-      if (rowsFromBottom === 1) opacity = 0.3;
-      else if (rowsFromBottom === 2) opacity = 0.6;
-      else if (rowsFromBottom === 3) opacity = 0.85;
-    }
-
-    return (
-      <View style={{ opacity }}>
-        <AppItem 
-          item={item} 
-          onPress={launchApp} 
-          onLongPress={handleLongPress} 
-          showNames={showNames}
-        />
-      </View>
-    );
-  }, [handleLongPress, showNames, filteredApps.length]);
+  const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
+    <AppItem 
+      item={item} 
+      onPress={launchApp} 
+      onLongPress={handleLongPress} 
+      showNames={showNames}
+    />
+  ), [handleLongPress, showNames]);
 
   const dockApps = allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5);
   const isDocked = dockPackages.includes(selectedPkg);
@@ -357,4 +339,7 @@ const styles = StyleSheet.create({
 // @2026 Satria Dev - SATRIA LAUNCHER - All Rights Reserved
 // Website: https://01satria.vercel.app
 // Github: https://github.com/01satria
+// Instagram: https://www.instagram.com/satria.page/
+// Indonesian: "Jangan lupa untuk memberikan kredit kepada Satria Dev jika Anda menggunakan atau memodifikasi kode ini dalam proyek Anda. Terima kasih telah menghargai karya saya!" - Satria Dev
+// English: "Please remember to give credit to Satria Dev if you use or modify this code in your projects. Thank you for respecting my work!" - Satria Dev
 export default App;
