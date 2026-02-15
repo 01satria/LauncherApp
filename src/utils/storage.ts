@@ -66,8 +66,45 @@ export const saveAvatar = async (base64: string) => {
 };
 
 export const saveNotificationDismissed = async () => {
-  const now = new Date().toISOString();
-  await RNFS.writeFile(CUSTOM_NOTIF_DISMISSED_PATH, now, 'utf8');
+  const data = {
+    lastDate: new Date().toDateString(),
+    lastPeriod: getCurrentTimePeriod(),
+    timestamp: new Date().toISOString(),
+    confirmed: true, // User sudah klik "Okay"
+  };
+  await RNFS.writeFile(CUSTOM_NOTIF_DISMISSED_PATH, JSON.stringify(data), 'utf8');
+};
+
+export const checkIfPeriodConfirmed = async (): Promise<boolean> => {
+  try {
+    const exists = await RNFS.exists(CUSTOM_NOTIF_DISMISSED_PATH);
+    if (!exists) return false;
+
+    const savedData = await RNFS.readFile(CUSTOM_NOTIF_DISMISSED_PATH, 'utf8');
+    const data = JSON.parse(savedData);
+    
+    const currentPeriod = getCurrentTimePeriod();
+    const today = new Date().toDateString();
+    
+    // Cek apakah periode ini di hari ini sudah di-confirm
+    if (data.lastPeriod === currentPeriod && data.lastDate === today && data.confirmed) {
+      return true;
+    }
+    
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+// Get current time period
+export const getCurrentTimePeriod = (): string => {
+  const h = new Date().getHours();
+  if (h >= 22 || h < 4) return 'late_night'; // 22:00 - 03:59
+  if (h >= 4 && h < 11) return 'morning';     // 04:00 - 10:59
+  if (h >= 11 && h < 15) return 'afternoon';  // 11:00 - 14:59
+  if (h >= 15 && h < 18) return 'evening';    // 15:00 - 17:59
+  return 'night';                              // 18:00 - 21:59
 };
 
 export const checkNotificationStatus = async (): Promise<boolean> => {
@@ -75,17 +112,28 @@ export const checkNotificationStatus = async (): Promise<boolean> => {
     const exists = await RNFS.exists(CUSTOM_NOTIF_DISMISSED_PATH);
     if (!exists) return true;
 
-    const dismissedDate = await RNFS.readFile(CUSTOM_NOTIF_DISMISSED_PATH, 'utf8');
-    const today = new Date();
-    const lastDismissed = new Date(dismissedDate);
-
-    const resetHour = 1;
-    const shouldReset = 
-      today.getDate() !== lastDismissed.getDate() ||
-      today.getMonth() !== lastDismissed.getMonth() ||
-      today.getFullYear() !== lastDismissed.getFullYear();
-
-    return shouldReset && today.getHours() >= resetHour;
+    const savedData = await RNFS.readFile(CUSTOM_NOTIF_DISMISSED_PATH, 'utf8');
+    const data = JSON.parse(savedData);
+    
+    const currentPeriod = getCurrentTimePeriod();
+    const today = new Date().toDateString();
+    
+    // Jika periode berbeda, tampilkan notifikasi
+    if (data.lastPeriod !== currentPeriod) {
+      return true;
+    }
+    
+    // Jika hari berbeda, tampilkan notifikasi
+    if (data.lastDate !== today) {
+      return true;
+    }
+    
+    // Jika periode ini belum di-confirm, tampilkan notifikasi
+    if (!data.confirmed) {
+      return true;
+    }
+    
+    return false;
   } catch {
     return true;
   }

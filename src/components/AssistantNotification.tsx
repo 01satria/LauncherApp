@@ -1,13 +1,14 @@
 import React, { memo, useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Image, Animated, Easing, AppState, StyleSheet } from 'react-native';
 import { DEFAULT_ASSISTANT_AVATAR } from '../constants';
-import { getNotificationMessage } from '../utils/storage';
+import { getNotificationMessage, getCurrentTimePeriod } from '../utils/storage';
 
 interface AssistantNotificationProps {
   userName: string;
   assistantName: string;
   avatarSource: string | null;
   onDismiss: () => void;
+  onNewPeriod?: () => void; // Callback untuk periode baru
 }
 
 const AssistantNotification = memo(({ 
@@ -15,11 +16,13 @@ const AssistantNotification = memo(({
   assistantName,
   avatarSource,
   onDismiss,
+  onNewPeriod,
 }: AssistantNotificationProps) => {
   const [message, setMessage] = useState("");
   const slideAnim = useRef(new Animated.Value(-250)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const appState = useRef(AppState.currentState);
+  const lastPeriod = useRef(getCurrentTimePeriod());
 
   useEffect(() => {
     const updateMessage = () => {
@@ -45,27 +48,59 @@ const AssistantNotification = memo(({
     ]).start();
 
     let timer: NodeJS.Timeout | null = null;
+    
     const startTimer = () => {
       if (timer) clearInterval(timer);
       updateMessage();
-      timer = setInterval(updateMessage, 60000);
+      timer = setInterval(() => {
+        updateMessage();
+        
+        // Cek apakah periode waktu berubah
+        const currentPeriod = getCurrentTimePeriod();
+        if (currentPeriod !== lastPeriod.current) {
+          lastPeriod.current = currentPeriod;
+          // Trigger callback untuk periode baru
+          if (onNewPeriod) {
+            onNewPeriod();
+          }
+        }
+      }, 60000); // Check every minute
+    };
+    
+    const stopTimer = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
     };
 
     const subscription = AppState.addEventListener('change', nextAppState => {
+      const previousState = appState.current;
       appState.current = nextAppState;
-      if (nextAppState === 'active') startTimer();
-      else if (timer) clearInterval(timer);
+      
+      // App kembali ke foreground (dari background/inactive)
+      if (nextAppState === 'active' && previousState !== 'active') {
+        updateMessage();
+        startTimer();
+      } 
+      // App masuk ke background/inactive - STOP TIMER untuk hemat RAM
+      else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        stopTimer();
+      }
     });
 
-    startTimer();
+    // Start timer saat component mount (app active)
+    if (AppState.currentState === 'active') {
+      startTimer();
+    }
 
     return () => {
-      if (timer) clearInterval(timer);
+      stopTimer();
       subscription.remove();
       slideAnim.stopAnimation();
       opacityAnim.stopAnimation();
     };
-  }, [userName, slideAnim, opacityAnim]);
+  }, [userName, slideAnim, opacityAnim, onNewPeriod]);
 
   const handleDismiss = () => {
     Animated.parallel([
