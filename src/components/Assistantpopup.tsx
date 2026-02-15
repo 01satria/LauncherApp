@@ -169,4 +169,5 @@ const styles = StyleSheet.create({
   },
 });
 
+// @satria: Jangan lupa untuk menambahkan style untuk backdrop dan popupCard di dalam StyleSheet.create, serta pastikan untuk mengimpor komponen ini di tempat yang sesuai dalam aplikasi Anda.
 export default AssistantPopup;
