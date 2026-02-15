@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 2,
+    zIndex: 10, // Higher than fade overlay
   },
   simpleDockCard: {
     minHeight: 68,
@@ -120,7 +120,8 @@ const styles = StyleSheet.create({
   dockContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center', // Center semua elemen
+    flex: 1,
   },
   avatarContainer: {
     width: DOCK_ICON_SIZE,

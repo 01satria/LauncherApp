@@ -265,28 +265,32 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       
-      <FlatList
-        key={listKey}
-        data={filteredApps}
-        numColumns={4}
-        keyExtractor={item => item.packageName}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        initialNumToRender={INITIAL_NUM_TO_RENDER}
-        maxToRenderPerBatch={MAX_TO_RENDER_PER_BATCH}
-        windowSize={WINDOW_SIZE}
-        removeClippedSubviews={true}
-        updateCellsBatchingPeriod={UPDATE_CELLS_BATCHING_PERIOD}
-        getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-        scrollEnabled={true}
-        showsVerticalScrollIndicator={false}
-      />
-      
-      <LinearGradient 
-        colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} 
-        style={styles.gradientFade} 
-        pointerEvents="none" 
-      />
+      {/* App Grid with Fade Effect */}
+      <View style={styles.appsContainer}>
+        <FlatList
+          key={listKey}
+          data={filteredApps}
+          numColumns={4}
+          keyExtractor={item => item.packageName}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          initialNumToRender={INITIAL_NUM_TO_RENDER}
+          maxToRenderPerBatch={MAX_TO_RENDER_PER_BATCH}
+          windowSize={WINDOW_SIZE}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={UPDATE_CELLS_BATCHING_PERIOD}
+          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+          scrollEnabled={true}
+          showsVerticalScrollIndicator={false}
+          ListFooterComponent={<View style={styles.listFooter} />}
+        />
+        {/* Subtle fade at bottom - only fades apps, not background */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0, 0, 0, 0.3)']}
+          style={styles.fadeOverlay}
+          pointerEvents="none"
+        />
+      </View>
 
       <SimpleDock
         dockApps={dockApps}
@@ -339,17 +343,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center' 
   },
+  appsContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   list: { 
     paddingTop: 50, 
-    paddingBottom: 140 
+    paddingBottom: 20,
   },
-  gradientFade: { 
-    position: 'absolute', 
-    left: 0, 
-    right: 0, 
-    bottom: 0, 
-    height: 220, 
-    zIndex: 1 
+  listFooter: {
+    height: 120,
+  },
+  fadeOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80, // Smaller fade area
+    zIndex: 1,
   },
 });
 
