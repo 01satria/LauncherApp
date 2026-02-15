@@ -42,6 +42,7 @@ const DOCK_ICON_SIZE = 48;
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
 const CUSTOM_USER_PATH = `${CUSTOM_AVATAR_DIR}/user.txt`;
+const CUSTOM_ASSISTANT_NAME_PATH = `${CUSTOM_AVATAR_DIR}/assistant_name.txt`;
 const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const CUSTOM_DOCK_PATH = `${CUSTOM_AVATAR_DIR}/dock.json`;
@@ -199,14 +200,14 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: {
 // ==================== ASSISTANT NOTIFICATION ====================
 const AssistantNotification = memo(({ 
   userName,
+  assistantName,
   avatarSource,
   onDismiss,
-  onOpenSettings
 }: {
   userName: string;
+  assistantName: string;
   avatarSource: string | null;
   onDismiss: () => void;
-  onOpenSettings: () => void;
 }) => {
   const [message, setMessage] = useState("");
   const slideAnim = useRef(new Animated.Value(-200)).current;
@@ -272,21 +273,18 @@ const AssistantNotification = memo(({
         { transform: [{ translateY: slideAnim }] }
       ]}
     >
-      <TouchableOpacity 
-        style={styles.notifAvatarContainer}
-        onLongPress={onOpenSettings}
-        activeOpacity={0.8}
-        delayLongPress={400}
-      >
-        <Image 
-          source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
-          style={styles.notifAvatar} 
-        />
-      </TouchableOpacity>
-      
-      <View style={styles.notifContent}>
-        <Text style={styles.notifTitle}>Assistant</Text>
-        <Text style={styles.notifMessage} numberOfLines={3}>{message}</Text>
+      <View style={styles.notifTopRow}>
+        <View style={styles.notifAvatarContainer}>
+          <Image 
+            source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+            style={styles.notifAvatar} 
+          />
+        </View>
+        
+        <View style={styles.notifContent}>
+          <Text style={styles.notifTitle}>{assistantName}</Text>
+          <Text style={styles.notifMessage} numberOfLines={4}>{message}</Text>
+        </View>
       </View>
 
       <TouchableOpacity 
@@ -294,7 +292,7 @@ const AssistantNotification = memo(({
         onPress={handleDismiss}
         activeOpacity={0.7}
       >
-        <Text style={styles.notifOkayText}>OK</Text>
+        <Text style={styles.notifOkayText}>Okay</Text>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -305,14 +303,21 @@ const SimpleDock = memo(({
   dockApps,
   onLaunchApp,
   onLongPressApp,
+  onOpenSettings,
 }: {
   dockApps: AppData[];
   onLaunchApp: (pkg: string) => void;
   onLongPressApp: (pkg: string, label: string) => void;
+  onOpenSettings: () => void;
 }) => {
   return (
     <View style={styles.simpleDockContainer}>
-      <View style={styles.simpleDockCard}>
+      <TouchableOpacity
+        style={styles.simpleDockCard}
+        activeOpacity={1}
+        onLongPress={onOpenSettings}
+        delayLongPress={500}
+      >
         {dockApps.length === 0 ? (
           <View style={styles.emptyDockContainer}>
             <Text style={styles.emptyDockText}>Long press any app to pin here</Text>
@@ -329,7 +334,7 @@ const SimpleDock = memo(({
             ))}
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     </View>
   );
 });
@@ -340,6 +345,7 @@ const App = () => {
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("User");
+  const [assistantName, setAssistantName] = useState("Assistant");
   const [hiddenPackages, setHiddenPackages] = useState<string[]>([]);
   const [dockPackages, setDockPackages] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
@@ -348,6 +354,7 @@ const App = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [tempName, setTempName] = useState("User");
+  const [tempAssistantName, setTempAssistantName] = useState("Assistant");
 
   const [actionModal, setActionModal] = useState(false);
   const [actionType, setActionType] = useState<'hide' | 'unhide'>('hide');
@@ -393,6 +400,7 @@ const App = () => {
 
   const handleOpenSettings = () => {
     setTempName(userName);
+    setTempAssistantName(assistantName);
     setModalVisible(true);
   };
 
@@ -446,8 +454,9 @@ const App = () => {
   useEffect(() => {
     const init = async () => {
       await RNFS.mkdir(CUSTOM_AVATAR_DIR).catch(() => { });
-      const [uName, hidden, showH, avt, dock, showN] = await Promise.all([
+      const [uName, aName, hidden, showH, avt, dock, showN] = await Promise.all([
         RNFS.exists(CUSTOM_USER_PATH).then(e => e ? RNFS.readFile(CUSTOM_USER_PATH, 'utf8') : null),
+        RNFS.exists(CUSTOM_ASSISTANT_NAME_PATH).then(e => e ? RNFS.readFile(CUSTOM_ASSISTANT_NAME_PATH, 'utf8') : null),
         RNFS.exists(CUSTOM_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8') : null),
         RNFS.exists(CUSTOM_SHOW_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_SHOW_HIDDEN_PATH, 'utf8') : null),
         RNFS.exists(CUSTOM_AVATAR_PATH).then(e => e ? RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64') : null),
@@ -455,6 +464,7 @@ const App = () => {
         RNFS.exists(CUSTOM_SHOW_NAMES_PATH).then(e => e ? RNFS.readFile(CUSTOM_SHOW_NAMES_PATH, 'utf8') : null),
       ]);
       if (uName) setUserName(uName);
+      if (aName) setAssistantName(aName);
       if (hidden) setHiddenPackages(JSON.parse(hidden));
       if (showH) setShowHidden(showH === 'true');
       if (avt) setAvatarSource(`data:image/jpeg;base64,${avt}`);
@@ -599,7 +609,6 @@ const App = () => {
     <MemoizedItem item={item} onPress={launchApp} onLongPress={handleLongPress} showNames={showNames} />
   ), [handleLongPress, showNames]);
 
-  const saveName = (n: string) => { setUserName(n); RNFS.writeFile(CUSTOM_USER_PATH, n, 'utf8'); };
   const toggleHidden = (v: boolean) => { setShowHidden(v); RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
   const toggleShowNames = (v: boolean) => { setShowNames(v); RNFS.writeFile(CUSTOM_SHOW_NAMES_PATH, v ? 'true' : 'false', 'utf8'); };
   
@@ -639,9 +648,9 @@ const App = () => {
       {showNotification && (
         <AssistantNotification
           userName={userName}
+          assistantName={assistantName}
           avatarSource={avatarSource}
           onDismiss={handleDismissNotification}
-          onOpenSettings={handleOpenSettings}
         />
       )}
 
@@ -650,6 +659,7 @@ const App = () => {
         dockApps={dockApps}
         onLaunchApp={launchApp}
         onLongPressApp={handleLongPress}
+        onOpenSettings={handleOpenSettings}
       />
 
       {/* SETTINGS MODAL */}
@@ -688,6 +698,15 @@ const App = () => {
               placeholderTextColor="#666"
             />
 
+            <Text style={styles.inputLabel}>Assistant Name</Text>
+            <TextInput
+              style={styles.modernInput}
+              value={tempAssistantName}
+              onChangeText={setTempAssistantName}
+              placeholder="Enter assistant name..."
+              placeholderTextColor="#666"
+            />
+
             <View style={styles.rowBetween}>
               <Text style={styles.settingText}>Show Hidden Apps</Text>
               <Switch
@@ -716,7 +735,10 @@ const App = () => {
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} onPress={() => {
-                saveName(tempName);
+                setUserName(tempName);
+                setAssistantName(tempAssistantName);
+                RNFS.writeFile(CUSTOM_USER_PATH, tempName, 'utf8');
+                RNFS.writeFile(CUSTOM_ASSISTANT_NAME_PATH, tempAssistantName, 'utf8');
                 setModalVisible(false);
               }} activeOpacity={0.8}>
                 <Text style={styles.actionBtnText}>Save Changes</Text>
@@ -808,8 +830,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
     borderRadius: 20,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     elevation: 10,
@@ -818,6 +838,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     zIndex: 999,
+  },
+  notifTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
   },
   notifAvatarContainer: {
     width: 50,
@@ -835,31 +860,30 @@ const styles = StyleSheet.create({
   notifContent: {
     flex: 1,
     marginLeft: 12,
-    marginRight: 8,
   },
   notifTitle: {
     color: '#27ae60',
     fontSize: 12,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   notifMessage: {
     color: '#ffffff',
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
   },
   notifOkayBtn: {
     backgroundColor: '#27ae60',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginLeft: 8,
+    width: '100%',
+    alignItems: 'center',
   },
   notifOkayText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 'bold',
   },
 
