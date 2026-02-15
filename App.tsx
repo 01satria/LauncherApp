@@ -652,31 +652,31 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       
-      <View style={styles.homeScreenWrapper}>
-        {/* Touch handler untuk area kosong */}
-        <TouchableOpacity
-          style={styles.emptyAreaHandler}
-          activeOpacity={1}
-          onLongPress={handleOpenSettings}
-          delayLongPress={500}
-        >
-          <FlatList
-            key={listKey}
-            data={filteredApps}
-            numColumns={4}
-            keyExtractor={item => item.packageName}
-            renderItem={renderItem}
-            contentContainerStyle={styles.list}
-            initialNumToRender={20}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            removeClippedSubviews={true}
-            updateCellsBatchingPeriod={50}
-            getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-            scrollEnabled={true}
-            showsVerticalScrollIndicator={false}
-          />
-        </TouchableOpacity>
+      <View 
+        style={styles.homeScreenWrapper}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={() => {}}
+        onResponderRelease={(e) => {
+          // Simple touch detection - tidak block scroll
+        }}
+        onResponderLongPress={handleOpenSettings}
+      >
+        <FlatList
+          key={listKey}
+          data={filteredApps}
+          numColumns={4}
+          keyExtractor={item => item.packageName}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+          scrollEnabled={true}
+          showsVerticalScrollIndicator={false}
+        />
       </View>
       
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
@@ -853,7 +853,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   homeScreenWrapper: { flex: 1 },
-  emptyAreaHandler: { flex: 1 },
   list: { paddingTop: 50, paddingBottom: 140 },
   item: { 
     width: ITEM_WIDTH, 
