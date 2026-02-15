@@ -37,8 +37,8 @@ interface AppData {
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4;
-const ICON_SIZE = 56;
-const DOCK_ICON_SIZE = 48;
+const ICON_SIZE = 55;
+const DOCK_ICON_SIZE = 56;
 
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
@@ -387,6 +387,9 @@ const App = () => {
   const [listKey, setListKey] = useState(0);
   const modalScaleAnim = useRef(new Animated.Value(0)).current;
   const settingsModalAnim = useRef(new Animated.Value(0)).current;
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const isScrolling = useRef(false);
+  const touchStartTime = useRef(0);
 
   // Check if notification should show (daily reset at 01:00)
   const checkNotificationStatus = useCallback(async () => {
@@ -458,6 +461,9 @@ const App = () => {
     return () => {
       modalScaleAnim.stopAnimation();
       settingsModalAnim.stopAnimation();
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+      }
     };
   }, [modalScaleAnim, settingsModalAnim]);
 
@@ -648,36 +654,63 @@ const App = () => {
   if (loading) return <View style={styles.center}><ActivityIndicator color="#0f0" size="large" /></View>;
 
   const isDocked = dockPackages.includes(selectedPkg);
-  const scrollViewRef = useRef<any>(null);
+
+  const handleTouchStart = () => {
+    isScrolling.current = false;
+    touchStartTime.current = Date.now();
+    
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    
+    longPressTimer.current = setTimeout(() => {
+      if (!isScrolling.current) {
+        handleOpenSettings();
+      }
+    }, 400);
+  };
+
+  const handleTouchMove = () => {
+    isScrolling.current = true;
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    isScrolling.current = false;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       
-      <Pressable 
+      <View 
         style={styles.homeScreenWrapper}
-        onLongPress={handleOpenSettings}
-        delayLongPress={400}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
-        {({ pressed }) => (
-          <FlatList
-            key={listKey}
-            data={filteredApps}
-            numColumns={4}
-            keyExtractor={item => item.packageName}
-            renderItem={renderItem}
-            contentContainerStyle={styles.list}
-            initialNumToRender={20}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            removeClippedSubviews={true}
-            updateCellsBatchingPeriod={50}
-            getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-            scrollEnabled={!pressed}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
-      </Pressable>
+        <FlatList
+          key={listKey}
+          data={filteredApps}
+          numColumns={4}
+          keyExtractor={item => item.packageName}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+          scrollEnabled={true}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
       
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
       
