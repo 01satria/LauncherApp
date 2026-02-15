@@ -80,9 +80,9 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
   }
 
   return (
-    <Animated.View style={{
-      width: size,
-      height: size,
+    <Animated.View style={{ 
+      width: size, 
+      height: size, 
       borderRadius,
       overflow: 'hidden',
       opacity: fadeAnim,
@@ -201,7 +201,7 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: {
 }, (prev, next) => prev.app.packageName === next.app.packageName);
 
 // ==================== ASSISTANT NOTIFICATION ====================
-const AssistantNotification = memo(({
+const AssistantNotification = memo(({ 
   userName,
   assistantName,
   avatarSource,
@@ -288,10 +288,10 @@ const AssistantNotification = memo(({
   };
 
   return (
-    <Animated.View
+    <Animated.View 
       style={[
         styles.notificationCard,
-        {
+        { 
           transform: [{ translateY: slideAnim }],
           opacity: opacityAnim,
         }
@@ -299,19 +299,19 @@ const AssistantNotification = memo(({
     >
       <View style={styles.notifTopRow}>
         <View style={styles.notifAvatarContainer}>
-          <Image
-            source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }}
-            style={styles.notifAvatar}
+          <Image 
+            source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+            style={styles.notifAvatar} 
           />
         </View>
-
+        
         <View style={styles.notifContent}>
           <Text style={styles.notifTitle}>{assistantName}</Text>
           <Text style={styles.notifMessage} numberOfLines={4}>{message}</Text>
         </View>
       </View>
 
-      <TouchableOpacity
+      <TouchableOpacity 
         style={styles.notifOkayBtn}
         onPress={handleDismiss}
         activeOpacity={0.7}
@@ -323,14 +323,16 @@ const AssistantNotification = memo(({
 });
 
 // ==================== SIMPLE DOCK (APPS ONLY) ====================
-const SimpleDock = memo(({
+const SimpleDock = memo(({ 
   dockApps,
   onLaunchApp,
   onLongPressApp,
+  onOpenSettings,
 }: {
   dockApps: AppData[];
   onLaunchApp: (pkg: string) => void;
   onLongPressApp: (pkg: string, label: string) => void;
+  onOpenSettings: () => void;
 }) => {
   // Calculate dynamic width based on app count
   const appCount = dockApps.length;
@@ -341,7 +343,12 @@ const SimpleDock = memo(({
 
   return (
     <View style={styles.simpleDockContainer}>
-      <View style={[styles.simpleDockCard, { width: calculatedWidth }]}>
+      <TouchableOpacity
+        style={[styles.simpleDockCard, { width: calculatedWidth }]}
+        activeOpacity={1}
+        onLongPress={onOpenSettings}
+        delayLongPress={500}
+      >
         {dockApps.length === 0 ? (
           <View style={styles.emptyDockContainer}>
             <Text style={styles.emptyDockText}>Long press any app to pin</Text>
@@ -349,16 +356,16 @@ const SimpleDock = memo(({
         ) : (
           <View style={styles.dockAppsRow}>
             {dockApps.map((app: AppData) => (
-              <DockAppItem
-                key={app.packageName}
-                app={app}
+              <DockAppItem 
+                key={app.packageName} 
+                app={app} 
                 onPress={onLaunchApp}
                 onLongPress={onLongPressApp}
               />
             ))}
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     </View>
   );
 });
@@ -387,9 +394,6 @@ const App = () => {
   const [listKey, setListKey] = useState(0);
   const modalScaleAnim = useRef(new Animated.Value(0)).current;
   const settingsModalAnim = useRef(new Animated.Value(0)).current;
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const isScrolling = useRef(false);
-  const touchStartTime = useRef(0);
 
   // Check if notification should show (daily reset at 01:00)
   const checkNotificationStatus = useCallback(async () => {
@@ -406,7 +410,7 @@ const App = () => {
 
       // Check if it's past 01:00 AM and it's a new day
       const resetHour = 1;
-      const shouldReset =
+      const shouldReset = 
         today.getDate() !== lastDismissed.getDate() ||
         today.getMonth() !== lastDismissed.getMonth() ||
         today.getFullYear() !== lastDismissed.getFullYear();
@@ -430,45 +434,6 @@ const App = () => {
     setTempAssistantName(assistantName);
     setModalVisible(true);
   };
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (evt, gestureState) =>
-        Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2,
-      onPanResponderGrant: () => {
-        touchStartTime.current = Date.now();
-        if (longPressTimer.current) clearTimeout(longPressTimer.current);
-        longPressTimer.current = setTimeout(() => {
-          const touchDuration = Date.now() - touchStartTime.current;
-          if (touchDuration >= 400 && !isScrolling.current) {
-            handleOpenSettings();
-          }
-        }, 400);
-      },
-      onPanResponderMove: () => {
-        isScrolling.current = true;
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-      },
-      onPanResponderRelease: () => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-        isScrolling.current = false;
-      },
-      onPanResponderTerminate: () => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-        isScrolling.current = false;
-      },
-    })
-  ).current;
 
   useEffect(() => {
     if (actionModal) {
@@ -500,9 +465,6 @@ const App = () => {
     return () => {
       modalScaleAnim.stopAnimation();
       settingsModalAnim.stopAnimation();
-      if (longPressTimer.current) {
-        clearTimeout(longPressTimer.current);
-      }
     };
   }, [modalScaleAnim, settingsModalAnim]);
 
@@ -539,10 +501,10 @@ const App = () => {
       if (avt) setAvatarSource(`data:image/jpeg;base64,${avt}`);
       if (dock) setDockPackages(JSON.parse(dock));
       if (showN !== null) setShowNames(showN === 'true');
-
+      
       // Check notification status
       await checkNotificationStatus();
-
+      
       setLoading(false);
     };
     init();
@@ -577,8 +539,8 @@ const App = () => {
   // Filter apps: exclude dock apps from main list
   useEffect(() => {
     requestAnimationFrame(() => {
-      const filtered = allApps.filter(app =>
-        !dockPackages.includes(app.packageName) &&
+      const filtered = allApps.filter(app => 
+        !dockPackages.includes(app.packageName) && 
         (showHidden || !hiddenPackages.includes(app.packageName))
       );
       setFilteredApps(filtered);
@@ -601,7 +563,7 @@ const App = () => {
       newList = newList.filter(p => p !== selectedPkg);
     } else {
       if (!newList.includes(selectedPkg)) newList.push(selectedPkg);
-
+      
       // Auto-remove from dock when hiding
       if (dockPackages.includes(selectedPkg)) {
         const newDock = dockPackages.filter(p => p !== selectedPkg);
@@ -619,7 +581,7 @@ const App = () => {
     const isDocked = dockPackages.includes(selectedPkg);
     const isHidden = hiddenPackages.includes(selectedPkg);
     let newDock = [...dockPackages];
-
+    
     if (isDocked) {
       newDock = newDock.filter(p => p !== selectedPkg);
       ToastAndroid.show('Unpinned from Dock', ToastAndroid.SHORT);
@@ -630,7 +592,7 @@ const App = () => {
         return;
       }
       newDock.push(selectedPkg);
-
+      
       // Auto-unhide when pinning to dock
       if (isHidden) {
         const newHidden = hiddenPackages.filter(p => p !== selectedPkg);
@@ -641,7 +603,7 @@ const App = () => {
         ToastAndroid.show('Pinned to Dock', ToastAndroid.SHORT);
       }
     }
-
+    
     setDockPackages(newDock);
     await RNFS.writeFile(CUSTOM_DOCK_PATH, JSON.stringify(newDock), 'utf8');
     setActionModal(false);
@@ -680,7 +642,7 @@ const App = () => {
 
   const toggleHidden = (v: boolean) => { setShowHidden(v); RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
   const toggleShowNames = (v: boolean) => { setShowNames(v); RNFS.writeFile(CUSTOM_SHOW_NAMES_PATH, v ? 'true' : 'false', 'utf8'); };
-
+  
   const changePhoto = async () => {
     const res = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true, maxWidth: 200, maxHeight: 200 });
     if (res.assets?.[0]?.base64) {
@@ -694,66 +656,29 @@ const App = () => {
 
   const isDocked = dockPackages.includes(selectedPkg);
 
-  const handleTouchStart = () => {
-    isScrolling.current = false;
-    touchStartTime.current = Date.now();
-
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-
-    longPressTimer.current = setTimeout(() => {
-      if (!isScrolling.current) {
-        handleOpenSettings();
-      }
-    }, 400);
-  };
-
-  const handleTouchMove = () => {
-    isScrolling.current = true;
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-    isScrolling.current = false;
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-
-      <View
-        style={styles.homeScreenWrapper}
-        {...panResponder.panHandlers}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        <FlatList
-          key={listKey}
-          data={filteredApps}
-          numColumns={4}
-          keyExtractor={item => item.packageName}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          initialNumToRender={20}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={50}
-          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-          scrollEnabled={true}
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
-
+      
+      <FlatList
+        key={listKey}
+        data={filteredApps}
+        numColumns={4}
+        keyExtractor={item => item.packageName}
+        renderItem={renderItem}
+        contentContainerStyle={styles.list}
+        initialNumToRender={20}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
+        getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+        scrollEnabled={true}
+        showsVerticalScrollIndicator={false}
+      />
+      
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
-
+      
       {/* ASSISTANT NOTIFICATION */}
       {showNotification && (
         <AssistantNotification
@@ -769,12 +694,13 @@ const App = () => {
         dockApps={dockApps}
         onLaunchApp={launchApp}
         onLongPressApp={handleLongPress}
+        onOpenSettings={handleOpenSettings}
       />
 
       {/* SETTINGS MODAL */}
       <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <Animated.View
+          <Animated.View 
             style={[
               styles.modalContent,
               {
@@ -856,11 +782,11 @@ const App = () => {
           </Animated.View>
         </View>
       </Modal>
-
+      
       {/* APP ACTION MODAL */}
       <Modal visible={actionModal} transparent animationType="none" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
-          <Animated.View
+          <Animated.View 
             style={[
               styles.modalContent,
               {
@@ -887,9 +813,9 @@ const App = () => {
             <Text style={styles.modalSubtitle}>Select an action for this app:</Text>
 
             <View style={styles.verticalBtnGroup}>
-              <TouchableOpacity
-                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]}
-                onPress={pinToDock}
+              <TouchableOpacity 
+                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]} 
+                onPress={pinToDock} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
@@ -897,9 +823,9 @@ const App = () => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.btnGreen, styles.btnFull]}
-                onPress={doAction}
+              <TouchableOpacity 
+                style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} 
+                onPress={doAction} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
@@ -907,9 +833,9 @@ const App = () => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.btnRed, styles.btnFull]}
-                onPress={handleUninstall}
+              <TouchableOpacity 
+                style={[styles.actionBtn, styles.btnRed, styles.btnFull]} 
+                onPress={handleUninstall} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>🗑️ Uninstall</Text>
@@ -925,12 +851,11 @@ const App = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  homeScreenWrapper: { flex: 1 },
   list: { paddingTop: 50, paddingBottom: 140 },
-  item: {
-    width: ITEM_WIDTH,
-    height: 90,
-    alignItems: 'center',
+  item: { 
+    width: ITEM_WIDTH, 
+    height: 90, 
+    alignItems: 'center', 
     marginBottom: 8,
     justifyContent: 'center',
   },
@@ -938,22 +863,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconContainer: {
-    width: ICON_SIZE,
-    height: ICON_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4
+  iconContainer: { 
+    width: ICON_SIZE, 
+    height: ICON_SIZE, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 4 
   },
-  label: {
-    color: '#eee',
-    fontSize: 11,
-    textAlign: 'center',
-    marginHorizontal: 4,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowRadius: 3
+  label: { 
+    color: '#eee', 
+    fontSize: 11, 
+    textAlign: 'center', 
+    marginHorizontal: 4, 
+    textShadowColor: 'rgba(0,0,0,0.8)', 
+    textShadowRadius: 3 
   },
-
+  
   // ==================== NOTIFICATION STYLES ====================
   notificationCard: {
     position: 'absolute',
@@ -1035,7 +960,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.92)',
     borderRadius: 31,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     elevation: 8,
@@ -1068,7 +993,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
+  
   gradientFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220, zIndex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: width * 0.85, backgroundColor: '#000000', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#333', elevation: 10 },
