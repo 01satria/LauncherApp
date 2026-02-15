@@ -46,6 +46,7 @@ const CUSTOM_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/hidden.json`;
 const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 const CUSTOM_DOCK_PATH = `${CUSTOM_AVATAR_DIR}/dock.json`;
 const CUSTOM_SHOW_NAMES_PATH = `${CUSTOM_AVATAR_DIR}/show_names.txt`;
+const CUSTOM_NOTIF_DISMISSED_PATH = `${CUSTOM_AVATAR_DIR}/notif_dismissed.txt`;
 const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
 
 // ==================== SAFE IMAGE (OPTIMIZED) ====================
@@ -195,197 +196,24 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: {
   );
 }, (prev, next) => prev.app.packageName === next.app.packageName);
 
-// ==================== DOCK ONE UI SAMSUNG NOW BAR ====================
-const AssistantDock = memo(({ 
-  userName, 
-  showHidden, 
-  showNames,
-  onSaveUserName, 
-  onToggleShowHidden,
-  onToggleShowNames,
-  onChangePhoto, 
+// ==================== ASSISTANT NOTIFICATION ====================
+const AssistantNotification = memo(({ 
+  userName,
   avatarSource,
-  dockApps,
-  onLaunchApp,
-  onLongPressApp,
-  showDockView,
-  onToggleDockView
-}: any) => {
+  onDismiss,
+  onOpenSettings
+}: {
+  userName: string;
+  avatarSource: string | null;
+  onDismiss: () => void;
+  onOpenSettings: () => void;
+}) => {
   const [message, setMessage] = useState("");
-  const [modalVisible, setModalVisible] = useState(false);
-  const [tempName, setTempName] = useState(userName);
+  const slideAnim = useRef(new Animated.Value(-200)).current;
   const appState = useRef(AppState.currentState);
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const settingsModalAnim = useRef(new Animated.Value(0)).current;
-  const autoRotateTimer = useRef<NodeJS.Timeout | null>(null);
-  const isUserInteracting = useRef(false);
-
-  // ==================== AUTO ROTATE INFINITE LOOP ====================
-  const performTransition = useCallback((duration: number = 500, isAuto: boolean = false) => {
-    Animated.timing(slideAnim, {
-      toValue: 1,
-      duration,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) {
-        // Delay untuk smooth transition
-        setTimeout(() => {
-          onToggleDockView();
-          // Reset animation setelah state berubah
-          requestAnimationFrame(() => {
-            slideAnim.setValue(0);
-            // Resume auto rotate jika ini auto transition
-            if (isAuto) {
-              setTimeout(() => {
-                startAutoRotate();
-              }, 100);
-            }
-          });
-        }, 10);
-      }
-    });
-  }, [slideAnim, onToggleDockView]);
-
-  const startAutoRotate = useCallback(() => {
-    if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-    
-    autoRotateTimer.current = setTimeout(() => {
-      if (!isUserInteracting.current && !modalVisible && appState.current === 'active') {
-        performTransition(500, true); // Pass true untuk auto mode
-        // TIDAK langsung call startAutoRotate, tunggu di callback performTransition
-      } else {
-        startAutoRotate();
-      }
-    }, 5000);
-  }, [performTransition, modalVisible]);
 
   useEffect(() => {
-    if (appState.current === 'active' && !modalVisible) {
-      startAutoRotate();
-    }
-    
-    return () => {
-      if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-    };
-  }, [startAutoRotate, modalVisible]);
-
-  // ==================== RESPONSIVE GESTURE HANDLER ====================
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isVertical = Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isVertical && gestureState.dy < -10;
-      },
-      onPanResponderGrant: () => {
-        isUserInteracting.current = true;
-        if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const { dy } = gestureState;
-        const threshold = 80;
-        if (dy < 0) {
-          const progress = Math.min(Math.abs(dy) / threshold, 0.99);
-          slideAnim.setValue(progress);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        const { dy, vy } = gestureState;
-        
-        slideAnim.stopAnimation((currentValue) => {
-          const shouldComplete = currentValue > 0.25 || Math.abs(vy) > 0.5;
-          
-          if (dy < 0 && shouldComplete) {
-            const remainingDistance = 1 - currentValue;
-            const duration = Math.max(150, Math.min(remainingDistance * 400, 350));
-            
-            Animated.timing(slideAnim, {
-              toValue: 1,
-              duration,
-              easing: Easing.out(Easing.cubic),
-              useNativeDriver: true,
-            }).start(({ finished }) => {
-              if (finished) {
-                setTimeout(() => {
-                  onToggleDockView();
-                  requestAnimationFrame(() => {
-                    slideAnim.setValue(0);
-                    isUserInteracting.current = false;
-                    // Delay sebelum start auto rotate lagi
-                    setTimeout(() => {
-                      startAutoRotate();
-                    }, 200);
-                  });
-                }, 10);
-              }
-            });
-          } else {
-            Animated.spring(slideAnim, {
-              toValue: 0,
-              friction: 8,
-              tension: 70,
-              useNativeDriver: true,
-            }).start(() => {
-              isUserInteracting.current = false;
-              startAutoRotate();
-            });
-          }
-        });
-      },
-    })
-  ).current;
-
-  useEffect(() => {
-    if (modalVisible) {
-      Animated.spring(settingsModalAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 100,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      settingsModalAnim.setValue(0);
-    }
-  }, [modalVisible, settingsModalAnim]);
-
-  // ==================== SCROLL UP ANIMATIONS (OPTIMIZED) ====================
-  const currentTranslateY = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -80],
-    extrapolate: 'clamp'
-  });
-
-  const currentOpacity = slideAnim.interpolate({
-    inputRange: [0, 0.3, 1],
-    outputRange: [1, 0.7, 0],
-    extrapolate: 'clamp'
-  });
-
-  const nextTranslateY = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [80, 0],
-    extrapolate: 'clamp'
-  });
-
-  const nextOpacity = slideAnim.interpolate({
-    inputRange: [0, 0.3, 1],
-    outputRange: [0, 0.7, 1],
-    extrapolate: 'clamp'
-  });
-
-  useEffect(() => {
-    return () => {
-      slideAnim.stopAnimation();
-      settingsModalAnim.stopAnimation();
-      if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-    };
-  }, [slideAnim, settingsModalAnim]);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
     const updateMessage = () => {
-      if (appState.current?.match(/inactive|background/)) return;
       const h = new Date().getHours();
       if (h >= 22 || h < 4) setMessage(`It's late, ${userName}. Put the phone down now! 😠 u need rest to stay healthy.`);
       else if (h >= 4 && h < 11) setMessage(`Good morning, ${userName}! ☀️ Wake up and conquer the day. Remember, I'm always cheering for u right here. 😘`);
@@ -394,228 +222,115 @@ const AssistantDock = memo(({
       else setMessage(`Are u done for the day? 🌙 No more wandering around. It's time for u to relax. 🥰`);
     };
 
-    const stopTimer = () => { if (timer) { clearInterval(timer); timer = null; } };
-    const startTimer = () => { stopTimer(); updateMessage(); timer = setInterval(updateMessage, 60000); };
+    updateMessage();
 
-    startTimer();
+    // Slide in animation
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      friction: 9,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
+
+    let timer: NodeJS.Timeout | null = null;
+    const startTimer = () => {
+      if (timer) clearInterval(timer);
+      updateMessage();
+      timer = setInterval(updateMessage, 60000);
+    };
+
     const subscription = AppState.addEventListener('change', nextAppState => {
       appState.current = nextAppState;
-      if (nextAppState === 'active') startTimer(); else stopTimer();
+      if (nextAppState === 'active') startTimer();
+      else if (timer) clearInterval(timer);
     });
-    return () => { stopTimer(); subscription.remove(); };
-  }, [userName]);
 
-  const save = () => { onSaveUserName(tempName); setModalVisible(false); };
+    startTimer();
 
-  const handleAvatarPress = () => {
-    isUserInteracting.current = true;
-    if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-    
+    return () => {
+      if (timer) clearInterval(timer);
+      subscription.remove();
+      slideAnim.stopAnimation();
+    };
+  }, [userName, slideAnim]);
+
+  const handleDismiss = () => {
     Animated.timing(slideAnim, {
-      toValue: 1,
-      duration: 350,
+      toValue: -200,
+      duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) {
-        setTimeout(() => {
-          onToggleDockView();
-          requestAnimationFrame(() => {
-            slideAnim.setValue(0);
-            isUserInteracting.current = false;
-            setTimeout(() => {
-              startAutoRotate();
-            }, 200);
-          });
-        }, 10);
-      }
+    }).start(() => {
+      onDismiss();
     });
   };
 
   return (
-    <>
-      <View style={styles.nowBarContainer} {...panResponder.panHandlers}>
-        {/* CURRENT VIEW - Slides up and out */}
-        <Animated.View 
-          style={[
-            styles.nowBarCard, 
-            { 
-              transform: [{ translateY: currentTranslateY }],
-              opacity: currentOpacity,
-            }
-          ]}
-          pointerEvents="auto"
-        >
-          {showDockView ? (
-            dockApps.length === 0 ? (
-              <View style={styles.emptyDockContainer}>
-                <Text style={styles.emptyDockText}>Long press any app to pin here</Text>
-              </View>
-            ) : (
-              <View style={styles.dockAppsRow}>
-                {dockApps.map((app: AppData) => (
-                  <DockAppItem 
-                    key={app.packageName} 
-                    app={app} 
-                    onPress={onLaunchApp}
-                    onLongPress={onLongPressApp}
-                  />
-                ))}
-              </View>
-            )
-          ) : (
-            <>
-              <TouchableOpacity 
-                style={styles.avatarContainer} 
-                onPress={handleAvatarPress}
-                onLongPress={() => { 
-                  isUserInteracting.current = true;
-                  if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-                  setTempName(userName); 
-                  setModalVisible(true); 
-                }} 
-                activeOpacity={0.8}
-                delayLongPress={400}
-              >
-                <Image 
-                  source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
-                  style={styles.nowBarAvatar} 
-                />
-              </TouchableOpacity>
-              <View style={styles.messageContainer}>
-                <Text style={styles.nowBarMessage} numberOfLines={2}>{message}</Text>
-              </View>
-            </>
-          )}
-        </Animated.View>
-
-        {/* NEXT VIEW - Comes from bottom */}
-        <Animated.View 
-          style={[
-            styles.nowBarCard, 
-            { 
-              transform: [{ translateY: nextTranslateY }],
-              opacity: nextOpacity,
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-            }
-          ]}
-          pointerEvents="none"
-        >
-          {showDockView ? (
-            <>
-              <View style={styles.avatarContainer}>
-                <Image 
-                  source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
-                  style={styles.nowBarAvatar} 
-                />
-              </View>
-              <View style={styles.messageContainer}>
-                <Text style={styles.nowBarMessage} numberOfLines={2}>{message}</Text>
-              </View>
-            </>
-          ) : (
-            dockApps.length === 0 ? (
-              <View style={styles.emptyDockContainer}>
-                <Text style={styles.emptyDockText}>Long press any app to pin here</Text>
-              </View>
-            ) : (
-              <View style={styles.dockAppsRow}>
-                {dockApps.map((app: AppData) => (
-                  <View key={`next-${app.packageName}`} style={styles.dockAppItem}>
-                    <SafeAppIcon iconUri={app.icon} size={DOCK_ICON_SIZE} />
-                  </View>
-                ))}
-              </View>
-            )
-          )}
-        </Animated.View>
+    <Animated.View 
+      style={[
+        styles.notificationCard,
+        { transform: [{ translateY: slideAnim }] }
+      ]}
+    >
+      <TouchableOpacity 
+        style={styles.notifAvatarContainer}
+        onLongPress={onOpenSettings}
+        activeOpacity={0.8}
+        delayLongPress={400}
+      >
+        <Image 
+          source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+          style={styles.notifAvatar} 
+        />
+      </TouchableOpacity>
+      
+      <View style={styles.notifContent}>
+        <Text style={styles.notifTitle}>Assistant</Text>
+        <Text style={styles.notifMessage} numberOfLines={3}>{message}</Text>
       </View>
 
-      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => { 
-        setModalVisible(false); 
-        isUserInteracting.current = false;
-        startAutoRotate();
-      }}>
-        <View style={styles.modalOverlay}>
-          <Animated.View 
-            style={[
-              styles.modalContent,
-              {
-                transform: [
-                  { scale: settingsModalAnim },
-                  {
-                    translateY: settingsModalAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [50, 0]
-                    })
-                  }
-                ],
-                opacity: settingsModalAnim
-              }
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Settings</Text>
-              <TouchableOpacity onPress={() => { 
-                setModalVisible(false);
-                isUserInteracting.current = false;
-                startAutoRotate();
-              }} style={styles.closeBtn}>
-                <Text style={styles.closeText}>✕</Text>
-              </TouchableOpacity>
-            </View>
+      <TouchableOpacity 
+        style={styles.notifOkayBtn}
+        onPress={handleDismiss}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.notifOkayText}>OK</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+});
 
-            <Text style={styles.inputLabel}>Ur Name</Text>
-            <TextInput
-              style={styles.modernInput}
-              value={tempName}
-              onChangeText={setTempName}
-              placeholder="Enter name..."
-              placeholderTextColor="#666"
-            />
-
-            <View style={styles.rowBetween}>
-              <Text style={styles.settingText}>Show Hidden Apps</Text>
-              <Switch
-                value={showHidden}
-                onValueChange={onToggleShowHidden}
-                thumbColor={showHidden ? "#27ae60" : "#f4f3f4"}
-                trackColor={{ false: "#767577", true: "#2ecc7130" }}
+// ==================== SIMPLE DOCK (APPS ONLY) ====================
+const SimpleDock = memo(({ 
+  dockApps,
+  onLaunchApp,
+  onLongPressApp,
+}: {
+  dockApps: AppData[];
+  onLaunchApp: (pkg: string) => void;
+  onLongPressApp: (pkg: string, label: string) => void;
+}) => {
+  return (
+    <View style={styles.simpleDockContainer}>
+      <View style={styles.simpleDockCard}>
+        {dockApps.length === 0 ? (
+          <View style={styles.emptyDockContainer}>
+            <Text style={styles.emptyDockText}>Long press any app to pin here</Text>
+          </View>
+        ) : (
+          <View style={styles.dockAppsRow}>
+            {dockApps.map((app: AppData) => (
+              <DockAppItem 
+                key={app.packageName} 
+                app={app} 
+                onPress={onLaunchApp}
+                onLongPress={onLongPressApp}
               />
-            </View>
-
-            <View style={styles.rowBetween}>
-              <Text style={styles.settingText}>Show App Names</Text>
-              <Switch
-                value={showNames}
-                onValueChange={onToggleShowNames}
-                thumbColor={showNames ? "#27ae60" : "#f4f3f4"}
-                trackColor={{ false: "#767577", true: "#2ecc7130" }}
-              />
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.verticalBtnGroup}>
-              <TouchableOpacity style={[styles.actionBtn, styles.btnBlue, styles.btnFull]} onPress={onChangePhoto} activeOpacity={0.8}>
-                <Text style={styles.actionBtnText}>Change Avatar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} onPress={() => {
-                save();
-                isUserInteracting.current = false;
-                startAutoRotate();
-              }} activeOpacity={0.8}>
-                <Text style={styles.actionBtnText}>Save Changes</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
-    </>
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
   );
 });
 
@@ -630,7 +345,9 @@ const App = () => {
   const [showHidden, setShowHidden] = useState(false);
   const [showNames, setShowNames] = useState(true);
   const [avatarSource, setAvatarSource] = useState<string | null>(null);
-  const [showDockView, setShowDockView] = useState(false);
+  const [showNotification, setShowNotification] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [tempName, setTempName] = useState("User");
 
   const [actionModal, setActionModal] = useState(false);
   const [actionType, setActionType] = useState<'hide' | 'unhide'>('hide');
@@ -638,6 +355,46 @@ const App = () => {
   const [selectedLabel, setSelectedLabel] = useState('');
   const [listKey, setListKey] = useState(0);
   const modalScaleAnim = useRef(new Animated.Value(0)).current;
+  const settingsModalAnim = useRef(new Animated.Value(0)).current;
+
+  // Check if notification should show (daily reset at 01:00)
+  const checkNotificationStatus = useCallback(async () => {
+    try {
+      const exists = await RNFS.exists(CUSTOM_NOTIF_DISMISSED_PATH);
+      if (!exists) {
+        setShowNotification(true);
+        return;
+      }
+
+      const dismissedDate = await RNFS.readFile(CUSTOM_NOTIF_DISMISSED_PATH, 'utf8');
+      const today = new Date();
+      const lastDismissed = new Date(dismissedDate);
+
+      // Check if it's past 01:00 AM and it's a new day
+      const resetHour = 1;
+      const shouldReset = 
+        today.getDate() !== lastDismissed.getDate() ||
+        today.getMonth() !== lastDismissed.getMonth() ||
+        today.getFullYear() !== lastDismissed.getFullYear();
+
+      if (shouldReset && today.getHours() >= resetHour) {
+        setShowNotification(true);
+      }
+    } catch (e) {
+      setShowNotification(true);
+    }
+  }, []);
+
+  const handleDismissNotification = async () => {
+    setShowNotification(false);
+    const now = new Date().toISOString();
+    await RNFS.writeFile(CUSTOM_NOTIF_DISMISSED_PATH, now, 'utf8');
+  };
+
+  const handleOpenSettings = () => {
+    setTempName(userName);
+    setModalVisible(true);
+  };
 
   useEffect(() => {
     if (actionModal) {
@@ -653,10 +410,24 @@ const App = () => {
   }, [actionModal, modalScaleAnim]);
 
   useEffect(() => {
+    if (modalVisible) {
+      Animated.spring(settingsModalAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      settingsModalAnim.setValue(0);
+    }
+  }, [modalVisible, settingsModalAnim]);
+
+  useEffect(() => {
     return () => {
       modalScaleAnim.stopAnimation();
+      settingsModalAnim.stopAnimation();
     };
-  }, [modalScaleAnim]);
+  }, [modalScaleAnim, settingsModalAnim]);
 
   const refreshApps = useCallback(async () => {
     try {
@@ -689,10 +460,22 @@ const App = () => {
       if (avt) setAvatarSource(`data:image/jpeg;base64,${avt}`);
       if (dock) setDockPackages(JSON.parse(dock));
       if (showN !== null) setShowNames(showN === 'true');
+      
+      // Check notification status
+      await checkNotificationStatus();
+      
       setLoading(false);
     };
     init();
     refreshApps();
+
+    // Daily reset timer - check every hour if it's 01:00
+    const checkResetTimer = setInterval(() => {
+      const now = new Date();
+      if (now.getHours() === 1 && now.getMinutes() === 0) {
+        checkNotificationStatus();
+      }
+    }, 60000); // Check every minute
 
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
       refreshApps();
@@ -701,14 +484,16 @@ const App = () => {
     const appStateSub = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') {
         setTimeout(() => refreshApps(), 1000);
+        checkNotificationStatus();
       }
     });
 
     return () => {
+      clearInterval(checkResetTimer);
       InstalledApps.stopListeningForAppInstallations();
       appStateSub.remove();
     };
-  }, [refreshApps]);
+  }, [refreshApps, checkNotificationStatus]);
 
   // Filter apps: exclude dock apps from main list
   useEffect(() => {
@@ -817,7 +602,6 @@ const App = () => {
   const saveName = (n: string) => { setUserName(n); RNFS.writeFile(CUSTOM_USER_PATH, n, 'utf8'); };
   const toggleHidden = (v: boolean) => { setShowHidden(v); RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
   const toggleShowNames = (v: boolean) => { setShowNames(v); RNFS.writeFile(CUSTOM_SHOW_NAMES_PATH, v ? 'true' : 'false', 'utf8'); };
-  const toggleDockView = () => setShowDockView(prev => !prev);
   
   const changePhoto = async () => {
     const res = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true, maxWidth: 200, maxHeight: 200 });
@@ -850,22 +634,99 @@ const App = () => {
         getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
       />
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
-      <AssistantDock
-        userName={userName} 
-        showHidden={showHidden}
-        showNames={showNames}
-        avatarSource={avatarSource}
+      
+      {/* ASSISTANT NOTIFICATION */}
+      {showNotification && (
+        <AssistantNotification
+          userName={userName}
+          avatarSource={avatarSource}
+          onDismiss={handleDismissNotification}
+          onOpenSettings={handleOpenSettings}
+        />
+      )}
+
+      {/* SIMPLE DOCK */}
+      <SimpleDock
         dockApps={dockApps}
-        showDockView={showDockView}
-        onSaveUserName={saveName} 
-        onToggleShowHidden={toggleHidden}
-        onToggleShowNames={toggleShowNames}
-        onChangePhoto={changePhoto}
         onLaunchApp={launchApp}
         onLongPressApp={handleLongPress}
-        onToggleDockView={toggleDockView}
       />
+
+      {/* SETTINGS MODAL */}
+      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <Animated.View 
+            style={[
+              styles.modalContent,
+              {
+                transform: [
+                  { scale: settingsModalAnim },
+                  {
+                    translateY: settingsModalAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [50, 0]
+                    })
+                  }
+                ],
+                opacity: settingsModalAnim
+              }
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Settings</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+                <Text style={styles.closeText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Ur Name</Text>
+            <TextInput
+              style={styles.modernInput}
+              value={tempName}
+              onChangeText={setTempName}
+              placeholder="Enter name..."
+              placeholderTextColor="#666"
+            />
+
+            <View style={styles.rowBetween}>
+              <Text style={styles.settingText}>Show Hidden Apps</Text>
+              <Switch
+                value={showHidden}
+                onValueChange={toggleHidden}
+                thumbColor={showHidden ? "#27ae60" : "#f4f3f4"}
+                trackColor={{ false: "#767577", true: "#2ecc7130" }}
+              />
+            </View>
+
+            <View style={styles.rowBetween}>
+              <Text style={styles.settingText}>Show App Names</Text>
+              <Switch
+                value={showNames}
+                onValueChange={toggleShowNames}
+                thumbColor={showNames ? "#27ae60" : "#f4f3f4"}
+                trackColor={{ false: "#767577", true: "#2ecc7130" }}
+              />
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.verticalBtnGroup}>
+              <TouchableOpacity style={[styles.actionBtn, styles.btnBlue, styles.btnFull]} onPress={changePhoto} activeOpacity={0.8}>
+                <Text style={styles.actionBtnText}>Change Avatar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} onPress={() => {
+                saveName(tempName);
+                setModalVisible(false);
+              }} activeOpacity={0.8}>
+                <Text style={styles.actionBtnText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
       
+      {/* APP ACTION MODAL */}
       <Modal visible={actionModal} transparent animationType="none" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
           <Animated.View 
@@ -938,22 +799,83 @@ const styles = StyleSheet.create({
   iconContainer: { width: ICON_SIZE, height: ICON_SIZE, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   label: { color: '#eee', fontSize: 11, textAlign: 'center', marginHorizontal: 4, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3 },
   
-  // ==================== ONE UI NOW BAR STYLES ====================
-  nowBarContainer: { 
-    position: 'absolute', 
-    bottom: 20, 
-    left: 16, 
-    right: 16, 
-    height: 62,
+  // ==================== NOTIFICATION STYLES ====================
+  notificationCard: {
+    position: 'absolute',
+    top: 60,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 999,
+  },
+  notifAvatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#1a1a1a',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  notifAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  notifContent: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  notifTitle: {
+    color: '#27ae60',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  notifMessage: {
+    color: '#ffffff',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  notifOkayBtn: {
+    backgroundColor: '#27ae60',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  notifOkayText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+
+  // ==================== SIMPLE DOCK STYLES ====================
+  simpleDockContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 16,
+    right: 16,
     zIndex: 2,
   },
-  nowBarCard: {
+  simpleDockCard: {
     height: 62,
     backgroundColor: 'rgba(0, 0, 0, 0.92)',
     borderRadius: 31,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
@@ -962,33 +884,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-  },
-  avatarContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#1a1a1a',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  nowBarAvatar: {
-    width: '100%',
-    height: '100%',
-  },
-  messageContainer: {
-    flex: 1,
-    marginLeft: 12,
-    marginRight: 8,
-    justifyContent: 'center',
-  },
-  nowBarMessage: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
   },
   emptyDockContainer: {
     flex: 1,
