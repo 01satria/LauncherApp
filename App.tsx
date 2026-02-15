@@ -77,9 +77,9 @@ const SafeAppIcon = memo(({ iconUri, size = ICON_SIZE }: { iconUri: string; size
   }
 
   return (
-    <Animated.View style={{
-      width: size,
-      height: size,
+    <Animated.View style={{ 
+      width: size, 
+      height: size, 
       borderRadius,
       overflow: 'hidden',
       opacity: fadeAnim,
@@ -196,14 +196,14 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: {
 }, (prev, next) => prev.app.packageName === next.app.packageName);
 
 // ==================== DOCK ONE UI SAMSUNG NOW BAR ====================
-const AssistantDock = memo(({
-  userName,
-  showHidden,
+const AssistantDock = memo(({ 
+  userName, 
+  showHidden, 
   showNames,
-  onSaveUserName,
+  onSaveUserName, 
   onToggleShowHidden,
   onToggleShowNames,
-  onChangePhoto,
+  onChangePhoto, 
   avatarSource,
   dockApps,
   onLaunchApp,
@@ -221,7 +221,7 @@ const AssistantDock = memo(({
   const isUserInteracting = useRef(false);
 
   // ==================== AUTO ROTATE INFINITE LOOP ====================
-  const performTransition = useCallback((duration: number = 500) => {
+  const performTransition = useCallback((duration: number = 500, isAuto: boolean = false) => {
     Animated.timing(slideAnim, {
       toValue: 1,
       duration,
@@ -229,21 +229,31 @@ const AssistantDock = memo(({
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) {
-        // Toggle state parent component
-        onToggleDockView();
-        // Reset animation instantly
-        slideAnim.setValue(0);
+        // Delay untuk smooth transition
+        setTimeout(() => {
+          onToggleDockView();
+          // Reset animation setelah state berubah
+          requestAnimationFrame(() => {
+            slideAnim.setValue(0);
+            // Resume auto rotate jika ini auto transition
+            if (isAuto) {
+              setTimeout(() => {
+                startAutoRotate();
+              }, 100);
+            }
+          });
+        }, 10);
       }
     });
   }, [slideAnim, onToggleDockView]);
 
   const startAutoRotate = useCallback(() => {
     if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-
+    
     autoRotateTimer.current = setTimeout(() => {
       if (!isUserInteracting.current && !modalVisible && appState.current === 'active') {
-        performTransition(500);
-        startAutoRotate();
+        performTransition(500, true); // Pass true untuk auto mode
+        // TIDAK langsung call startAutoRotate, tunggu di callback performTransition
       } else {
         startAutoRotate();
       }
@@ -254,7 +264,7 @@ const AssistantDock = memo(({
     if (appState.current === 'active' && !modalVisible) {
       startAutoRotate();
     }
-
+    
     return () => {
       if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
     };
@@ -282,14 +292,14 @@ const AssistantDock = memo(({
       },
       onPanResponderRelease: (_, gestureState) => {
         const { dy, vy } = gestureState;
-
+        
         slideAnim.stopAnimation((currentValue) => {
           const shouldComplete = currentValue > 0.25 || Math.abs(vy) > 0.5;
-
+          
           if (dy < 0 && shouldComplete) {
             const remainingDistance = 1 - currentValue;
             const duration = Math.max(150, Math.min(remainingDistance * 400, 350));
-
+            
             Animated.timing(slideAnim, {
               toValue: 1,
               duration,
@@ -297,10 +307,17 @@ const AssistantDock = memo(({
               useNativeDriver: true,
             }).start(({ finished }) => {
               if (finished) {
-                onToggleDockView();
-                slideAnim.setValue(0);
-                isUserInteracting.current = false;
-                startAutoRotate();
+                setTimeout(() => {
+                  onToggleDockView();
+                  requestAnimationFrame(() => {
+                    slideAnim.setValue(0);
+                    isUserInteracting.current = false;
+                    // Delay sebelum start auto rotate lagi
+                    setTimeout(() => {
+                      startAutoRotate();
+                    }, 200);
+                  });
+                }, 10);
               }
             });
           } else {
@@ -393,7 +410,7 @@ const AssistantDock = memo(({
   const handleAvatarPress = () => {
     isUserInteracting.current = true;
     if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-
+    
     Animated.timing(slideAnim, {
       toValue: 1,
       duration: 350,
@@ -401,10 +418,16 @@ const AssistantDock = memo(({
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) {
-        onToggleDockView();
-        slideAnim.setValue(0);
-        isUserInteracting.current = false;
-        startAutoRotate();
+        setTimeout(() => {
+          onToggleDockView();
+          requestAnimationFrame(() => {
+            slideAnim.setValue(0);
+            isUserInteracting.current = false;
+            setTimeout(() => {
+              startAutoRotate();
+            }, 200);
+          });
+        }, 10);
       }
     });
   };
@@ -413,10 +436,10 @@ const AssistantDock = memo(({
     <>
       <View style={styles.nowBarContainer} {...panResponder.panHandlers}>
         {/* CURRENT VIEW - Slides up and out */}
-        <Animated.View
+        <Animated.View 
           style={[
-            styles.nowBarCard,
-            {
+            styles.nowBarCard, 
+            { 
               transform: [{ translateY: currentTranslateY }],
               opacity: currentOpacity,
             }
@@ -431,9 +454,9 @@ const AssistantDock = memo(({
             ) : (
               <View style={styles.dockAppsRow}>
                 {dockApps.map((app: AppData) => (
-                  <DockAppItem
-                    key={app.packageName}
-                    app={app}
+                  <DockAppItem 
+                    key={app.packageName} 
+                    app={app} 
                     onPress={onLaunchApp}
                     onLongPress={onLongPressApp}
                   />
@@ -442,21 +465,21 @@ const AssistantDock = memo(({
             )
           ) : (
             <>
-              <TouchableOpacity
-                style={styles.avatarContainer}
+              <TouchableOpacity 
+                style={styles.avatarContainer} 
                 onPress={handleAvatarPress}
-                onLongPress={() => {
+                onLongPress={() => { 
                   isUserInteracting.current = true;
                   if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-                  setTempName(userName);
-                  setModalVisible(true);
-                }}
+                  setTempName(userName); 
+                  setModalVisible(true); 
+                }} 
                 activeOpacity={0.8}
                 delayLongPress={400}
               >
-                <Image
-                  source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }}
-                  style={styles.nowBarAvatar}
+                <Image 
+                  source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+                  style={styles.nowBarAvatar} 
                 />
               </TouchableOpacity>
               <View style={styles.messageContainer}>
@@ -467,10 +490,10 @@ const AssistantDock = memo(({
         </Animated.View>
 
         {/* NEXT VIEW - Comes from bottom */}
-        <Animated.View
+        <Animated.View 
           style={[
-            styles.nowBarCard,
-            {
+            styles.nowBarCard, 
+            { 
               transform: [{ translateY: nextTranslateY }],
               opacity: nextOpacity,
               position: 'absolute',
@@ -484,9 +507,9 @@ const AssistantDock = memo(({
           {showDockView ? (
             <>
               <View style={styles.avatarContainer}>
-                <Image
-                  source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }}
-                  style={styles.nowBarAvatar}
+                <Image 
+                  source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+                  style={styles.nowBarAvatar} 
                 />
               </View>
               <View style={styles.messageContainer}>
@@ -511,13 +534,13 @@ const AssistantDock = memo(({
         </Animated.View>
       </View>
 
-      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => {
-        setModalVisible(false);
+      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => { 
+        setModalVisible(false); 
         isUserInteracting.current = false;
         startAutoRotate();
       }}>
         <View style={styles.modalOverlay}>
-          <Animated.View
+          <Animated.View 
             style={[
               styles.modalContent,
               {
@@ -536,7 +559,7 @@ const AssistantDock = memo(({
           >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Settings</Text>
-              <TouchableOpacity onPress={() => {
+              <TouchableOpacity onPress={() => { 
                 setModalVisible(false);
                 isUserInteracting.current = false;
                 startAutoRotate();
@@ -690,8 +713,8 @@ const App = () => {
   // Filter apps: exclude dock apps from main list
   useEffect(() => {
     requestAnimationFrame(() => {
-      const filtered = allApps.filter(app =>
-        !dockPackages.includes(app.packageName) &&
+      const filtered = allApps.filter(app => 
+        !dockPackages.includes(app.packageName) && 
         (showHidden || !hiddenPackages.includes(app.packageName))
       );
       setFilteredApps(filtered);
@@ -714,7 +737,7 @@ const App = () => {
       newList = newList.filter(p => p !== selectedPkg);
     } else {
       if (!newList.includes(selectedPkg)) newList.push(selectedPkg);
-
+      
       // Auto-remove from dock when hiding
       if (dockPackages.includes(selectedPkg)) {
         const newDock = dockPackages.filter(p => p !== selectedPkg);
@@ -732,7 +755,7 @@ const App = () => {
     const isDocked = dockPackages.includes(selectedPkg);
     const isHidden = hiddenPackages.includes(selectedPkg);
     let newDock = [...dockPackages];
-
+    
     if (isDocked) {
       newDock = newDock.filter(p => p !== selectedPkg);
       ToastAndroid.show('Unpinned from Dock', ToastAndroid.SHORT);
@@ -743,7 +766,7 @@ const App = () => {
         return;
       }
       newDock.push(selectedPkg);
-
+      
       // Auto-unhide when pinning to dock
       if (isHidden) {
         const newHidden = hiddenPackages.filter(p => p !== selectedPkg);
@@ -754,7 +777,7 @@ const App = () => {
         ToastAndroid.show('Pinned to Dock', ToastAndroid.SHORT);
       }
     }
-
+    
     setDockPackages(newDock);
     await RNFS.writeFile(CUSTOM_DOCK_PATH, JSON.stringify(newDock), 'utf8');
     setActionModal(false);
@@ -795,7 +818,7 @@ const App = () => {
   const toggleHidden = (v: boolean) => { setShowHidden(v); RNFS.writeFile(CUSTOM_SHOW_HIDDEN_PATH, v ? 'true' : 'false', 'utf8'); };
   const toggleShowNames = (v: boolean) => { setShowNames(v); RNFS.writeFile(CUSTOM_SHOW_NAMES_PATH, v ? 'true' : 'false', 'utf8'); };
   const toggleDockView = () => setShowDockView(prev => !prev);
-
+  
   const changePhoto = async () => {
     const res = await ImagePicker.launchImageLibrary({ mediaType: 'photo', includeBase64: true, maxWidth: 200, maxHeight: 200 });
     if (res.assets?.[0]?.base64) {
@@ -828,13 +851,13 @@ const App = () => {
       />
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
       <AssistantDock
-        userName={userName}
+        userName={userName} 
         showHidden={showHidden}
         showNames={showNames}
         avatarSource={avatarSource}
         dockApps={dockApps}
         showDockView={showDockView}
-        onSaveUserName={saveName}
+        onSaveUserName={saveName} 
         onToggleShowHidden={toggleHidden}
         onToggleShowNames={toggleShowNames}
         onChangePhoto={changePhoto}
@@ -842,10 +865,10 @@ const App = () => {
         onLongPressApp={handleLongPress}
         onToggleDockView={toggleDockView}
       />
-
+      
       <Modal visible={actionModal} transparent animationType="none" onRequestClose={() => setActionModal(false)}>
         <View style={styles.modalOverlay}>
-          <Animated.View
+          <Animated.View 
             style={[
               styles.modalContent,
               {
@@ -872,9 +895,9 @@ const App = () => {
             <Text style={styles.modalSubtitle}>Select an action for this app:</Text>
 
             <View style={styles.verticalBtnGroup}>
-              <TouchableOpacity
-                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]}
-                onPress={pinToDock}
+              <TouchableOpacity 
+                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]} 
+                onPress={pinToDock} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
@@ -882,9 +905,9 @@ const App = () => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.btnGreen, styles.btnFull]}
-                onPress={doAction}
+              <TouchableOpacity 
+                style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} 
+                onPress={doAction} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
@@ -892,9 +915,9 @@ const App = () => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.btnRed, styles.btnFull]}
-                onPress={handleUninstall}
+              <TouchableOpacity 
+                style={[styles.actionBtn, styles.btnRed, styles.btnFull]} 
+                onPress={handleUninstall} 
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>🗑️ Uninstall</Text>
@@ -914,13 +937,13 @@ const styles = StyleSheet.create({
   item: { width: ITEM_WIDTH, height: 90, alignItems: 'center', marginBottom: 8 },
   iconContainer: { width: ICON_SIZE, height: ICON_SIZE, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   label: { color: '#eee', fontSize: 11, textAlign: 'center', marginHorizontal: 4, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3 },
-
+  
   // ==================== ONE UI NOW BAR STYLES ====================
-  nowBarContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
+  nowBarContainer: { 
+    position: 'absolute', 
+    bottom: 20, 
+    left: 16, 
+    right: 16, 
     height: 62,
     zIndex: 2,
   },
@@ -957,7 +980,6 @@ const styles = StyleSheet.create({
   },
   messageContainer: {
     flex: 1,
-    minHeight: 60,
     marginLeft: 12,
     marginRight: 8,
     justifyContent: 'center',
@@ -965,7 +987,6 @@ const styles = StyleSheet.create({
   nowBarMessage: {
     color: '#ffffff',
     fontSize: 13,
-    minHeight: 60,
     fontWeight: '500',
     lineHeight: 18,
   },
@@ -994,7 +1015,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
+  
   gradientFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220, zIndex: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: width * 0.85, backgroundColor: '#000000', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#333', elevation: 10 },
