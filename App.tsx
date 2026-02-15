@@ -37,7 +37,7 @@ interface AppData {
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4;
 const ICON_SIZE = 56;
-const DOCK_ICON_SIZE = 56;
+const DOCK_ICON_SIZE = 48;
 
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
@@ -652,33 +652,41 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       
-      {/* Background Long Press untuk Settings - hanya detect area kosong */}
-      <View style={styles.homeScreenWrapper}>
+      {/* Wrapper dengan long press handler */}
+      <View 
+        style={styles.homeScreenWrapper}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={() => {}}
+        onResponderRelease={(e) => {
+          // Detect jika touch di area kosong (bukan di app icon)
+          const target = e.target;
+          if (target === e.currentTarget) {
+            // Area kosong terdeteksi
+          }
+        }}
+      >
         <TouchableOpacity
-          style={styles.backgroundTouchable}
+          style={styles.backgroundOverlay}
           activeOpacity={1}
           onLongPress={handleOpenSettings}
           delayLongPress={600}
-        >
-          <View style={{ flex: 1 }} />
-        </TouchableOpacity>
+        />
         
-        <View style={styles.appsContainer} pointerEvents="box-none">
-          <FlatList
-            key={listKey}
-            data={filteredApps}
-            numColumns={4}
-            keyExtractor={item => item.packageName}
-            renderItem={renderItem}
-            contentContainerStyle={styles.list}
-            initialNumToRender={20}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            removeClippedSubviews={true}
-            updateCellsBatchingPeriod={50}
-            getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-          />
-        </View>
+        <FlatList
+          key={listKey}
+          data={filteredApps}
+          numColumns={4}
+          keyExtractor={item => item.packageName}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+          scrollEnabled={true}
+        />
       </View>
       
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
@@ -854,18 +862,14 @@ const App = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  homeScreenWrapper: { flex: 1, position: 'relative' },
-  backgroundTouchable: { 
+  homeScreenWrapper: { flex: 1 },
+  backgroundOverlay: { 
     position: 'absolute', 
     top: 0, 
     left: 0, 
     right: 0, 
-    bottom: 0, 
-    zIndex: 0 
-  },
-  appsContainer: { 
-    flex: 1, 
-    zIndex: 1 
+    bottom: 0,
+    zIndex: 0,
   },
   list: { paddingTop: 50, paddingBottom: 140 },
   item: { 
@@ -974,7 +978,7 @@ const styles = StyleSheet.create({
   simpleDockCard: {
     height: 65,
     backgroundColor: 'rgba(0, 0, 0, 0.92)',
-    borderRadius: 20,
+    borderRadius: 25,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
