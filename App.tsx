@@ -956,9 +956,9 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   simpleDockCard: {
-    height: 62,
+    height: 68,
     backgroundColor: 'rgba(0, 0, 0, 0.92)',
-    borderRadius: 31,
+    borderRadius: 26,
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderWidth: 1,
