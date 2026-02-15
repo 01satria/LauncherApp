@@ -34,7 +34,6 @@ import AppActionModal from './components/AppActionModal';
 const App = () => {
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
-  const scrollY = useRef(new Animated.Value(0)).current;
   
   // Modals
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -242,25 +241,28 @@ const App = () => {
   };
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item, index }) => {
-    // Calculate fade based on item position from bottom
+    // Static opacity calculation - hanya hitung sekali per item
     const totalItems = filteredApps.length;
-    const itemsFromEnd = totalItems - index;
-    const shouldFade = itemsFromEnd <= 8; // Last 8 items (2 rows)
+    const rowNumber = Math.floor(index / 4); // 4 items per row
+    const totalRows = Math.ceil(totalItems / 4);
+    const rowsFromEnd = totalRows - rowNumber;
     
-    // Calculate opacity: 1.0 for far items, gradually to 0.2 for closest
+    // Fade last 3 rows
     let opacity = 1;
-    if (shouldFade) {
-      opacity = Math.max(0.2, itemsFromEnd / 8);
+    if (rowsFromEnd <= 3) {
+      // Row terakhir: 0.3, row ke-2: 0.6, row ke-3: 0.85
+      opacity = 0.3 + (rowsFromEnd - 1) * 0.275;
     }
 
     return (
-      <AppItem 
-        item={item} 
-        onPress={launchApp} 
-        onLongPress={handleLongPress} 
-        showNames={showNames}
-        opacity={opacity}
-      />
+      <View style={{ opacity }}>
+        <AppItem 
+          item={item} 
+          onPress={launchApp} 
+          onLongPress={handleLongPress} 
+          showNames={showNames}
+        />
+      </View>
     );
   }, [handleLongPress, showNames, filteredApps.length]);
 
@@ -297,11 +299,6 @@ const App = () => {
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={<View style={styles.listFooter} />}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: true }
-          )}
-          scrollEventThrottle={16}
         />
       </View>
 
