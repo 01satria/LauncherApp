@@ -217,49 +217,11 @@ const AssistantDock = memo(({
   const appState = useRef(AppState.currentState);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const settingsModalAnim = useRef(new Animated.Value(0)).current;
-  const autoRotateTimer = useRef<NodeJS.Timeout | null>(null);
   const isUserInteracting = useRef(false);
   const currentView = useRef<'message' | 'dock'>('message');
 
-  // ==================== AUTO ROTATE INFINITE LOOP ====================
-  const performTransition = useCallback((duration: number = 500) => {
-    Animated.timing(slideAnim, {
-      toValue: 1,
-      duration,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) {
-        // Toggle internal state tanpa re-render
-        currentView.current = currentView.current === 'message' ? 'dock' : 'message';
-        // Reset animation instantly tanpa visual
-        slideAnim.setValue(0);
-      }
-    });
-  }, [slideAnim]);
-
-  const startAutoRotate = useCallback(() => {
-    if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-    
-    autoRotateTimer.current = setTimeout(() => {
-      if (!isUserInteracting.current && !modalVisible && appState.current === 'active') {
-        performTransition(500);
-        startAutoRotate();
-      } else {
-        startAutoRotate();
-      }
-    }, 5000);
-  }, [performTransition, modalVisible]);
-
-  useEffect(() => {
-    if (appState.current === 'active' && !modalVisible) {
-      startAutoRotate();
-    }
-    
-    return () => {
-      if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
-    };
-  }, [startAutoRotate, modalVisible]);
+  // ==================== REMOVE AUTO ROTATE TO PREVENT UNWANTED SWITCHING ====================
+  // No more autoRotateTimer; transitions are now fully manual via swipe or tap
 
   // ==================== RESPONSIVE GESTURE HANDLER ====================
   const gestureStartValue = useRef(0);
@@ -269,11 +231,10 @@ const AssistantDock = memo(({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         const isVertical = Math.abs(gestureState.dy) > 10 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isVertical && gestureState.dy < -10;
+        return isVertical && gestureState.dy < -10; // Swipe up (dy < -10)
       },
       onPanResponderGrant: () => {
         isUserInteracting.current = true;
-        if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
         slideAnim.stopAnimation((value) => {
           gestureStartValue.current = value;
         });
@@ -281,24 +242,24 @@ const AssistantDock = memo(({
       onPanResponderMove: (_, gestureState) => {
         const { dy } = gestureState;
         const threshold = 80;
-        if (dy < 0) {
+        if (dy < 0) { // Swipe up
           const progress = gestureStartValue.current + (Math.abs(dy) / threshold);
-          slideAnim.setValue(Math.min(progress, 0.99));
+          slideAnim.setValue(Math.min(progress, 1));
         }
       },
       onPanResponderRelease: (_, gestureState) => {
         const { dy, vy } = gestureState;
         const currentValue = gestureStartValue.current + (Math.abs(dy) / 80);
         
-        // Responsive: velocity-based duration
+        // Adjusted thresholds for better responsiveness on fast swipes
         const baseVelocity = Math.abs(vy);
-        const shouldComplete = currentValue > 0.3 || baseVelocity > 0.4;
+        const shouldComplete = currentValue > 0.25 || baseVelocity > 0.3; // Lower thresholds for quicker completion
         
         if (dy < 0 && shouldComplete) {
-          // Calculate duration based on remaining distance and velocity
+          // Optimized duration calculation for smooth fast swipes
           const remainingDistance = 1 - currentValue;
-          const velocityDuration = (remainingDistance / Math.max(baseVelocity, 0.5)) * 300;
-          const duration = Math.max(150, Math.min(velocityDuration, 400));
+          const velocityDuration = (remainingDistance / Math.max(baseVelocity, 0.4)) * 250; // Reduced base multiplier for faster anim
+          const duration = Math.max(100, Math.min(velocityDuration, 300)); // Tighter duration range
           
           Animated.timing(slideAnim, {
             toValue: 1,
@@ -310,19 +271,17 @@ const AssistantDock = memo(({
               currentView.current = currentView.current === 'message' ? 'dock' : 'message';
               slideAnim.setValue(0);
               isUserInteracting.current = false;
-              startAutoRotate();
             }
           });
         } else {
-          // Snap back dengan spring
+          // Snap back with spring for natural feel, no ongoing rolling
           Animated.spring(slideAnim, {
             toValue: 0,
-            friction: 8,
-            tension: 70,
+            friction: 7, // Slightly tighter friction
+            tension: 80, // Higher tension for quicker snap
             useNativeDriver: true,
           }).start(() => {
             isUserInteracting.current = false;
-            startAutoRotate();
           });
         }
       },
@@ -371,7 +330,6 @@ const AssistantDock = memo(({
     return () => {
       slideAnim.stopAnimation();
       settingsModalAnim.stopAnimation();
-      if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
     };
   }, [slideAnim, settingsModalAnim]);
 
@@ -402,7 +360,6 @@ const AssistantDock = memo(({
 
   const handleAvatarPress = () => {
     isUserInteracting.current = true;
-    if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
     
     slideAnim.stopAnimation(() => {
       Animated.timing(slideAnim, {
@@ -415,7 +372,6 @@ const AssistantDock = memo(({
           currentView.current = currentView.current === 'message' ? 'dock' : 'message';
           slideAnim.setValue(0);
           isUserInteracting.current = false;
-          startAutoRotate();
         }
       });
     });
@@ -463,7 +419,6 @@ const AssistantDock = memo(({
                 onPress={handleAvatarPress}
                 onLongPress={() => { 
                   isUserInteracting.current = true;
-                  if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
                   setTempName(userName); 
                   setModalVisible(true); 
                 }} 
@@ -530,7 +485,6 @@ const AssistantDock = memo(({
       <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => { 
         setModalVisible(false); 
         isUserInteracting.current = false;
-        startAutoRotate();
       }}>
         <View style={styles.modalOverlay}>
           <Animated.View 
@@ -555,7 +509,6 @@ const AssistantDock = memo(({
               <TouchableOpacity onPress={() => { 
                 setModalVisible(false);
                 isUserInteracting.current = false;
-                startAutoRotate();
               }} style={styles.closeBtn}>
                 <Text style={styles.closeText}>✕</Text>
               </TouchableOpacity>
@@ -600,7 +553,6 @@ const AssistantDock = memo(({
               <TouchableOpacity style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} onPress={() => {
                 save();
                 isUserInteracting.current = false;
-                startAutoRotate();
               }} activeOpacity={0.8}>
                 <Text style={styles.actionBtnText}>Save Changes</Text>
               </TouchableOpacity>
