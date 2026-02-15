@@ -1,6 +1,6 @@
-// index.js (root)
+// index.js
 import {AppRegistry} from 'react-native';
-import App from './src/App';  // ✅ Atau './src' juga bisa
+import App from './App';  // ✅ File lama di root
 import {name as appName} from './app.json';
 
 AppRegistry.registerComponent(appName, () => App);
