@@ -648,6 +648,7 @@ const App = () => {
   if (loading) return <View style={styles.center}><ActivityIndicator color="#0f0" size="large" /></View>;
 
   const isDocked = dockPackages.includes(selectedPkg);
+  const scrollViewRef = useRef<any>(null);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -657,25 +658,25 @@ const App = () => {
         style={styles.homeScreenWrapper}
         onLongPress={handleOpenSettings}
         delayLongPress={400}
-        unstable_pressDelay={0}
       >
-        <FlatList
-          key={listKey}
-          data={filteredApps}
-          numColumns={4}
-          keyExtractor={item => item.packageName}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          initialNumToRender={20}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={50}
-          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-          scrollEnabled={true}
-          showsVerticalScrollIndicator={false}
-          nestedScrollEnabled={true}
-        />
+        {({ pressed }) => (
+          <FlatList
+            key={listKey}
+            data={filteredApps}
+            numColumns={4}
+            keyExtractor={item => item.packageName}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            initialNumToRender={20}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
+            updateCellsBatchingPeriod={50}
+            getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+            scrollEnabled={!pressed}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
       </Pressable>
       
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
