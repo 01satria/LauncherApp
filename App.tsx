@@ -5,6 +5,7 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   StatusBar,
   SafeAreaView,
   ActivityIndicator,
@@ -652,14 +653,11 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       
-      <View 
+      <Pressable 
         style={styles.homeScreenWrapper}
-        onStartShouldSetResponder={() => true}
-        onResponderGrant={() => {}}
-        onResponderRelease={(e) => {
-          // Simple touch detection - tidak block scroll
-        }}
-        onResponderLongPress={handleOpenSettings}
+        onLongPress={handleOpenSettings}
+        delayLongPress={400}
+        unstable_pressDelay={0}
       >
         <FlatList
           key={listKey}
@@ -676,8 +674,9 @@ const App = () => {
           getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={true}
         />
-      </View>
+      </Pressable>
       
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
       
