@@ -195,16 +195,6 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: {
   );
 }, (prev, next) => prev.app.packageName === next.app.packageName);
 
-// ==================== PAGE INDICATOR (One UI-style) ====================
-const PageIndicator = memo(({ activeIndex, opacity }: { activeIndex: number; opacity: Animated.Value }) => {
-  return (
-    <Animated.View style={[styles.indicatorContainer, { opacity }]}>
-      <View style={[styles.dot, activeIndex === 0 && styles.dotActive]} />
-      <View style={[styles.dot, activeIndex === 1 && styles.dotActive]} />
-    </Animated.View>
-  );
-});
-
 // ==================== DOCK ONE UI SAMSUNG NOW BAR ====================
 const AssistantDock = memo(({ 
   userName, 
@@ -224,60 +214,52 @@ const AssistantDock = memo(({
   const [message, setMessage] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [tempName, setTempName] = useState(userName);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const appState = useRef(AppState.currentState);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const settingsModalAnim = useRef(new Animated.Value(0)).current;
-  const indicatorOpacity = useRef(new Animated.Value(0)).current;
-  const indicatorTimeout = useRef<NodeJS.Timeout | null>(null);
   const autoRotateTimer = useRef<NodeJS.Timeout | null>(null);
   const isUserInteracting = useRef(false);
-
-  const showIndicatorTemporary = useCallback(() => {
-    if (indicatorTimeout.current) clearTimeout(indicatorTimeout.current);
-    Animated.timing(indicatorOpacity, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-    indicatorTimeout.current = setTimeout(() => {
-      Animated.timing(indicatorOpacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    }, 2000);
-  }, [indicatorOpacity]);
+  const isAnimating = useRef(false);
 
   // ==================== AUTO ROTATE INFINITE LOOP ====================
+  const performTransition = useCallback(() => {
+    if (isAnimating.current) return;
+    
+    isAnimating.current = true;
+    
+    Animated.timing(slideAnim, {
+      toValue: 1,
+      duration: 500,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        // Toggle state setelah animasi
+        onToggleDockView();
+        
+        // Reset animasi value tanpa visual glitch
+        requestAnimationFrame(() => {
+          slideAnim.setValue(0);
+          isAnimating.current = false;
+        });
+      } else {
+        isAnimating.current = false;
+      }
+    });
+  }, [slideAnim, onToggleDockView]);
+
   const startAutoRotate = useCallback(() => {
     if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
     
     autoRotateTimer.current = setTimeout(() => {
-      if (!isUserInteracting.current && !modalVisible) {
-        // Animate slide up
-        Animated.timing(slideAnim, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.bezier(0.4, 0.0, 0.2, 1),
-          useNativeDriver: true,
-        }).start(() => {
-          // Toggle view setelah animasi selesai
-          const nextIndex = currentIndex === 0 ? 1 : 0;
-          setCurrentIndex(nextIndex);
-          onToggleDockView();
-          
-          // Reset position untuk infinite loop
-          slideAnim.setValue(0);
-          
-          // Continue rotation
-          startAutoRotate();
-        });
+      if (!isUserInteracting.current && !modalVisible && appState.current === 'active') {
+        performTransition();
+        startAutoRotate();
       } else {
         startAutoRotate();
       }
-    }, 5000); // Auto rotate setiap 5 detik
-  }, [slideAnim, currentIndex, modalVisible, onToggleDockView]);
+    }, 5000);
+  }, [performTransition, modalVisible]);
 
   useEffect(() => {
     if (appState.current === 'active' && !modalVisible) {
@@ -294,17 +276,18 @@ const AssistantDock = memo(({
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
+        if (isAnimating.current) return false;
         const isVertical = Math.abs(gestureState.dy) > 15 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-        return isVertical && gestureState.dy < -15; // Only swipe up allowed
+        return isVertical && gestureState.dy < -15;
       },
       onPanResponderGrant: () => {
         isUserInteracting.current = true;
-        showIndicatorTemporary();
         if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
       },
       onPanResponderMove: (_, gestureState) => {
+        if (isAnimating.current) return;
         const { dy } = gestureState;
-        const threshold = 80;
+        const threshold = 100;
         if (dy < 0) {
           const progress = Math.min(Math.abs(dy) / threshold, 1);
           slideAnim.setValue(progress);
@@ -312,31 +295,21 @@ const AssistantDock = memo(({
       },
       onPanResponderRelease: (_, gestureState) => {
         const { dy, vy } = gestureState;
-        const threshold = 40;
-        const isFast = Math.abs(vy) > 0.5;
+        const threshold = 50;
+        const isFast = Math.abs(vy) > 0.6;
         const isEnough = Math.abs(dy) > threshold;
         
         if (dy < 0 && (isEnough || isFast)) {
-          // Complete the transition
-          Animated.timing(slideAnim, {
-            toValue: 1,
-            duration: 300,
-            easing: Easing.bezier(0.4, 0.0, 0.2, 1),
-            useNativeDriver: true,
-          }).start(() => {
-            const nextIndex = currentIndex === 0 ? 1 : 0;
-            setCurrentIndex(nextIndex);
-            onToggleDockView();
-            slideAnim.setValue(0);
+          performTransition();
+          setTimeout(() => {
             isUserInteracting.current = false;
             startAutoRotate();
-          });
+          }, 600);
         } else {
-          // Snap back
           Animated.spring(slideAnim, {
             toValue: 0,
-            friction: 10,
-            tension: 90,
+            friction: 9,
+            tension: 80,
             useNativeDriver: true,
           }).start(() => {
             isUserInteracting.current = false;
@@ -360,38 +333,38 @@ const AssistantDock = memo(({
     }
   }, [modalVisible, settingsModalAnim]);
 
-  // ==================== SCROLL UP ANIMATIONS (INFINITE LOOP) ====================
-  // Current view slides up and out
+  // ==================== SCROLL UP ANIMATIONS (OPTIMIZED) ====================
   const currentTranslateY = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -80] // Slide up and disappear
+    outputRange: [0, -80],
+    extrapolate: 'clamp'
   });
 
   const currentOpacity = slideAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [1, 0.5, 0]
+    inputRange: [0, 0.3, 1],
+    outputRange: [1, 0.7, 0],
+    extrapolate: 'clamp'
   });
 
-  // Next view comes from bottom
   const nextTranslateY = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [80, 0] // Start from bottom, slide to position
+    outputRange: [80, 0],
+    extrapolate: 'clamp'
   });
 
   const nextOpacity = slideAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0, 0.5, 1]
+    inputRange: [0, 0.3, 1],
+    outputRange: [0, 0.7, 1],
+    extrapolate: 'clamp'
   });
 
   useEffect(() => {
     return () => {
       slideAnim.stopAnimation();
       settingsModalAnim.stopAnimation();
-      indicatorOpacity.stopAnimation();
-      if (indicatorTimeout.current) clearTimeout(indicatorTimeout.current);
       if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
     };
-  }, [slideAnim, settingsModalAnim, indicatorOpacity]);
+  }, [slideAnim, settingsModalAnim]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -419,24 +392,17 @@ const AssistantDock = memo(({
   const save = () => { onSaveUserName(tempName); setModalVisible(false); };
 
   const handleAvatarPress = () => {
+    if (isAnimating.current) return;
+    
     isUserInteracting.current = true;
     if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
     
-    showIndicatorTemporary();
+    performTransition();
     
-    Animated.timing(slideAnim, {
-      toValue: 1,
-      duration: 400,
-      easing: Easing.bezier(0.4, 0.0, 0.2, 1),
-      useNativeDriver: true,
-    }).start(() => {
-      const nextIndex = currentIndex === 0 ? 1 : 0;
-      setCurrentIndex(nextIndex);
-      onToggleDockView();
-      slideAnim.setValue(0);
+    setTimeout(() => {
       isUserInteracting.current = false;
       startAutoRotate();
-    });
+    }, 600);
   };
 
   return (
@@ -449,13 +415,11 @@ const AssistantDock = memo(({
             { 
               transform: [{ translateY: currentTranslateY }],
               opacity: currentOpacity,
-              zIndex: 2,
             }
           ]}
           pointerEvents="auto"
         >
           {showDockView ? (
-            // DOCK APPS (current)
             dockApps.length === 0 ? (
               <View style={styles.emptyDockContainer}>
                 <Text style={styles.emptyDockText}>Long press any app to pin here</Text>
@@ -473,12 +437,16 @@ const AssistantDock = memo(({
               </View>
             )
           ) : (
-            // MESSAGE (current)
             <>
               <TouchableOpacity 
                 style={styles.avatarContainer} 
                 onPress={handleAvatarPress}
-                onLongPress={() => { setTempName(userName); setModalVisible(true); }} 
+                onLongPress={() => { 
+                  isUserInteracting.current = true;
+                  if (autoRotateTimer.current) clearTimeout(autoRotateTimer.current);
+                  setTempName(userName); 
+                  setModalVisible(true); 
+                }} 
                 activeOpacity={0.8}
                 delayLongPress={400}
               >
@@ -505,29 +473,23 @@ const AssistantDock = memo(({
               bottom: 0,
               left: 0,
               right: 0,
-              zIndex: 1,
             }
           ]}
           pointerEvents="none"
         >
           {showDockView ? (
-            // MESSAGE (next)
             <>
-              <TouchableOpacity 
-                style={styles.avatarContainer} 
-                activeOpacity={0.8}
-              >
+              <View style={styles.avatarContainer}>
                 <Image 
                   source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
                   style={styles.nowBarAvatar} 
                 />
-              </TouchableOpacity>
+              </View>
               <View style={styles.messageContainer}>
                 <Text style={styles.nowBarMessage} numberOfLines={2}>{message}</Text>
               </View>
             </>
           ) : (
-            // DOCK APPS (next)
             dockApps.length === 0 ? (
               <View style={styles.emptyDockContainer}>
                 <Text style={styles.emptyDockText}>Long press any app to pin here</Text>
@@ -535,23 +497,21 @@ const AssistantDock = memo(({
             ) : (
               <View style={styles.dockAppsRow}>
                 {dockApps.map((app: AppData) => (
-                  <DockAppItem 
-                    key={`next-${app.packageName}`} 
-                    app={app} 
-                    onPress={onLaunchApp}
-                    onLongPress={onLongPressApp}
-                  />
+                  <View key={`next-${app.packageName}`} style={styles.dockAppItem}>
+                    <SafeAppIcon iconUri={app.icon} size={DOCK_ICON_SIZE} />
+                  </View>
                 ))}
               </View>
             )
           )}
         </Animated.View>
-
-        {/* PAGE INDICATOR */}
-        <PageIndicator activeIndex={showDockView ? 1 : 0} opacity={indicatorOpacity} />
       </View>
 
-      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => setModalVisible(false)}>
+      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={() => { 
+        setModalVisible(false); 
+        isUserInteracting.current = false;
+        startAutoRotate();
+      }}>
         <View style={styles.modalOverlay}>
           <Animated.View 
             style={[
@@ -572,7 +532,11 @@ const AssistantDock = memo(({
           >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Settings</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+              <TouchableOpacity onPress={() => { 
+                setModalVisible(false);
+                isUserInteracting.current = false;
+                startAutoRotate();
+              }} style={styles.closeBtn}>
                 <Text style={styles.closeText}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -613,7 +577,11 @@ const AssistantDock = memo(({
                 <Text style={styles.actionBtnText}>Change Avatar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} onPress={save} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} onPress={() => {
+                save();
+                isUserInteracting.current = false;
+                startAutoRotate();
+              }} activeOpacity={0.8}>
                 <Text style={styles.actionBtnText}>Save Changes</Text>
               </TouchableOpacity>
             </View>
@@ -1019,28 +987,6 @@ const styles = StyleSheet.create({
     height: DOCK_ICON_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  indicatorContainer: { 
-    position: 'absolute', 
-    bottom: -16, 
-    left: 0, 
-    right: 0, 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    gap: 6,
-    paddingVertical: 4,
-  },
-  dot: { 
-    width: 5, 
-    height: 5, 
-    borderRadius: 2.5, 
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  dotActive: { 
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    width: 5,
-    height: 5,
   },
   
   gradientFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 220, zIndex: 1 },
