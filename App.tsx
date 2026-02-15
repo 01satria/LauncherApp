@@ -37,7 +37,7 @@ interface AppData {
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / 4;
 const ICON_SIZE = 56;
-const DOCK_ICON_SIZE = 48;
+const DOCK_ICON_SIZE = 56;
 
 const CUSTOM_AVATAR_DIR = `${RNFS.DocumentDirectoryPath}/satrialauncher`;
 const CUSTOM_AVATAR_PATH = `${CUSTOM_AVATAR_DIR}/asist.jpg`;
@@ -131,20 +131,22 @@ const MemoizedItem = memo(({ item, onPress, onLongPress, showNames }: {
   }, [scaleAnim]);
 
   return (
-    <TouchableOpacity
-      style={styles.item}
-      onPress={() => onPress(item.packageName)}
-      onLongPress={() => onLongPress(item.packageName, item.label)}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      activeOpacity={1}
-      delayLongPress={300}
-    >
-      <Animated.View style={[styles.iconContainer, { transform: [{ scale: scaleAnim }] }]}>
-        <SafeAppIcon iconUri={item.icon} />
-      </Animated.View>
-      {showNames && <Text style={styles.label} numberOfLines={1}>{item.label}</Text>}
-    </TouchableOpacity>
+    <View style={styles.item}>
+      <TouchableOpacity
+        style={styles.itemTouchable}
+        onPress={() => onPress(item.packageName)}
+        onLongPress={() => onLongPress(item.packageName, item.label)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+        delayLongPress={300}
+      >
+        <Animated.View style={[styles.iconContainer, { transform: [{ scale: scaleAnim }] }]}>
+          <SafeAppIcon iconUri={item.icon} />
+        </Animated.View>
+        {showNames && <Text style={styles.label} numberOfLines={1}>{item.label}</Text>}
+      </TouchableOpacity>
+    </View>
   );
 }, (prev, next) => prev.item.packageName === next.item.packageName && prev.showNames === next.showNames);
 
@@ -650,28 +652,34 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       
-      {/* Background Long Press untuk Settings */}
-      <TouchableOpacity
-        style={styles.backgroundTouchable}
-        activeOpacity={1}
-        onLongPress={handleOpenSettings}
-        delayLongPress={600}
-      >
-        <FlatList
-          key={listKey}
-          data={filteredApps}
-          numColumns={4}
-          keyExtractor={item => item.packageName}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          initialNumToRender={20}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={50}
-          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
-        />
-      </TouchableOpacity>
+      {/* Background Long Press untuk Settings - hanya detect area kosong */}
+      <View style={styles.homeScreenWrapper}>
+        <TouchableOpacity
+          style={styles.backgroundTouchable}
+          activeOpacity={1}
+          onLongPress={handleOpenSettings}
+          delayLongPress={600}
+        >
+          <View style={{ flex: 1 }} />
+        </TouchableOpacity>
+        
+        <View style={styles.appsContainer} pointerEvents="box-none">
+          <FlatList
+            key={listKey}
+            data={filteredApps}
+            numColumns={4}
+            keyExtractor={item => item.packageName}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            initialNumToRender={20}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
+            updateCellsBatchingPeriod={50}
+            getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
+          />
+        </View>
+      </View>
       
       <LinearGradient colors={['transparent', 'rgba(0, 0, 0, 0.75)', '#000000']} style={styles.gradientFade} pointerEvents="none" />
       
@@ -846,11 +854,46 @@ const App = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  backgroundTouchable: { flex: 1 },
+  homeScreenWrapper: { flex: 1, position: 'relative' },
+  backgroundTouchable: { 
+    position: 'absolute', 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0, 
+    zIndex: 0 
+  },
+  appsContainer: { 
+    flex: 1, 
+    zIndex: 1 
+  },
   list: { paddingTop: 50, paddingBottom: 140 },
-  item: { width: ITEM_WIDTH, height: 90, alignItems: 'center', marginBottom: 8 },
-  iconContainer: { width: ICON_SIZE, height: ICON_SIZE, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  label: { color: '#eee', fontSize: 11, textAlign: 'center', marginHorizontal: 4, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3 },
+  item: { 
+    width: ITEM_WIDTH, 
+    height: 90, 
+    alignItems: 'center', 
+    marginBottom: 8,
+    justifyContent: 'center',
+  },
+  itemTouchable: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconContainer: { 
+    width: ICON_SIZE, 
+    height: ICON_SIZE, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 4 
+  },
+  label: { 
+    color: '#eee', 
+    fontSize: 11, 
+    textAlign: 'center', 
+    marginHorizontal: 4, 
+    textShadowColor: 'rgba(0,0,0,0.8)', 
+    textShadowRadius: 3 
+  },
   
   // ==================== NOTIFICATION STYLES ====================
   notificationCard: {
@@ -929,9 +972,9 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   simpleDockCard: {
-    height: 62,
+    height: 65,
     backgroundColor: 'rgba(0, 0, 0, 0.92)',
-    borderRadius: 31,
+    borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
