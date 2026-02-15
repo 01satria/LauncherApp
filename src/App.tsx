@@ -10,7 +10,6 @@ import {
   AppState,
   Animated,
   ListRenderItem,
-  Dimensions,
 } from 'react-native';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import * as ImagePicker from 'react-native-image-picker';
@@ -33,11 +32,8 @@ import SettingsModal from './components/SettingsModal';
 import AppActionModal from './components/AppActionModal';
 
 const App = () => {
-  const { height: screenHeight } = Dimensions.get('window');
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
-  const [contentHeight, setContentHeight] = useState(0);
-  const scrollY = useRef(new Animated.Value(0)).current;
   
   // Modals
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -232,33 +228,31 @@ const App = () => {
   };
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item, index }) => {
+    // Simple calculation: fade last 3 rows based on position
+    const totalItems = filteredApps.length;
+    const totalRows = Math.ceil(totalItems / 4);
     const itemRow = Math.floor(index / 4);
-    const itemYPosition = itemRow * 90; // Each row is 90px tall
+    const rowsFromBottom = totalRows - itemRow;
     
-    // Fade when item is close to bottom of screen (within 200px of dock)
-    // Screen bottom is at scrollY + screenHeight - dockHeight (80px)
-    const fadeZoneStart = screenHeight - 200; // 200px from bottom
-    
-    const opacity = scrollY.interpolate({
-      inputRange: [
-        itemYPosition - fadeZoneStart + 100,
-        itemYPosition - fadeZoneStart + 200,
-      ],
-      outputRange: [1, 0.2],
-      extrapolate: 'clamp',
-    });
+    // Calculate static opacity
+    let opacity = 1;
+    if (rowsFromBottom <= 3) {
+      if (rowsFromBottom === 1) opacity = 0.3;
+      else if (rowsFromBottom === 2) opacity = 0.6;
+      else if (rowsFromBottom === 3) opacity = 0.85;
+    }
 
     return (
-      <Animated.View style={{ opacity }}>
+      <View style={{ opacity }}>
         <AppItem 
           item={item} 
           onPress={launchApp} 
           onLongPress={handleLongPress} 
           showNames={showNames}
         />
-      </Animated.View>
+      </View>
     );
-  }, [handleLongPress, showNames, scrollY, screenHeight]);
+  }, [handleLongPress, showNames, filteredApps.length]);
 
   const dockApps = allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5);
   const isDocked = dockPackages.includes(selectedPkg);
@@ -293,11 +287,6 @@ const App = () => {
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={<View style={styles.listFooter} />}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: true }
-          )}
-          scrollEventThrottle={16}
         />
       </View>
 
