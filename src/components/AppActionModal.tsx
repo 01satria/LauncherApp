@@ -158,28 +158,24 @@ const styles = StyleSheet.create({
   },
   btnGreen: {
     backgroundColor: '#131313',
-    color: '#11a34e',
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#11a34e'
   },
   btnRed: {
     backgroundColor: '#131313',
-    color: '#c0392b',
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#c0392b'
   },
   btnPurple: {
     backgroundColor: '#131313',
-    color: '#8e44ad',
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#8e44ad'
   },
   btnOrange: {
     backgroundColor: '#131313',
-    color: '#e67e22',
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#e67e22'

@@ -58,17 +58,17 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
   return (
     <>
       {/* Backdrop */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.backdrop}
         activeOpacity={1}
         onPress={handleClose}
       />
 
       {/* Popup Card */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.popupCard,
-          { 
+          {
             transform: [{ translateY: slideAnim }],
             opacity: opacityAnim,
           }
@@ -83,7 +83,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
 
         <Text style={styles.popupMessage}>{message}</Text>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.okayBtn}
           onPress={handleClose}
           activeOpacity={0.7}
@@ -129,10 +129,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   popupTitle: {
-    color: '#27ae60',
+    color: '#ffffff',
     fontSize: 12,
     fontWeight: 'bold',
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   closeBtn: {
@@ -156,14 +155,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   okayBtn: {
-    backgroundColor: '#27ae60',
+    backgroundColor: '#131313',
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#27ae60',
     paddingVertical: 12,
     borderRadius: 12,
     width: '100%',
     alignItems: 'center',
   },
   okayText: {
-    color: '#ffffff',
+    color: '#27ae60',
     fontSize: 14,
     fontWeight: 'bold',
   },
