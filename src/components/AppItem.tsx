@@ -13,47 +13,45 @@ interface AppItemProps {
 
 const AppItem = memo(({ item, onPress, onLongPress, showNames }: AppItemProps) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const isAnimating = useRef(false);
+  const isPressed = useRef(false);
 
   const handlePressIn = useCallback(() => {
-    if (isAnimating.current) return;
-    isAnimating.current = true;
-    
+    isPressed.current = true;
     Animated.spring(scaleAnim, {
       toValue: 0.85,
       friction: 5,
       tension: 100,
       useNativeDriver: true,
-    }).start(() => {
-      isAnimating.current = false;
-    });
+    }).start();
   }, [scaleAnim]);
 
   const handlePressOut = useCallback(() => {
-    if (isAnimating.current) return;
-    isAnimating.current = true;
-    
+    isPressed.current = false;
     Animated.spring(scaleAnim, {
       toValue: 1,
       friction: 5,
       tension: 100,
       useNativeDriver: true,
-    }).start(() => {
-      isAnimating.current = false;
-    });
+    }).start();
   }, [scaleAnim]);
 
   const handlePress = useCallback(() => {
+    // Force reset scale before launching app
+    scaleAnim.setValue(1);
     onPress(item.packageName);
-  }, [item.packageName, onPress]);
+  }, [scaleAnim, onPress, item.packageName]);
 
-  const handleLongPressCallback = useCallback(() => {
+  const handleLongPress = useCallback(() => {
+    // Force reset scale when opening modal
+    scaleAnim.setValue(1);
     onLongPress(item.packageName, item.label);
-  }, [item.packageName, item.label, onLongPress]);
+  }, [scaleAnim, onLongPress, item.packageName, item.label]);
 
   useEffect(() => {
     return () => {
       scaleAnim.stopAnimation();
+      // Force reset on unmount
+      scaleAnim.setValue(1);
     };
   }, [scaleAnim]);
 
@@ -62,7 +60,7 @@ const AppItem = memo(({ item, onPress, onLongPress, showNames }: AppItemProps) =
       <TouchableOpacity
         style={styles.itemTouchable}
         onPress={handlePress}
-        onLongPress={handleLongPressCallback}
+        onLongPress={handleLongPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={1}
@@ -75,14 +73,7 @@ const AppItem = memo(({ item, onPress, onLongPress, showNames }: AppItemProps) =
       </TouchableOpacity>
     </View>
   );
-}, (prev, next) => {
-  // Optimized comparison
-  return prev.item.packageName === next.item.packageName && 
-         prev.showNames === next.showNames &&
-         prev.item.icon === next.item.icon;
-});
-
-AppItem.displayName = 'AppItem';
+}, (prev, next) => prev.item.packageName === next.item.packageName && prev.showNames === next.showNames);
 
 const styles = StyleSheet.create({
   item: { 

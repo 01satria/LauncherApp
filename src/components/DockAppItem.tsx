@@ -31,17 +31,30 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: DockAppItemProps) => {
     }).start();
   }, [scaleAnim]);
 
+  const handlePress = useCallback(() => {
+    // Force reset scale before launching app
+    scaleAnim.setValue(1);
+    onPress(app.packageName);
+  }, [scaleAnim, onPress, app.packageName]);
+
+  const handleLongPress = useCallback(() => {
+    // Force reset scale when opening modal
+    scaleAnim.setValue(1);
+    onLongPress(app.packageName, app.label);
+  }, [scaleAnim, onLongPress, app.packageName, app.label]);
+
   useEffect(() => {
     return () => {
       scaleAnim.stopAnimation();
+      scaleAnim.setValue(1);
     };
   }, [scaleAnim]);
 
   return (
     <TouchableOpacity
       style={styles.dockAppItem}
-      onPress={() => onPress(app.packageName)}
-      onLongPress={() => onLongPress(app.packageName, app.label)}
+      onPress={handlePress}
+      onLongPress={handleLongPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       activeOpacity={1}
