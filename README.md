@@ -54,9 +54,9 @@ It features a unique **Assistant Dock** with personalized greetings, advanced ap
 
 ## 📸 Screenshots
 
-| Home Screen | Simple Dock | Assistant Popup | Settings |
+| Home Screen | Actions | Assistant Popup | Settings |
 |------------|-----------|--------------|----------|
-| ![Home](screenshots/home.jpg) | ![Dock](screenshots/dock.jpg) | ![Assistant](screenshots/assistant.jpg) | ![Settings](screenshots/settings.jpg) |
+| ![Home](screenshots/home.jpg) | ![Dock](screenshots/actions.jpg) | ![Assistant](screenshots/assistant.jpg) | ![Settings](screenshots/settings.jpg) |
 
 ---
 
