@@ -257,11 +257,14 @@ const App = () => {
       <MaskedView
         style={styles.appsContainer}
         maskElement={
-          <LinearGradient
-            colors={['black', 'black', 'transparent']}
-            locations={[0, 0.85, 1]} // Fade starts at 85% from top
-            style={{ flex: 1 }}
-          />
+          <View style={{ flex: 1 }}>
+            <LinearGradient
+              colors={['black', 'black', 'rgba(0,0,0,0.5)', 'transparent']}
+              locations={[0, 0.70, 0.82, 1]}
+              style={{ flex: 1 }}
+            />
+            <View style={{ height: 110, backgroundColor: 'transparent' }} />
+          </View>
         }
       >
         <FlatList
