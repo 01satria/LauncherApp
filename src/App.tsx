@@ -263,7 +263,7 @@ const App = () => {
               locations={[0, 0.90, 0.95, 1]}
               style={{ flex: 1 }}
             />
-            <View style={{ height: 185, backgroundColor: 'transparent' }} />
+            <View style={{ height: 85, backgroundColor: 'transparent' }} />
           </View>
         }
       >
