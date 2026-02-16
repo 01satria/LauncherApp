@@ -1,13 +1,13 @@
 import React, { memo } from 'react';
-import { 
-  View, 
-  Text, 
-  Modal, 
-  TouchableOpacity, 
-  TextInput, 
-  Switch, 
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  TextInput,
+  Switch,
   Animated,
-  StyleSheet 
+  StyleSheet
 } from 'react-native';
 import { width } from '../constants';
 
@@ -45,7 +45,7 @@ const SettingsModal = memo(({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <Animated.View 
+        <Animated.View
           style={[
             styles.modalContent,
             {
@@ -110,17 +110,17 @@ const SettingsModal = memo(({
           <View style={styles.divider} />
 
           <View style={styles.verticalBtnGroup}>
-            <TouchableOpacity 
-              style={[styles.actionBtn, styles.btnBlue, styles.btnFull]} 
-              onPress={onChangePhoto} 
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.btnBlue, styles.btnFull]}
+              onPress={onChangePhoto}
               activeOpacity={0.8}
             >
               <Text style={styles.actionBtnText}>Change Avatar</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} 
-              onPress={onSave} 
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.btnGreen, styles.btnFull]}
+              onPress={onSave}
               activeOpacity={0.8}
             >
               <Text style={styles.actionBtnText}>Save Changes</Text>
@@ -133,107 +133,115 @@ const SettingsModal = memo(({
 });
 
 const styles = StyleSheet.create({
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center'
   },
-  modalContent: { 
-    width: width * 0.85, 
-    backgroundColor: '#000000', 
-    borderRadius: 20, 
-    padding: 20, 
-    borderWidth: 1, 
-    borderColor: '#333', 
-    elevation: 10 
+  modalContent: {
+    width: width * 0.85,
+    backgroundColor: '#000000',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+    elevation: 10
   },
-  modalHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 20 
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20
   },
-  modalTitle: { 
-    color: '#fff', 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    flex: 1 
+  modalTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    flex: 1
   },
-  closeBtn: { 
-    width: 30, 
-    height: 30, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: '#333', 
-    borderRadius: 15 
+  closeBtn: {
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#333',
+    borderRadius: 15
   },
-  closeText: { 
-    color: '#fff', 
-    fontSize: 14, 
-    fontWeight: 'bold', 
-    marginTop: -2 
+  closeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: -2
   },
-  inputLabel: { 
-    color: '#aaa', 
-    fontSize: 12, 
-    marginBottom: 8, 
-    marginLeft: 4, 
-    textTransform: 'uppercase', 
-    letterSpacing: 1 
+  inputLabel: {
+    color: '#aaa',
+    fontSize: 12,
+    marginBottom: 8,
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 1
   },
-  modernInput: { 
-    backgroundColor: '#2C2C2C', 
-    color: '#fff', 
-    paddingHorizontal: 15, 
-    paddingVertical: 12, 
-    borderRadius: 12, 
-    fontSize: 16, 
-    marginBottom: 20, 
-    borderWidth: 1, 
-    borderColor: '#333' 
+  modernInput: {
+    backgroundColor: '#2C2C2C',
+    color: '#fff',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 12,
+    fontSize: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#333'
   },
-  rowBetween: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 10, 
-    paddingHorizontal: 4 
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 4
   },
-  settingText: { 
-    color: '#fff', 
-    fontSize: 16 
+  settingText: {
+    color: '#fff',
+    fontSize: 16
   },
-  divider: { 
-    height: 1, 
-    backgroundColor: '#333', 
-    marginVertical: 15, 
-    width: '100%' 
+  divider: {
+    height: 1,
+    backgroundColor: '#333',
+    marginVertical: 15,
+    width: '100%'
   },
-  verticalBtnGroup: { 
-    width: '100%', 
-    gap: 10 
+  verticalBtnGroup: {
+    width: '100%',
+    gap: 10
   },
-  actionBtn: { 
-    paddingVertical: 14, 
-    borderRadius: 12, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  actionBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  btnFull: { 
-    width: '100%' 
+  btnFull: {
+    width: '100%'
   },
-  btnGreen: { 
-    backgroundColor: '#27ae60' 
+  btnGreen: {
+    backgroundColor: '#131313',
+    color: '#11a34e',
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#11a34e'
   },
-  btnBlue: { 
-    backgroundColor: '#2980b9' 
+  btnBlue: {
+    backgroundColor: '#131313',
+    color: '#2980b9',
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#2980b9'
   },
-  actionBtnText: { 
-    color: '#fff', 
-    fontSize: 15, 
-    fontWeight: 'bold', 
-    letterSpacing: 0.5 
+  actionBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold',
+    letterSpacing: 0.5
   },
 });
 
