@@ -1,5 +1,5 @@
-import React, { memo, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
+import React, { memo, useEffect, useRef, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, BackHandler } from 'react-native';
 import { getNotificationMessage } from '../utils/storage';
 
 interface AssistantPopupProps {
@@ -12,6 +12,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
   const slideAnim = useRef(new Animated.Value(200)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const message = getNotificationMessage(userName);
+  const isClosing = useRef(false);
 
   useEffect(() => {
     // Slide up animation
@@ -30,13 +31,23 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
       })
     ]).start();
 
+    // Android back button handler
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleClose();
+      return true;
+    });
+
     return () => {
       slideAnim.stopAnimation();
       opacityAnim.stopAnimation();
+      backHandler.remove();
     };
   }, [slideAnim, opacityAnim]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
+    if (isClosing.current) return;
+    isClosing.current = true;
+
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 200,
@@ -53,7 +64,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
     ]).start(() => {
       onClose();
     });
-  };
+  }, [slideAnim, opacityAnim, onClose]);
 
   return (
     <>
@@ -93,7 +104,12 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
       </Animated.View>
     </>
   );
+}, (prev, next) => {
+  // Prevent unnecessary re-renders
+  return prev.userName === next.userName && prev.assistantName === next.assistantName;
 });
+
+AssistantPopup.displayName = 'AssistantPopup';
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -107,7 +123,7 @@ const styles = StyleSheet.create({
   },
   popupCard: {
     position: 'absolute',
-    bottom: 110, // Above dock (dock is at bottom 20 + height 68 = 88, so 110 gives space)
+    bottom: 110,
     left: 16,
     right: 16,
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
@@ -171,5 +187,4 @@ const styles = StyleSheet.create({
   },
 });
 
-// @satria: Jangan lupa untuk menambahkan style untuk backdrop dan popupCard di dalam StyleSheet.create, serta pastikan untuk mengimpor komponen ini di tempat yang sesuai dalam aplikasi Anda.
 export default AssistantPopup;

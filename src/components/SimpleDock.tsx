@@ -1,5 +1,5 @@
-import React, { memo, useState } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import React, { memo, useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Image, StyleSheet, AppState } from 'react-native';
 import DockAppItem from './DockAppItem';
 import AssistantPopup from './AssistantPopup';
 import { AppData } from '../types';
@@ -25,24 +25,55 @@ const SimpleDock = memo(({
   userName,
 }: SimpleDockProps) => {
   const [showPopup, setShowPopup] = useState(false);
+  const [isActive, setIsActive] = useState(true);
+  const appStateRef = useRef(AppState.currentState);
 
-  // Calculate dynamic width
+  // Background state management
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      appStateRef.current = nextAppState;
+      
+      if (nextAppState.match(/inactive|background/)) {
+        setIsActive(false);
+        // Auto-close popup when going to background
+        setShowPopup(false);
+      } else if (nextAppState === 'active') {
+        setIsActive(true);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // Calculate dynamic width - memoized
   const appCount = dockApps.length;
-  const avatarWidth = DOCK_ICON_SIZE + 16; // Avatar + padding
-  const separatorWidth = appCount > 0 ? 20 : 0; // Separator only if there are apps
-  const iconWidth = DOCK_ICON_SIZE + 8; // Icon + spacing
+  const avatarWidth = DOCK_ICON_SIZE + 16;
+  const separatorWidth = appCount > 0 ? 20 : 0;
+  const iconWidth = DOCK_ICON_SIZE + 8;
   const appsWidth = appCount > 0 ? (iconWidth * appCount) + 12 : 0;
   const totalWidth = avatarWidth + separatorWidth + appsWidth;
-  const minWidth = avatarWidth + 32; // Avatar + padding
-
+  const minWidth = avatarWidth + 32;
   const calculatedWidth = Math.max(totalWidth, minWidth);
+
+  const handleAvatarPress = () => {
+    if (!isActive) return;
+    setShowPopup(true);
+  };
+
+  const handleClosePopup = () => {
+    setShowPopup(false);
+  };
 
   return (
     <>
-      {/* Assistant Popup */}
-      {showPopup && (
+      {/* Assistant Popup - only render when needed */}
+      {showPopup && isActive && (
         <AssistantPopup
-          onClose={() => setShowPopup(false)}
+          onClose={handleClosePopup}
           userName={userName}
           assistantName={assistantName}
         />
@@ -57,10 +88,10 @@ const SimpleDock = memo(({
           delayLongPress={500}
         >
           <View style={styles.dockContent}>
-            {/* Avatar Assistant (Always on Left) */}
+            {/* Avatar Assistant */}
             <TouchableOpacity
               style={styles.avatarContainer}
-              onPress={() => setShowPopup(true)}
+              onPress={handleAvatarPress}
               activeOpacity={0.7}
             >
               <Image 
@@ -69,12 +100,12 @@ const SimpleDock = memo(({
               />
             </TouchableOpacity>
 
-            {/* Separator (Only if there are dock apps) */}
+            {/* Separator */}
             {appCount > 0 && (
               <View style={styles.separator} />
             )}
 
-            {/* Dock Apps (Right side) */}
+            {/* Dock Apps */}
             {appCount > 0 && (
               <View style={styles.dockAppsRow}>
                 {dockApps.slice(0, 4).map((app: AppData) => (
@@ -92,7 +123,24 @@ const SimpleDock = memo(({
       </View>
     </>
   );
+}, (prev, next) => {
+  // Optimized comparison
+  if (prev.dockApps.length !== next.dockApps.length) return false;
+  if (prev.avatarSource !== next.avatarSource) return false;
+  if (prev.userName !== next.userName) return false;
+  if (prev.assistantName !== next.assistantName) return false;
+  
+  // Compare dock apps
+  for (let i = 0; i < prev.dockApps.length; i++) {
+    if (prev.dockApps[i].packageName !== next.dockApps[i].packageName) {
+      return false;
+    }
+  }
+  
+  return true;
 });
+
+SimpleDock.displayName = 'SimpleDock';
 
 const styles = StyleSheet.create({
   simpleDockContainer: {
@@ -101,7 +149,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 10, // Higher than fade overlay
+    zIndex: 10,
   },
   simpleDockCard: {
     minHeight: 68,
@@ -120,7 +168,7 @@ const styles = StyleSheet.create({
   dockContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center', // Center semua elemen
+    justifyContent: 'center',
     flex: 1,
   },
   avatarContainer: {

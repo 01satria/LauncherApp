@@ -9,29 +9,47 @@ interface AppItemProps {
   onPress: (pkg: string) => void;
   onLongPress: (pkg: string, label: string) => void;
   showNames: boolean;
-  opacity?: number;
 }
 
-const AppItem = memo(({ item, onPress, onLongPress, showNames, opacity = 1 }: AppItemProps) => {
+const AppItem = memo(({ item, onPress, onLongPress, showNames }: AppItemProps) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const isAnimating = useRef(false);
 
   const handlePressIn = useCallback(() => {
+    if (isAnimating.current) return;
+    isAnimating.current = true;
+    
     Animated.spring(scaleAnim, {
       toValue: 0.85,
       friction: 5,
       tension: 100,
       useNativeDriver: true,
-    }).start();
+    }).start(() => {
+      isAnimating.current = false;
+    });
   }, [scaleAnim]);
 
   const handlePressOut = useCallback(() => {
+    if (isAnimating.current) return;
+    isAnimating.current = true;
+    
     Animated.spring(scaleAnim, {
       toValue: 1,
       friction: 5,
       tension: 100,
       useNativeDriver: true,
-    }).start();
+    }).start(() => {
+      isAnimating.current = false;
+    });
   }, [scaleAnim]);
+
+  const handlePress = useCallback(() => {
+    onPress(item.packageName);
+  }, [item.packageName, onPress]);
+
+  const handleLongPressCallback = useCallback(() => {
+    onLongPress(item.packageName, item.label);
+  }, [item.packageName, item.label, onLongPress]);
 
   useEffect(() => {
     return () => {
@@ -40,11 +58,11 @@ const AppItem = memo(({ item, onPress, onLongPress, showNames, opacity = 1 }: Ap
   }, [scaleAnim]);
 
   return (
-    <View style={[styles.item, { opacity }]}>
+    <View style={styles.item}>
       <TouchableOpacity
         style={styles.itemTouchable}
-        onPress={() => onPress(item.packageName)}
-        onLongPress={() => onLongPress(item.packageName, item.label)}
+        onPress={handlePress}
+        onLongPress={handleLongPressCallback}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={1}
@@ -57,11 +75,14 @@ const AppItem = memo(({ item, onPress, onLongPress, showNames, opacity = 1 }: Ap
       </TouchableOpacity>
     </View>
   );
-}, (prev, next) => 
-  prev.item.packageName === next.item.packageName && 
-  prev.showNames === next.showNames &&
-  prev.opacity === next.opacity
-);
+}, (prev, next) => {
+  // Optimized comparison
+  return prev.item.packageName === next.item.packageName && 
+         prev.showNames === next.showNames &&
+         prev.item.icon === next.item.icon;
+});
+
+AppItem.displayName = 'AppItem';
 
 const styles = StyleSheet.create({
   item: { 

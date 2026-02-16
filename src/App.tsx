@@ -10,6 +10,7 @@ import {
   AppState,
   Animated,
   ListRenderItem,
+  InteractionManager,
 } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import LinearGradient from 'react-native-linear-gradient';
@@ -36,6 +37,7 @@ import AppActionModal from './components/AppActionModal';
 const App = () => {
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
+  const [isActive, setIsActive] = useState(true);
   
   // Modals
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -49,6 +51,7 @@ const App = () => {
   // Animations
   const modalScaleAnim = useRef(new Animated.Value(0)).current;
   const settingsModalAnim = useRef(new Animated.Value(0)).current;
+  const appStateRef = useRef(AppState.currentState);
 
   // Custom hooks
   const {
@@ -83,55 +86,85 @@ const App = () => {
     toggleShowNames,
   } = useUserSettings();
 
+  // Background state management
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextAppState;
+
+      if (nextAppState === 'active' && previousState !== 'active') {
+        // Returning from background - minimal refresh
+        setIsActive(true);
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(() => refreshApps(), 500);
+        });
+      } else if (nextAppState.match(/inactive|background/)) {
+        // Going to background - pause non-critical tasks
+        setIsActive(false);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [refreshApps]);
+
   // Initialize app
   useEffect(() => {
     const init = async () => {
       await initializeStorage();
       const prefs = await loadUserPreferences();
       
-      setUserName(prefs.userName);
-      setAssistantName(prefs.assistantName);
-      setHiddenPackages(prefs.hiddenPackages);
-      setShowHidden(prefs.showHidden);
-      setAvatarSource(prefs.avatarSource);
-      setDockPackages(prefs.dockPackages);
-      setShowNames(prefs.showNames);
-      
-      setLoading(false);
+      // Batch state updates
+      InteractionManager.runAfterInteractions(() => {
+        setUserName(prefs.userName);
+        setAssistantName(prefs.assistantName);
+        setHiddenPackages(prefs.hiddenPackages);
+        setShowHidden(prefs.showHidden);
+        setAvatarSource(prefs.avatarSource);
+        setDockPackages(prefs.dockPackages);
+        setShowNames(prefs.showNames);
+        setLoading(false);
+      });
     };
     
     init();
     refreshApps();
 
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
-      refreshApps();
-    });
-
-    const appStateSub = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active') {
-        setTimeout(() => refreshApps(), 1000);
+      if (isActive) {
+        refreshApps();
       }
     });
 
     return () => {
       InstalledApps.stopListeningForAppInstallations();
-      appStateSub.remove();
     };
   }, []);
 
-  // Filter apps
+  // Filter apps - optimized with useMemo-like behavior
   useEffect(() => {
-    requestAnimationFrame(() => {
-      const filtered = allApps.filter(app => 
-        !dockPackages.includes(app.packageName) && 
-        (showHidden || !hiddenPackages.includes(app.packageName))
-      );
-      setFilteredApps(filtered);
-    });
-  }, [allApps, hiddenPackages, dockPackages, showHidden]);
+    if (!isActive) return; // Skip filtering when in background
 
-  // Modal animations
+    const filterTimeout = setTimeout(() => {
+      requestAnimationFrame(() => {
+        const filtered = allApps.filter(app => 
+          !dockPackages.includes(app.packageName) && 
+          (showHidden || !hiddenPackages.includes(app.packageName))
+        );
+        setFilteredApps(filtered);
+      });
+    }, 50); // Debounce filtering
+
+    return () => clearTimeout(filterTimeout);
+  }, [allApps, hiddenPackages, dockPackages, showHidden, isActive]);
+
+  // Modal animations - only when active
   useEffect(() => {
+    if (!isActive) return;
+
     if (actionModalVisible) {
       Animated.spring(modalScaleAnim, {
         toValue: 1,
@@ -142,9 +175,11 @@ const App = () => {
     } else {
       modalScaleAnim.setValue(0);
     }
-  }, [actionModalVisible, modalScaleAnim]);
+  }, [actionModalVisible, modalScaleAnim, isActive]);
 
   useEffect(() => {
+    if (!isActive) return;
+
     if (settingsVisible) {
       Animated.spring(settingsModalAnim, {
         toValue: 1,
@@ -155,7 +190,7 @@ const App = () => {
     } else {
       settingsModalAnim.setValue(0);
     }
-  }, [settingsVisible, settingsModalAnim]);
+  }, [settingsVisible, settingsModalAnim, isActive]);
 
   useEffect(() => {
     return () => {
@@ -164,12 +199,12 @@ const App = () => {
     };
   }, [modalScaleAnim, settingsModalAnim]);
 
-  // Handlers
-  const handleOpenSettings = () => {
+  // Handlers - wrapped in useCallback for stability
+  const handleOpenSettings = useCallback(() => {
     setTempName(userName);
     setTempAssistantName(assistantName);
     setSettingsVisible(true);
-  };
+  }, [userName, assistantName]);
 
   const handleLongPress = useCallback((pkg: string, label: string) => {
     const isHidden = hiddenPackages.includes(pkg);
@@ -179,36 +214,36 @@ const App = () => {
     setActionModalVisible(true);
   }, [hiddenPackages]);
 
-  const handleHideAction = async () => {
+  const handleHideAction = useCallback(async () => {
     if (actionType === 'unhide') {
       await unhideApp(selectedPkg);
     } else {
       await hideApp(selectedPkg);
     }
     setActionModalVisible(false);
-  };
+  }, [actionType, selectedPkg, hideApp, unhideApp]);
 
-  const handlePinToDock = async () => {
+  const handlePinToDock = useCallback(async () => {
     const success = await pinToDock(selectedPkg);
     if (success !== false) {
       setActionModalVisible(false);
     }
-  };
+  }, [selectedPkg, pinToDock]);
 
-  const handleUninstall = () => {
+  const handleUninstall = useCallback(() => {
     setActionModalVisible(false);
     uninstallApp(selectedPkg);
-  };
+  }, [selectedPkg, uninstallApp]);
 
-  const launchApp = (pkg: string) => {
+  const launchApp = useCallback((pkg: string) => {
     try { 
       RNLauncherKitHelper.launchApplication(pkg); 
     } catch { 
       ToastAndroid.show("Cannot Open", ToastAndroid.SHORT); 
     }
-  };
+  }, []);
 
-  const handleChangePhoto = async () => {
+  const handleChangePhoto = useCallback(async () => {
     const res = await ImagePicker.launchImageLibrary({ 
       mediaType: 'photo', 
       includeBase64: true, 
@@ -221,13 +256,13 @@ const App = () => {
       setAvatarSource(`data:image/jpeg;base64,${b64}`);
       await saveAvatar(b64);
     }
-  };
+  }, []);
 
-  const handleSaveSettings = async () => {
+  const handleSaveSettings = useCallback(async () => {
     await updateUserName(tempName);
     await updateAssistantName(tempAssistantName);
     setSettingsVisible(false);
-  };
+  }, [tempName, tempAssistantName, updateUserName, updateAssistantName]);
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
     <AppItem 
@@ -236,7 +271,7 @@ const App = () => {
       onLongPress={handleLongPress} 
       showNames={showNames}
     />
-  ), [handleLongPress, showNames]);
+  ), [launchApp, handleLongPress, showNames]);
 
   const dockApps = allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5);
   const isDocked = dockPackages.includes(selectedPkg);
@@ -283,6 +318,12 @@ const App = () => {
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={<View style={styles.listFooter} />}
+          // Performance optimizations
+          disableVirtualization={false}
+          legacyImplementation={false}
+          maxToRenderPerBatch={isActive ? MAX_TO_RENDER_PER_BATCH : 5}
+          scrollEventThrottle={16}
+          directionalLockEnabled={true}
         />
       </MaskedView>
 
@@ -296,33 +337,37 @@ const App = () => {
         userName={userName}
       />
 
-      <SettingsModal
-        visible={settingsVisible}
-        tempName={tempName}
-        tempAssistantName={tempAssistantName}
-        showHidden={showHidden}
-        showNames={showNames}
-        scaleAnim={settingsModalAnim}
-        onClose={() => setSettingsVisible(false)}
-        onTempNameChange={setTempName}
-        onTempAssistantNameChange={setTempAssistantName}
-        onToggleHidden={toggleShowHidden}
-        onToggleShowNames={toggleShowNames}
-        onChangePhoto={handleChangePhoto}
-        onSave={handleSaveSettings}
-      />
+      {isActive && (
+        <>
+          <SettingsModal
+            visible={settingsVisible}
+            tempName={tempName}
+            tempAssistantName={tempAssistantName}
+            showHidden={showHidden}
+            showNames={showNames}
+            scaleAnim={settingsModalAnim}
+            onClose={() => setSettingsVisible(false)}
+            onTempNameChange={setTempName}
+            onTempAssistantNameChange={setTempAssistantName}
+            onToggleHidden={toggleShowHidden}
+            onToggleShowNames={toggleShowNames}
+            onChangePhoto={handleChangePhoto}
+            onSave={handleSaveSettings}
+          />
 
-      <AppActionModal
-        visible={actionModalVisible}
-        selectedLabel={selectedLabel}
-        actionType={actionType}
-        isDocked={isDocked}
-        scaleAnim={modalScaleAnim}
-        onClose={() => setActionModalVisible(false)}
-        onPinToDock={handlePinToDock}
-        onHideAction={handleHideAction}
-        onUninstall={handleUninstall}
-      />
+          <AppActionModal
+            visible={actionModalVisible}
+            selectedLabel={selectedLabel}
+            actionType={actionType}
+            isDocked={isDocked}
+            scaleAnim={modalScaleAnim}
+            onClose={() => setActionModalVisible(false)}
+            onPinToDock={handlePinToDock}
+            onHideAction={handleHideAction}
+            onUninstall={handleUninstall}
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 };
