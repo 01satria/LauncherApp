@@ -11,6 +11,8 @@ import {
   Animated,
   ListRenderItem,
 } from 'react-native';
+import MaskedView from '@react-native-masked-view/masked-view';
+import LinearGradient from 'react-native-linear-gradient';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import * as ImagePicker from 'react-native-image-picker';
 import { AppData } from './types';
@@ -251,8 +253,17 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       
-      {/* App Grid with Fade Effect */}
-      <View style={styles.appsContainer}>
+      {/* App Grid with MaskedView fade */}
+      <MaskedView
+        style={styles.appsContainer}
+        maskElement={
+          <LinearGradient
+            colors={['black', 'black', 'transparent']}
+            locations={[0, 0.85, 1]} // Fade starts at 85% from top
+            style={{ flex: 1 }}
+          />
+        }
+      >
         <FlatList
           key={listKey}
           data={filteredApps}
@@ -270,7 +281,7 @@ const App = () => {
           showsVerticalScrollIndicator={false}
           ListFooterComponent={<View style={styles.listFooter} />}
         />
-      </View>
+      </MaskedView>
 
       <SimpleDock
         dockApps={dockApps}
@@ -342,4 +353,5 @@ const styles = StyleSheet.create({
 // Instagram: https://www.instagram.com/satria.page/
 // Indonesian: "Jangan lupa untuk memberikan kredit kepada Satria Dev jika Anda menggunakan atau memodifikasi kode ini dalam proyek Anda. Terima kasih telah menghargai karya saya!" - Satria Dev
 // English: "Please remember to give credit to Satria Dev if you use or modify this code in your projects. Thank you for respecting my work!" - Satria Dev
+
 export default App;
