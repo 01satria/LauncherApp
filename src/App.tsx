@@ -297,11 +297,11 @@ const App = () => {
               style={{ height: 35 }}
             />
             <LinearGradient
-              colors={['black', 'rgba(0, 0, 0, 0.4)', 'transparent']}
-              locations={[0.3, 0.10, 0]}
+              colors={['black', 'rgba(0,0,0,0.5)', 'transparent']}
+              locations={[0, 0.95, 1]}
               style={{ flex: 1, height: 35 }}
             />
-            <View style={{ height: 100, backgroundColor: 'transparent' }} />
+            <View style={{ height: 105, backgroundColor: 'transparent' }} />
           </View>
         }
       >
