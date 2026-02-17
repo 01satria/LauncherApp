@@ -293,12 +293,12 @@ const App = () => {
             <View style={{ height: 20, backgroundColor: 'transparent' }} />
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.3)', 'black']}
-              locations={[0, 0.15, 0.3]}
+              locations={[0, 0.10, 0.3]}
               style={{ height: 35 }}
             />
             <LinearGradient
-              colors={['black', 'rgba(0,0,0,0.5)', 'transparent']}
-              locations={[0, 0.82, 1]}
+              colors={['black', 'rgba(0, 0, 0, 0.4)', 'transparent']}
+              locations={[0.3, 0.10, 0]}
               style={{ flex: 1, height: 35 }}
             />
             <View style={{ height: 100, backgroundColor: 'transparent' }} />
