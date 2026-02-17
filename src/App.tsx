@@ -17,9 +17,9 @@ import LinearGradient from 'react-native-linear-gradient';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import * as ImagePicker from 'react-native-image-picker';
 import { AppData } from './types';
-import { 
-  INITIAL_NUM_TO_RENDER, 
-  MAX_TO_RENDER_PER_BATCH, 
+import {
+  INITIAL_NUM_TO_RENDER,
+  MAX_TO_RENDER_PER_BATCH,
   WINDOW_SIZE,
   UPDATE_CELLS_BATCHING_PERIOD,
 } from './constants';
@@ -38,7 +38,7 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
   const [isActive, setIsActive] = useState(true);
-  
+
   // Modals
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [actionModalVisible, setActionModalVisible] = useState(false);
@@ -116,7 +116,7 @@ const App = () => {
     const init = async () => {
       await initializeStorage();
       const prefs = await loadUserPreferences();
-      
+
       // Batch state updates
       InteractionManager.runAfterInteractions(() => {
         setUserName(prefs.userName);
@@ -129,7 +129,7 @@ const App = () => {
         setLoading(false);
       });
     };
-    
+
     init();
     refreshApps();
 
@@ -150,8 +150,8 @@ const App = () => {
 
     const filterTimeout = setTimeout(() => {
       requestAnimationFrame(() => {
-        const filtered = allApps.filter(app => 
-          !dockPackages.includes(app.packageName) && 
+        const filtered = allApps.filter(app =>
+          !dockPackages.includes(app.packageName) &&
           (showHidden || !hiddenPackages.includes(app.packageName))
         );
         setFilteredApps(filtered);
@@ -236,21 +236,21 @@ const App = () => {
   }, [selectedPkg, uninstallApp]);
 
   const launchApp = useCallback((pkg: string) => {
-    try { 
-      RNLauncherKitHelper.launchApplication(pkg); 
-    } catch { 
-      ToastAndroid.show("Cannot Open", ToastAndroid.SHORT); 
+    try {
+      RNLauncherKitHelper.launchApplication(pkg);
+    } catch {
+      ToastAndroid.show("Cannot Open", ToastAndroid.SHORT);
     }
   }, []);
 
   const handleChangePhoto = useCallback(async () => {
-    const res = await ImagePicker.launchImageLibrary({ 
-      mediaType: 'photo', 
-      includeBase64: true, 
-      maxWidth: 200, 
-      maxHeight: 200 
+    const res = await ImagePicker.launchImageLibrary({
+      mediaType: 'photo',
+      includeBase64: true,
+      maxWidth: 200,
+      maxHeight: 200
     });
-    
+
     if (res.assets?.[0]?.base64) {
       const b64 = res.assets[0].base64;
       setAvatarSource(`data:image/jpeg;base64,${b64}`);
@@ -265,10 +265,10 @@ const App = () => {
   }, [tempName, tempAssistantName, updateUserName, updateAssistantName]);
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
-    <AppItem 
-      item={item} 
-      onPress={launchApp} 
-      onLongPress={handleLongPress} 
+    <AppItem
+      item={item}
+      onPress={launchApp}
+      onLongPress={handleLongPress}
       showNames={showNames}
     />
   ), [launchApp, handleLongPress, showNames]);
@@ -287,12 +287,13 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-      
+
       {/* App Grid with MaskedView fade */}
       <MaskedView
         style={styles.appsContainer}
         maskElement={
           <View style={{ flex: 1 }}>
+            <View style={{ height: 10, backgroundColor: 'transparent' }} />
             <LinearGradient
               colors={['black', 'black', 'rgba(0,0,0,0.5)', 'transparent']}
               locations={[0, 0.90, 0.95, 1]}
@@ -373,21 +374,21 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: 'transparent' 
+  container: {
+    flex: 1,
+    backgroundColor: 'transparent'
   },
-  center: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   appsContainer: {
     flex: 1,
     position: 'relative',
   },
-  list: { 
-    paddingTop: 50, 
+  list: {
+    paddingTop: 50,
     paddingBottom: 20,
   },
   listFooter: {
