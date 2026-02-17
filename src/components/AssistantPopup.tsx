@@ -8,7 +8,6 @@ import {
   Dimensions,
 } from 'react-native';
 import { getNotificationMessage } from '../utils/storage';
-import { Send } from 'lucide-react';
 
 const SCREEN_H = Dimensions.get('window').height;
 const CARD_H   = Math.min(480, SCREEN_H * 0.62); // max 62% of screen, centered
@@ -131,6 +130,53 @@ const getReply = (input: string, userName: string, assistantName: string): strin
   ];
   return defaults[Math.floor(Math.random() * defaults.length)];
 };
+
+// ─── Send Icon (pure RN, no library needed) ───────────────────────────────────
+const SendIcon = memo(({ active }: { active: boolean }) => (
+  <View style={sendIconStyles.wrap}>
+    {/* Arrow body */}
+    <View style={[sendIconStyles.shaft, active && sendIconStyles.shaftActive]} />
+    {/* Arrowhead top */}
+    <View style={[sendIconStyles.headTop, active && sendIconStyles.headActive]} />
+    {/* Arrowhead bottom */}
+    <View style={[sendIconStyles.headBot, active && sendIconStyles.headActive]} />
+  </View>
+));
+
+const sendIconStyles = StyleSheet.create({
+  wrap: {
+    width: 20, height: 20,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  shaft: {
+    position: 'absolute',
+    width: 13, height: 2,
+    backgroundColor: '#555',
+    borderRadius: 1,
+    left: 1,
+    transform: [{ rotate: '0deg' }],
+  },
+  shaftActive: { backgroundColor: '#fff' },
+  headTop: {
+    position: 'absolute',
+    width: 7, height: 2,
+    backgroundColor: '#555',
+    borderRadius: 1,
+    right: 1,
+    top: 6,
+    transform: [{ rotate: '-40deg' }],
+  },
+  headBot: {
+    position: 'absolute',
+    width: 7, height: 2,
+    backgroundColor: '#555',
+    borderRadius: 1,
+    right: 1,
+    bottom: 6,
+    transform: [{ rotate: '40deg' }],
+  },
+  headActive: { backgroundColor: '#fff' },
+});
 
 // ─── Animated Toggle ──────────────────────────────────────────────────────────
 interface ToggleProps {
@@ -453,7 +499,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
               activeOpacity={0.7}
               disabled={!hasInput}
             >
-              <Send size={20} color={hasInput ? "#fff" : "#555"} />
+              <SendIcon active={hasInput} />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -523,7 +569,6 @@ const styles = StyleSheet.create({
   sendBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: '#1a1a1a',
-    borderStyle: 'solid',
     borderWidth: 1, borderColor: '#2a2a2a',
     justifyContent: 'center', alignItems: 'center',
   },
