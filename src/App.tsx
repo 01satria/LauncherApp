@@ -290,16 +290,16 @@ const App = () => {
         style={styles.appsContainer}
         maskElement={
           <View style={{ flex: 1 }}>
-            <View style={{ height: 40, backgroundColor: 'transparent' }} />
+            <View style={{ height: 20, backgroundColor: 'transparent' }} />
             <LinearGradient
               colors={['transparent', 'rgba(0,0,0,0.3)', 'black']}
               locations={[0, 0.15, 0.3]}
               style={{ height: 35 }}
             />
             <LinearGradient
-              colors={['black', 'black', 'rgba(0,0,0,0.5)', 'transparent']}
-              locations={[0, 0.65, 0.82, 1]}
-              style={{ flex: 1 }}
+              colors={['black', 'rgba(0,0,0,0.5)', 'transparent']}
+              locations={[0, 0.82, 1]}
+              style={{ flex: 1, height: 35 }}
             />
             <View style={{ height: 100, backgroundColor: 'transparent' }} />
           </View>
