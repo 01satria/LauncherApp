@@ -1,67 +1,11 @@
-import React, { memo, useRef, useEffect, useCallback } from 'react';
+import React, { memo } from 'react';
 import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  TextInput,
-  Animated,
-  Pressable,
-  StyleSheet,
+  View, Text, Modal, TouchableOpacity,
+  TextInput, Animated, StyleSheet,
 } from 'react-native';
 import { width } from '../constants';
+import { AnimatedToggle } from './AssistantPopup';
 
-// ─── Smooth Animated Toggle ───────────────────────────────────────────────────
-interface ToggleProps {
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-  activeColor?: string;
-}
-
-const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae60' }: ToggleProps) => {
-  const translateX = useRef(new Animated.Value(value ? 1 : 0)).current;
-  const bgColor = useRef(new Animated.Value(value ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(translateX, {
-        toValue: value ? 1 : 0,
-        friction: 6,
-        tension: 120,
-        useNativeDriver: false,  // bgColor needs false, so keep parallel simple
-      }),
-      Animated.spring(bgColor, {
-        toValue: value ? 1 : 0,
-        friction: 6,
-        tension: 120,
-        useNativeDriver: false,
-      }),
-    ]).start();
-  }, [value, translateX, bgColor]);
-
-  const thumbX = translateX.interpolate({
-    inputRange: [0, 1],
-    outputRange: [2, 24],
-  });
-
-  const track = bgColor.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#3a3a3a', activeColor],
-  });
-
-  return (
-    <Pressable
-      onPress={() => onValueChange(!value)}
-      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-    >
-      <Animated.View style={[styles.track, { backgroundColor: track }]}>
-        <Animated.View style={[styles.thumb, { transform: [{ translateX: thumbX }] }]} />
-      </Animated.View>
-    </Pressable>
-  );
-});
-
-// ─── Settings Modal ───────────────────────────────────────────────────────────
 interface SettingsModalProps {
   visible: boolean;
   tempName: string;
@@ -93,7 +37,6 @@ const SettingsModal = memo(({
   onChangePhoto,
   onSave,
 }: SettingsModalProps) => {
-
   const animStyle = {
     transform: [
       { scale: scaleAnim },
@@ -115,7 +58,6 @@ const SettingsModal = memo(({
       <View style={styles.overlay}>
         <Animated.View style={[styles.sheet, animStyle]}>
 
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -123,7 +65,6 @@ const SettingsModal = memo(({
             </TouchableOpacity>
           </View>
 
-          {/* Inputs */}
           <Text style={styles.label}>YOUR NAME</Text>
           <TextInput
             style={styles.input}
@@ -144,7 +85,6 @@ const SettingsModal = memo(({
             selectionColor="#27ae60"
           />
 
-          {/* Toggles */}
           <View style={styles.divider} />
 
           <View style={styles.row}>
@@ -159,7 +99,6 @@ const SettingsModal = memo(({
 
           <View style={styles.divider} />
 
-          {/* Buttons */}
           <TouchableOpacity style={[styles.btn, styles.btnBlue]} onPress={onChangePhoto} activeOpacity={0.8}>
             <Text style={styles.btnText}>Change Avatar</Text>
           </TouchableOpacity>
@@ -174,31 +113,7 @@ const SettingsModal = memo(({
   );
 });
 
-const TRACK_W = 50;
-const TRACK_H = 28;
-const THUMB = TRACK_H - 4;
-
 const styles = StyleSheet.create({
-  // Toggle
-  track: {
-    width: TRACK_W,
-    height: TRACK_H,
-    borderRadius: TRACK_H / 2,
-    justifyContent: 'center',
-  },
-  thumb: {
-    width: THUMB,
-    height: THUMB,
-    borderRadius: THUMB / 2,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-
-  // Modal
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.65)',
@@ -220,65 +135,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  title: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-  },
+  title: { color: '#fff', fontSize: 20, fontWeight: '700' },
   closeBtn: {
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#222',
-    borderRadius: 15,
+    width: 30, height: 30,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: '#222', borderRadius: 15,
   },
-  closeText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
+  closeText: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
   label: {
-    color: '#555',
-    fontSize: 11,
-    letterSpacing: 1.2,
-    marginBottom: 8,
-    marginLeft: 2,
+    color: '#555', fontSize: 11,
+    letterSpacing: 1.2, marginBottom: 8, marginLeft: 2,
   },
   input: {
     backgroundColor: '#1a1a1a',
     color: '#fff',
-    paddingHorizontal: 15,
-    paddingVertical: 13,
-    borderRadius: 14,
-    fontSize: 15,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    paddingHorizontal: 15, paddingVertical: 13,
+    borderRadius: 14, fontSize: 15, marginBottom: 18,
+    borderWidth: 1, borderColor: '#2a2a2a',
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#1e1e1e',
-    marginVertical: 14,
-  },
+  divider: { height: 1, backgroundColor: '#1e1e1e', marginVertical: 14 },
   row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 2,
-    marginBottom: 4,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 6, paddingHorizontal: 2, marginBottom: 4,
   },
-  rowText: {
-    color: '#ddd',
-    fontSize: 15,
-  },
-  btn: {
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
+  rowText: { color: '#ddd', fontSize: 15 },
+  btn: { paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginBottom: 10 },
   btnGreen: {
     backgroundColor: '#131313',
     color: '#11a34e',
@@ -292,12 +173,8 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#2980b9'
-  }, btnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.3,
   },
+  btnText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
 });
 
 export default SettingsModal;
