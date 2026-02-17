@@ -1,16 +1,67 @@
-import React, { memo } from 'react';
+import React, { memo, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   Modal,
   TouchableOpacity,
   TextInput,
-  Switch,
   Animated,
-  StyleSheet
+  Pressable,
+  StyleSheet,
 } from 'react-native';
 import { width } from '../constants';
 
+// ─── Smooth Animated Toggle ───────────────────────────────────────────────────
+interface ToggleProps {
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  activeColor?: string;
+}
+
+const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae60' }: ToggleProps) => {
+  const translateX = useRef(new Animated.Value(value ? 1 : 0)).current;
+  const bgColor = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(translateX, {
+        toValue: value ? 1 : 0,
+        friction: 6,
+        tension: 120,
+        useNativeDriver: false,  // bgColor needs false, so keep parallel simple
+      }),
+      Animated.spring(bgColor, {
+        toValue: value ? 1 : 0,
+        friction: 6,
+        tension: 120,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [value, translateX, bgColor]);
+
+  const thumbX = translateX.interpolate({
+    inputRange: [0, 1],
+    outputRange: [2, 24],
+  });
+
+  const track = bgColor.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#3a3a3a', activeColor],
+  });
+
+  return (
+    <Pressable
+      onPress={() => onValueChange(!value)}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+    >
+      <Animated.View style={[styles.track, { backgroundColor: track }]}>
+        <Animated.View style={[styles.thumb, { transform: [{ translateX: thumbX }] }]} />
+      </Animated.View>
+    </Pressable>
+  );
+});
+
+// ─── Settings Modal ───────────────────────────────────────────────────────────
 interface SettingsModalProps {
   visible: boolean;
   tempName: string;
@@ -42,186 +93,191 @@ const SettingsModal = memo(({
   onChangePhoto,
   onSave,
 }: SettingsModalProps) => {
+
+  const animStyle = {
+    transform: [
+      { scale: scaleAnim },
+      {
+        translateY: scaleAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [40, 0],
+        }),
+      },
+    ],
+    opacity: scaleAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+    }),
+  };
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <Animated.View
-          style={[
-            styles.modalContent,
-            {
-              transform: [
-                { scale: scaleAnim },
-                {
-                  translateY: scaleAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [50, 0]
-                  })
-                }
-              ],
-              opacity: scaleAnim
-            }
-          ]}
-        >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Settings</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+      <View style={styles.overlay}>
+        <Animated.View style={[styles.sheet, animStyle]}>
+
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Settings</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
               <Text style={styles.closeText}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.inputLabel}>Ur Name</Text>
+          {/* Inputs */}
+          <Text style={styles.label}>YOUR NAME</Text>
           <TextInput
-            style={styles.modernInput}
+            style={styles.input}
             value={tempName}
             onChangeText={onTempNameChange}
             placeholder="Enter name..."
-            placeholderTextColor="#666"
+            placeholderTextColor="#555"
+            selectionColor="#27ae60"
           />
 
-          <Text style={styles.inputLabel}>Assistant Name</Text>
+          <Text style={styles.label}>ASSISTANT NAME</Text>
           <TextInput
-            style={styles.modernInput}
+            style={styles.input}
             value={tempAssistantName}
             onChangeText={onTempAssistantNameChange}
             placeholder="Enter assistant name..."
-            placeholderTextColor="#666"
+            placeholderTextColor="#555"
+            selectionColor="#27ae60"
           />
 
-          <View style={styles.rowBetween}>
-            <Text style={styles.settingText}>Show Hidden Apps</Text>
-            <Switch
-              value={showHidden}
-              onValueChange={onToggleHidden}
-              thumbColor={showHidden ? "#27ae60" : "#f4f3f4"}
-              trackColor={{ false: "#767577", true: "#2ecc7130" }}
-            />
+          {/* Toggles */}
+          <View style={styles.divider} />
+
+          <View style={styles.row}>
+            <Text style={styles.rowText}>Show Hidden Apps</Text>
+            <AnimatedToggle value={showHidden} onValueChange={onToggleHidden} />
           </View>
 
-          <View style={styles.rowBetween}>
-            <Text style={styles.settingText}>Show App Names</Text>
-            <Switch
-              value={showNames}
-              onValueChange={onToggleShowNames}
-              thumbColor={showNames ? "#27ae60" : "#f4f3f4"}
-              trackColor={{ false: "#767577", true: "#2ecc7130" }}
-            />
+          <View style={styles.row}>
+            <Text style={styles.rowText}>Show App Names</Text>
+            <AnimatedToggle value={showNames} onValueChange={onToggleShowNames} />
           </View>
 
           <View style={styles.divider} />
 
-          <View style={styles.verticalBtnGroup}>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.btnBlue, styles.btnFull]}
-              onPress={onChangePhoto}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.actionBtnText}>Change Avatar</Text>
-            </TouchableOpacity>
+          {/* Buttons */}
+          <TouchableOpacity style={[styles.btn, styles.btnBlue]} onPress={onChangePhoto} activeOpacity={0.8}>
+            <Text style={styles.btnText}>Change Avatar</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.btnGreen, styles.btnFull]}
-              onPress={onSave}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.actionBtnText}>Save Changes</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={[styles.btn, styles.btnGreen]} onPress={onSave} activeOpacity={0.8}>
+            <Text style={styles.btnText}>Save Changes</Text>
+          </TouchableOpacity>
+
         </Animated.View>
       </View>
     </Modal>
   );
 });
 
+const TRACK_W = 50;
+const TRACK_H = 28;
+const THUMB = TRACK_H - 4;
+
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+  // Toggle
+  track: {
+    width: TRACK_W,
+    height: TRACK_H,
+    borderRadius: TRACK_H / 2,
     justifyContent: 'center',
-    alignItems: 'center'
   },
-  modalContent: {
+  thumb: {
+    width: THUMB,
+    height: THUMB,
+    borderRadius: THUMB / 2,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+
+  // Modal
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sheet: {
     width: width * 0.85,
-    backgroundColor: '#000000',
-    borderRadius: 20,
-    padding: 20,
+    backgroundColor: '#0d0d0d',
+    borderRadius: 24,
+    padding: 22,
     borderWidth: 1,
-    borderColor: '#333',
-    elevation: 10
+    borderColor: '#222',
+    elevation: 20,
   },
-  modalHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20
+    marginBottom: 20,
   },
-  modalTitle: {
+  title: {
     color: '#fff',
     fontSize: 20,
-    fontWeight: 'bold',
-    flex: 1
+    fontWeight: '700',
   },
   closeBtn: {
     width: 30,
     height: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 15
+    backgroundColor: '#222',
+    borderRadius: 15,
   },
   closeText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
-    marginTop: -2
   },
-  inputLabel: {
-    color: '#aaa',
-    fontSize: 12,
+  label: {
+    color: '#555',
+    fontSize: 11,
+    letterSpacing: 1.2,
     marginBottom: 8,
-    marginLeft: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 1
+    marginLeft: 2,
   },
-  modernInput: {
-    backgroundColor: '#2C2C2C',
+  input: {
+    backgroundColor: '#1a1a1a',
     color: '#fff',
     paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 12,
-    fontSize: 16,
-    marginBottom: 20,
+    paddingVertical: 13,
+    borderRadius: 14,
+    fontSize: 15,
+    marginBottom: 18,
     borderWidth: 1,
-    borderColor: '#333'
-  },
-  rowBetween: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-    paddingHorizontal: 4
-  },
-  settingText: {
-    color: '#fff',
-    fontSize: 16
+    borderColor: '#2a2a2a',
   },
   divider: {
     height: 1,
-    backgroundColor: '#333',
-    marginVertical: 15,
-    width: '100%'
+    backgroundColor: '#1e1e1e',
+    marginVertical: 14,
   },
-  verticalBtnGroup: {
-    width: '100%',
-    gap: 10
-  },
-  actionBtn: {
-    paddingVertical: 14,
-    borderRadius: 12,
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center'
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    marginBottom: 4,
   },
-  btnFull: {
-    width: '100%'
+  rowText: {
+    color: '#ddd',
+    fontSize: 15,
+  },
+  btn: {
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 10,
   },
   btnGreen: {
     backgroundColor: '#131313',
@@ -236,12 +292,11 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderWidth: 1,
     borderColor: '#2980b9'
-  },
-  actionBtnText: {
+  }, btnText: {
     color: '#fff',
     fontSize: 15,
-    fontWeight: 'bold',
-    letterSpacing: 0.5
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });
 
