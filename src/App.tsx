@@ -297,8 +297,8 @@ const App = () => {
               style={{ height: 35 }}
             />
             <LinearGradient
-              colors={['black', 'rgba(0,0,0,0.5)', 'transparent']}
-              locations={[0, 0.98, 1]}
+              colors={['black', 'black', 'rgba(0,0,0,0.5)', 'transparent']}
+              locations={[0, 0.98, 0.99, 1]}
               style={{ flex: 1 }}
             />
             <View style={{ height: 105, backgroundColor: 'transparent' }} />
