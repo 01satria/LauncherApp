@@ -167,24 +167,58 @@ const getReply = (input: string, userName: string, assistantName: string): strin
   return defaults[Math.floor(Math.random() * defaults.length)];
 };
 
-// ─── Send Icon (pure RN) ──────────────────────────────────────────────────────
-// FIX 4: Styles moved to StyleSheet.create (computed once, not per render)
 const SendIcon = memo(({ active }: { active: boolean }) => (
-  <View style={sendStyles.wrap}>
-    <View style={[sendStyles.shaft,   active && sendStyles.active]} />
-    <View style={[sendStyles.tail,    active && sendStyles.active]} />
-    <View style={[sendStyles.headTop, active && sendStyles.active]} />
-    <View style={[sendStyles.headBot, active && sendStyles.active]} />
+  <View style={solidStyles.container}>
+    {/* Body Pesawat (Segitiga Utama) */}
+    <View style={[solidStyles.planeBody, active && solidStyles.activeBody]} />
+    
+    {/* Ekor Pesawat (Segitiga Kecil untuk membuat lekukan di belakang) */}
+    <View style={solidStyles.planeTail} />
   </View>
 ));
 
-const sendStyles = StyleSheet.create({
-  wrap:    { width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
-  shaft:   { position: 'absolute', width: 18, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 0, top: 11, transform: [{ rotate: '-20deg' }] },
-  tail:    { position: 'absolute', width: 2.5, height: 6, backgroundColor: '#555', borderRadius: 2, left: 2, top: 9, transform: [{ rotate: '90deg' }] },
-  headTop: { position: 'absolute', width: 8, height: 2.5, backgroundColor: '#555', borderRadius: 2, right: 2, top: 6, transform: [{ rotate: '-50deg' }] },
-  headBot: { position: 'absolute', width: 8, height: 2.5, backgroundColor: '#555', borderRadius: 2, right: 2, bottom: 6, transform: [{ rotate: '50deg' }] },
-  active:  { backgroundColor: '#fff' },
+const solidStyles = StyleSheet.create({
+  container: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Rotasi sedikit agar menukik ke atas (opsional)
+    transform: [{ rotate: '-10deg' }] 
+  },
+  planeBody: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderTopWidth: 12,    // Setengah tinggi
+    borderRightWidth: 0,
+    borderBottomWidth: 12, // Setengah tinggi
+    borderLeftWidth: 22,   // Panjang pesawat
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderLeftColor: '#888', // Warna default
+  },
+  planeTail: {
+    position: 'absolute',
+    left: -2, // Menggeser pemotong untuk membentuk lekukan
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderTopWidth: 8,
+    borderRightWidth: 0,
+    borderBottomWidth: 8,
+    borderLeftWidth: 10, 
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderLeftColor: '#fff', // HARUS SAMA dengan warna background aplikasi
+  },
+  activeBody: {
+    borderLeftColor: '#007AFF', // Warna aktif (Biru iOS)
+  }
 });
 
 // ─── Animated Toggle ──────────────────────────────────────────────────────────
@@ -369,9 +403,9 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const slideAnim   = useRef(new Animated.Value(40)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const flatRef     = useRef<FlatList>(null);
-  // FIX 8: Track pending reply timeout so it can be cleared on unmount
   const replyTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // SCROLL FIX: gate prevents multiple simultaneous scroll calls
+  const scrollGate  = useRef(false);
 
   const [input, setInput]       = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -412,12 +446,10 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     openAnim.start();
 
     return () => {
-      // FIX 9: Full cleanup on unmount — stop all anims and pending timers
       openAnim.stop();
       slideAnim.stopAnimation();
       opacityAnim.stopAnimation();
-      if (replyTimer.current)  clearTimeout(replyTimer.current);
-      if (scrollTimer.current) clearTimeout(scrollTimer.current);
+      if (replyTimer.current) clearTimeout(replyTimer.current);
     };
   }, []);
 
@@ -428,12 +460,15 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     ]).start(() => onClose());
   }, [onClose]);
 
-  // FIX 10: scrollToEnd uses a tracked ref timeout (clearable on unmount)
+  // SCROLL FIX: Use requestAnimationFrame — waits for layout commit, zero setTimeout overhead
   const scrollToEnd = useCallback(() => {
-    if (scrollTimer.current) clearTimeout(scrollTimer.current);
-    scrollTimer.current = setTimeout(() => {
+    if (scrollGate.current) return;
+    scrollGate.current = true;
+    requestAnimationFrame(() => {
       flatRef.current?.scrollToEnd({ animated: true });
-    }, 80);
+      // Reset gate after scroll animation (~300ms)
+      setTimeout(() => { scrollGate.current = false; }, 320);
+    });
   }, []);
 
   const sendMessage = useCallback(() => {
@@ -443,10 +478,11 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     const userMsg: Message = { id: makeId(), text, from: 'user', time: now() };
     setMessages(prev => { const n = [...prev, userMsg]; saveChat(n); return n; });
     setInput('');
+    // Reset gate so user message scroll always fires immediately
+    scrollGate.current = false;
     scrollToEnd();
 
     setIsTyping(true);
-    // FIX 11: Reply timeout tracked and cleared on unmount to prevent setState on dead component
     replyTimer.current = setTimeout(() => {
       const reply: Message = {
         id: makeId(),
@@ -456,6 +492,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
       };
       setIsTyping(false);
       setMessages(prev => { const n = [...prev, reply]; saveChat(n); return n; });
+      scrollGate.current = false;
       scrollToEnd();
     }, 600 + Math.random() * 600);
   }, [input, userName, assistantName, scrollToEnd]);
@@ -507,7 +544,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
             </View>
             <View>
               <Text style={styles.headerName}>{assistantName}</Text>
-              <Text style={styles.headerSub}>● Online</Text>
+              <Text style={styles.headerSub}>Online</Text>
             </View>
           </View>
           <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -523,10 +560,18 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           renderItem={renderItem}
           style={styles.msgList}
           contentContainerStyle={styles.msgContent}
-          onContentSizeChange={scrollToEnd}
+          // SCROLL FIX 1: Remove onContentSizeChange — fired on every layout px change
+          // causing scroll to pile up. scrollToEnd is now called explicitly after setState.
+          // SCROLL FIX 2: Remove removeClippedSubviews — causes mount/unmount jank on short lists
           showsVerticalScrollIndicator={false}
-          removeClippedSubviews
+          // SCROLL FIX 3: maintainVisibleContentPosition keeps scroll stable when new items added at bottom
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          decelerationRate="normal"
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           ListFooterComponent={typingFooter}
+          // SCROLL FIX 4: Initial scroll on open via onLayout (fires once, not repeatedly)
+          onLayout={scrollToEnd}
         />
 
         {/* Input */}
