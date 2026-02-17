@@ -8,18 +8,18 @@ import {
   ActivityIndicator,
   StatusBar,
   AppState,
+  AppStateStatus,
   Animated,
   ListRenderItem,
-  InteractionManager,
 } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import LinearGradient from 'react-native-linear-gradient';
 import { InstalledApps, RNLauncherKitHelper } from 'react-native-launcher-kit';
 import * as ImagePicker from 'react-native-image-picker';
 import { AppData } from './types';
-import {
-  INITIAL_NUM_TO_RENDER,
-  MAX_TO_RENDER_PER_BATCH,
+import { 
+  INITIAL_NUM_TO_RENDER, 
+  MAX_TO_RENDER_PER_BATCH, 
   WINDOW_SIZE,
   UPDATE_CELLS_BATCHING_PERIOD,
 } from './constants';
@@ -37,8 +37,7 @@ import AppActionModal from './components/AppActionModal';
 const App = () => {
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
-  const [isActive, setIsActive] = useState(true);
-
+  
   // Modals
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [actionModalVisible, setActionModalVisible] = useState(false);
@@ -51,7 +50,6 @@ const App = () => {
   // Animations
   const modalScaleAnim = useRef(new Animated.Value(0)).current;
   const settingsModalAnim = useRef(new Animated.Value(0)).current;
-  const appStateRef = useRef(AppState.currentState);
 
   // Custom hooks
   const {
@@ -86,85 +84,55 @@ const App = () => {
     toggleShowNames,
   } = useUserSettings();
 
-  // Background state management
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
-      const previousState = appStateRef.current;
-      appStateRef.current = nextAppState;
-
-      if (nextAppState === 'active' && previousState !== 'active') {
-        // Returning from background - minimal refresh
-        setIsActive(true);
-        InteractionManager.runAfterInteractions(() => {
-          setTimeout(() => refreshApps(), 500);
-        });
-      } else if (nextAppState.match(/inactive|background/)) {
-        // Going to background - pause non-critical tasks
-        setIsActive(false);
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [refreshApps]);
-
   // Initialize app
   useEffect(() => {
     const init = async () => {
       await initializeStorage();
       const prefs = await loadUserPreferences();
-
-      // Batch state updates
-      InteractionManager.runAfterInteractions(() => {
-        setUserName(prefs.userName);
-        setAssistantName(prefs.assistantName);
-        setHiddenPackages(prefs.hiddenPackages);
-        setShowHidden(prefs.showHidden);
-        setAvatarSource(prefs.avatarSource);
-        setDockPackages(prefs.dockPackages);
-        setShowNames(prefs.showNames);
-        setLoading(false);
-      });
+      
+      setUserName(prefs.userName);
+      setAssistantName(prefs.assistantName);
+      setHiddenPackages(prefs.hiddenPackages);
+      setShowHidden(prefs.showHidden);
+      setAvatarSource(prefs.avatarSource);
+      setDockPackages(prefs.dockPackages);
+      setShowNames(prefs.showNames);
+      
+      setLoading(false);
     };
-
+    
     init();
     refreshApps();
 
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
-      if (isActive) {
-        refreshApps();
+      refreshApps();
+    });
+
+    const appStateSub = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        setTimeout(() => refreshApps(), 1000);
       }
     });
 
     return () => {
       InstalledApps.stopListeningForAppInstallations();
+      appStateSub.remove();
     };
   }, []);
 
-  // Filter apps - optimized with useMemo-like behavior
+  // Filter apps
   useEffect(() => {
-    if (!isActive) return; // Skip filtering when in background
+    requestAnimationFrame(() => {
+      const filtered = allApps.filter(app => 
+        !dockPackages.includes(app.packageName) && 
+        (showHidden || !hiddenPackages.includes(app.packageName))
+      );
+      setFilteredApps(filtered);
+    });
+  }, [allApps, hiddenPackages, dockPackages, showHidden]);
 
-    const filterTimeout = setTimeout(() => {
-      requestAnimationFrame(() => {
-        const filtered = allApps.filter(app =>
-          !dockPackages.includes(app.packageName) &&
-          (showHidden || !hiddenPackages.includes(app.packageName))
-        );
-        setFilteredApps(filtered);
-      });
-    }, 50); // Debounce filtering
-
-    return () => clearTimeout(filterTimeout);
-  }, [allApps, hiddenPackages, dockPackages, showHidden, isActive]);
-
-  // Modal animations - only when active
+  // Modal animations
   useEffect(() => {
-    if (!isActive) return;
-
     if (actionModalVisible) {
       Animated.spring(modalScaleAnim, {
         toValue: 1,
@@ -175,11 +143,9 @@ const App = () => {
     } else {
       modalScaleAnim.setValue(0);
     }
-  }, [actionModalVisible, modalScaleAnim, isActive]);
+  }, [actionModalVisible, modalScaleAnim]);
 
   useEffect(() => {
-    if (!isActive) return;
-
     if (settingsVisible) {
       Animated.spring(settingsModalAnim, {
         toValue: 1,
@@ -190,7 +156,7 @@ const App = () => {
     } else {
       settingsModalAnim.setValue(0);
     }
-  }, [settingsVisible, settingsModalAnim, isActive]);
+  }, [settingsVisible, settingsModalAnim]);
 
   useEffect(() => {
     return () => {
@@ -199,12 +165,12 @@ const App = () => {
     };
   }, [modalScaleAnim, settingsModalAnim]);
 
-  // Handlers - wrapped in useCallback for stability
-  const handleOpenSettings = useCallback(() => {
+  // Handlers
+  const handleOpenSettings = () => {
     setTempName(userName);
     setTempAssistantName(assistantName);
     setSettingsVisible(true);
-  }, [userName, assistantName]);
+  };
 
   const handleLongPress = useCallback((pkg: string, label: string) => {
     const isHidden = hiddenPackages.includes(pkg);
@@ -214,64 +180,64 @@ const App = () => {
     setActionModalVisible(true);
   }, [hiddenPackages]);
 
-  const handleHideAction = useCallback(async () => {
+  const handleHideAction = async () => {
     if (actionType === 'unhide') {
       await unhideApp(selectedPkg);
     } else {
       await hideApp(selectedPkg);
     }
     setActionModalVisible(false);
-  }, [actionType, selectedPkg, hideApp, unhideApp]);
+  };
 
-  const handlePinToDock = useCallback(async () => {
+  const handlePinToDock = async () => {
     const success = await pinToDock(selectedPkg);
     if (success !== false) {
       setActionModalVisible(false);
     }
-  }, [selectedPkg, pinToDock]);
+  };
 
-  const handleUninstall = useCallback(() => {
+  const handleUninstall = () => {
     setActionModalVisible(false);
     uninstallApp(selectedPkg);
-  }, [selectedPkg, uninstallApp]);
+  };
 
-  const launchApp = useCallback((pkg: string) => {
-    try {
-      RNLauncherKitHelper.launchApplication(pkg);
-    } catch {
-      ToastAndroid.show("Cannot Open", ToastAndroid.SHORT);
+  const launchApp = (pkg: string) => {
+    try { 
+      RNLauncherKitHelper.launchApplication(pkg); 
+    } catch { 
+      ToastAndroid.show("Cannot Open", ToastAndroid.SHORT); 
     }
-  }, []);
+  };
 
-  const handleChangePhoto = useCallback(async () => {
-    const res = await ImagePicker.launchImageLibrary({
-      mediaType: 'photo',
-      includeBase64: true,
-      maxWidth: 200,
-      maxHeight: 200
+  const handleChangePhoto = async () => {
+    const res = await ImagePicker.launchImageLibrary({ 
+      mediaType: 'photo', 
+      includeBase64: true, 
+      maxWidth: 200, 
+      maxHeight: 200 
     });
-
+    
     if (res.assets?.[0]?.base64) {
       const b64 = res.assets[0].base64;
       setAvatarSource(`data:image/jpeg;base64,${b64}`);
       await saveAvatar(b64);
     }
-  }, []);
+  };
 
-  const handleSaveSettings = useCallback(async () => {
+  const handleSaveSettings = async () => {
     await updateUserName(tempName);
     await updateAssistantName(tempAssistantName);
     setSettingsVisible(false);
-  }, [tempName, tempAssistantName, updateUserName, updateAssistantName]);
+  };
 
   const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
-    <AppItem
-      item={item}
-      onPress={launchApp}
-      onLongPress={handleLongPress}
+    <AppItem 
+      item={item} 
+      onPress={launchApp} 
+      onLongPress={handleLongPress} 
       showNames={showNames}
     />
-  ), [launchApp, handleLongPress, showNames]);
+  ), [handleLongPress, showNames]);
 
   const dockApps = allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5);
   const isDocked = dockPackages.includes(selectedPkg);
@@ -287,19 +253,28 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-
+      
       {/* App Grid with MaskedView fade */}
       <MaskedView
         style={styles.appsContainer}
         maskElement={
           <View style={{ flex: 1 }}>
-            <View style={{ height: 10, backgroundColor: 'transparent' }} />
+            {/* Fade at top for status bar */}
             <LinearGradient
-              colors={['black', 'black', 'rgba(0,0,0,0.5)', 'transparent']}
-              locations={[0, 0.90, 0.95, 1]}
-              style={{ flex: 1 }}
+              colors={['transparent', 'rgba(0,0,0,0.3)', 'black']}
+              locations={[0, 0.15, 0.3]}
+              style={{ height: 35 }}
             />
-            <View style={{ height: 85, backgroundColor: 'transparent' }} />
+            {/* Main content area - no fade */}
+            <View style={{ flex: 1 }} />
+            {/* Fade at bottom for dock */}
+            <LinearGradient
+              colors={['black', 'rgba(0,0,0,0.5)', 'transparent']}
+              locations={[0, 0.5, 1]}
+              style={{ height: 150 }}
+            />
+            {/* Transparent area for dock - ensures 100% fade above dock */}
+            <View style={{ height: 100, backgroundColor: 'transparent' }} />
           </View>
         }
       >
@@ -319,12 +294,6 @@ const App = () => {
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={<View style={styles.listFooter} />}
-          // Performance optimizations
-          disableVirtualization={false}
-          legacyImplementation={false}
-          maxToRenderPerBatch={isActive ? MAX_TO_RENDER_PER_BATCH : 5}
-          scrollEventThrottle={16}
-          directionalLockEnabled={true}
         />
       </MaskedView>
 
@@ -338,57 +307,53 @@ const App = () => {
         userName={userName}
       />
 
-      {isActive && (
-        <>
-          <SettingsModal
-            visible={settingsVisible}
-            tempName={tempName}
-            tempAssistantName={tempAssistantName}
-            showHidden={showHidden}
-            showNames={showNames}
-            scaleAnim={settingsModalAnim}
-            onClose={() => setSettingsVisible(false)}
-            onTempNameChange={setTempName}
-            onTempAssistantNameChange={setTempAssistantName}
-            onToggleHidden={toggleShowHidden}
-            onToggleShowNames={toggleShowNames}
-            onChangePhoto={handleChangePhoto}
-            onSave={handleSaveSettings}
-          />
+      <SettingsModal
+        visible={settingsVisible}
+        tempName={tempName}
+        tempAssistantName={tempAssistantName}
+        showHidden={showHidden}
+        showNames={showNames}
+        scaleAnim={settingsModalAnim}
+        onClose={() => setSettingsVisible(false)}
+        onTempNameChange={setTempName}
+        onTempAssistantNameChange={setTempAssistantName}
+        onToggleHidden={toggleShowHidden}
+        onToggleShowNames={toggleShowNames}
+        onChangePhoto={handleChangePhoto}
+        onSave={handleSaveSettings}
+      />
 
-          <AppActionModal
-            visible={actionModalVisible}
-            selectedLabel={selectedLabel}
-            actionType={actionType}
-            isDocked={isDocked}
-            scaleAnim={modalScaleAnim}
-            onClose={() => setActionModalVisible(false)}
-            onPinToDock={handlePinToDock}
-            onHideAction={handleHideAction}
-            onUninstall={handleUninstall}
-          />
-        </>
-      )}
+      <AppActionModal
+        visible={actionModalVisible}
+        selectedLabel={selectedLabel}
+        actionType={actionType}
+        isDocked={isDocked}
+        scaleAnim={modalScaleAnim}
+        onClose={() => setActionModalVisible(false)}
+        onPinToDock={handlePinToDock}
+        onHideAction={handleHideAction}
+        onUninstall={handleUninstall}
+      />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'transparent'
+  container: { 
+    flex: 1, 
+    backgroundColor: 'transparent' 
   },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
   },
   appsContainer: {
     flex: 1,
     position: 'relative',
   },
-  list: {
-    paddingTop: 50,
+  list: { 
+    paddingTop: 50, 
     paddingBottom: 20,
   },
   listFooter: {
@@ -396,7 +361,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// @2026 Satria Dev - SATRIA LAUNCHER - All Rights Reserved
 // Website: https://01satria.vercel.app
 // Github: https://github.com/01satria
 // Instagram: https://www.instagram.com/satria.page/
