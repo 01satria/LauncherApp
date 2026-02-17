@@ -138,7 +138,15 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
       },
 
       onPanResponderRelease: (_: GestureResponderEvent, gs) => {
-        // Decide final state based on movement or velocity
+        const isTap = Math.abs(gs.dx) < 5 && Math.abs(gs.dy) < 5;
+
+        if (isTap) {
+          // Single tap → just toggle
+          onValueChange(!valueRef.current);
+          return;
+        }
+
+        // Drag → decide by velocity or final position
         const threshold = MAX_X / 2;
         const base = valueRef.current ? MAX_X : 2;
         const nextPos = base + gs.dx;
@@ -151,7 +159,7 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
         if (shouldBeOn !== valueRef.current) {
           onValueChange(shouldBeOn);
         } else {
-          // Snap back with animation
+          // Snap back
           Animated.parallel([
             Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
             Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
