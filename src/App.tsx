@@ -55,78 +55,303 @@ const MaskElement = (
   </View>
 );
 
-// ─── Custom Bounce Hook ───────────────────────────────────────────────────────
-// Lightweight: uses a single Animated.Value translateY, no extra components.
-// Only activates at top/bottom edges — zero overhead during normal scroll.
-const useBounce = () => {
-  const translateY   = useRef(new Animated.Value(0)).current;
-  const scrollY      = useRef(0);
-  const contentH     = useRef(0);
-  const containerH   = useRef(0);
-  const bouncing     = useRef(false);
-  const springAnim   = useRef<Animated.CompositeAnimation | null>(null);
+// ─── Rubber Band Hook ─────────────────────────────────────────────────────────
+// When scroll reaches top or bottom edge, icons near that edge get
+// a "rubber-pulled" effect: scaleY squish + translateY shift,
+// proportional to their distance from the edge row.
+// On release, they spring back naturally.
+//
+// shared state exposed via a ref so AppItem can read it without re-renders.
+const ICON_SIZE       = 90;   // must match getItemLayout length
+const NUM_COLS        = 4;
+const ROW_HEIGHT      = ICON_SIZE;
+const MAX_PULL        = 60;   // max px overscroll before clamping visual effect
+const AFFECTED_ROWS   = 3;    // how many rows from edge receive the animation
 
-  const onLayout = useCallback((e: { nativeEvent: { layout: { height: number } } }) => {
-    containerH.current = e.nativeEvent.layout.height;
-  }, []);
+type RubberBandState = {
+  progress: Animated.Value; // 0 = no pull, 1 = max pull
+  edge: 'top' | 'bottom' | 'none';
+};
+
+const useRubberBand = () => {
+  const progress       = useRef(new Animated.Value(0)).current;
+  const edgeRef        = useRef<'top' | 'bottom' | 'none'>('none');
+  const scrollY        = useRef(0);
+  const contentH       = useRef(0);
+  const containerH     = useRef(0);
+  const springAnim     = useRef<Animated.CompositeAnimation | null>(null);
+  const isAnimating    = useRef(false);
+
+  const snapBack = useCallback(() => {
+    springAnim.current?.stop();
+    isAnimating.current = true;
+    springAnim.current = Animated.spring(progress, {
+      toValue: 0,
+      friction: 4,
+      tension: 100,
+      useNativeDriver: true,
+    });
+    springAnim.current.start(() => {
+      isAnimating.current = false;
+      edgeRef.current = 'none';
+    });
+  }, [progress]);
 
   const onContentSizeChange = useCallback((_: number, h: number) => {
     contentH.current = h;
   }, []);
 
-  const snapBack = useCallback(() => {
-    springAnim.current?.stop();
-    bouncing.current = true;
-    springAnim.current = Animated.spring(translateY, {
-      toValue: 0,
-      friction: 5,       // Controls wobble — lower = more bouncy
-      tension: 80,       // Controls speed of snap
-      useNativeDriver: true,
-    });
-    springAnim.current.start(() => {
-      bouncing.current = false;
-    });
-  }, [translateY]);
+  const onLayout = useCallback((e: { nativeEvent: { layout: { height: number } } }) => {
+    containerH.current = e.nativeEvent.layout.height;
+  }, []);
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y     = e.nativeEvent.contentOffset.y;
+    const y         = e.nativeEvent.contentOffset.y;
     scrollY.current = y;
-
     const maxScroll = contentH.current - containerH.current;
+
+    if (isAnimating.current) return;
 
     if (y < 0) {
-      // ── Pull past top ──
-      // Resist drag: divide by 3 so it feels heavy (rubberbanding)
-      translateY.setValue(-y / 3);
-    } else if (y > maxScroll && maxScroll > 0) {
-      // ── Push past bottom ──
-      translateY.setValue(-(y - maxScroll) / 3);
-    } else if (!bouncing.current) {
-      // Normal scroll — keep at 0
-      translateY.setValue(0);
+      edgeRef.current = 'top';
+      // Normalize: -y goes 0 → MAX_PULL, mapped to progress 0 → 1
+      const raw = Math.min(-y / MAX_PULL, 1);
+      progress.setValue(raw);
+    } else if (maxScroll > 0 && y > maxScroll) {
+      edgeRef.current = 'bottom';
+      const raw = Math.min((y - maxScroll) / MAX_PULL, 1);
+      progress.setValue(raw);
+    } else if (!isAnimating.current) {
+      edgeRef.current = 'none';
+      progress.setValue(0);
     }
-  }, [translateY]);
+  }, [progress]);
 
   const onScrollEndDrag = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y       = e.nativeEvent.contentOffset.y;
+    const y         = e.nativeEvent.contentOffset.y;
     const maxScroll = contentH.current - containerH.current;
-
-    if (y < 0 || (y > maxScroll && maxScroll > 0)) {
+    if (y < 0 || (maxScroll > 0 && y > maxScroll)) {
       snapBack();
     }
   }, [snapBack]);
 
   const onMomentumScrollEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y       = e.nativeEvent.contentOffset.y;
+    const y         = e.nativeEvent.contentOffset.y;
     const maxScroll = contentH.current - containerH.current;
-
     if (y <= 0 || y >= maxScroll) {
       snapBack();
     }
   }, [snapBack]);
 
   return {
-    translateY,
+    progress,
+    edgeRef,
+    onLayout,
+    onContentSizeChange,
+    onScroll,
+    onScrollEndDrag,
+    onMomentumScrollEnd,
+  };
+};
+
+// ─── Rubber Band Item Wrapper ─────────────────────────────────────────────────
+// Wraps each AppItem with a per-row animated transform.
+// rowIndex: which row this item is in (0 = top row, N = bottom row).
+// totalRows: total number of rows in the list.
+// rubberBand: shared rubber band state.
+type RubberAppItemProps = {
+  item: AppData;
+  rowIndex: number;
+  totalRows: number;
+  rubberBand: ReturnType<typeof useRubberBand>;
+  onPress: (pkg: string) => void;
+  onLongPress: (pkg: string, label: string) => void;
+  showNames: boolean;
+};
+
+const RubberAppItem = React.memo(({
+  item,
+  rowIndex,
+  totalRows,
+  rubberBand,
+  onPress,
+  onLongPress,
+  showNames,
+}: RubberAppItemProps) => {
+  const { progress, edgeRef } = rubberBand;
+
+  // How close is this row to the active edge? 0 = no effect, 1 = full effect
+  // For 'top' edge:    rowIndex 0 → factor 1, rowIndex AFFECTED_ROWS → factor 0
+  // For 'bottom' edge: last row → factor 1, (lastRow - AFFECTED_ROWS) → factor 0
+  const rowFactor = useMemo(() => {
+    const lastRow = totalRows - 1;
+    // We compute two possible factors and pick based on edge at runtime.
+    // Since this is a static memo, we embed both and switch via interpolation tricks.
+    // Instead, we'll use a derived Animated.Value per item.
+    // factor is computed purely from progress × edgeRef × position.
+    // Since edgeRef is a ref (not reactive), we compute it live in the interpolation.
+    // Simplest correct approach: use Animated.multiply after deriving factor from JS.
+    return null; // placeholder — real factor computed below
+  }, []);
+
+  // Compute per-row animated transforms
+  const animatedStyle = useMemo(() => {
+    // factor = how much this row is affected (0–1, based on proximity to edge)
+    // We approximate this by defining TWO progress tracks: top & bottom.
+    // Since we can't branch on edgeRef inside Animated, we use a
+    // signed progress: positive = top pull, negative = bottom pull.
+    // Then derive scaleY and translateY from it.
+
+    // scaleY: near edge rows squish vertically (pull = stretch Y slightly toward edge)
+    // translateY: rows shift toward the pull edge proportionally
+
+    // Because edgeRef is mutable and not Animated, we compute in onScroll
+    // and store as a SIGNED value: positive = top, negative = bottom.
+    // Then in the animated style we can derive transforms purely from that number.
+
+    // signedProgress is set externally — see useRubberBandSigned below.
+    // For now, we use a simpler approach: two separate Animated.Values
+    // exposed from the hook, one per edge.
+
+    // ─── Row factor: how affected this row is ──────────────────────────────
+    // For top pull: row 0 is fully affected, row AFFECTED_ROWS is 0
+    const topFactor    = Math.max(0, 1 - rowIndex / AFFECTED_ROWS);
+    // For bottom pull: last row is fully affected, going up
+    const bottomFactor = Math.max(0, 1 - (totalRows - 1 - rowIndex) / AFFECTED_ROWS);
+
+    // ─── We need to know which edge is active. ─────────────────────────────
+    // We solve this by having TWO progress values from the hook:
+    // progressTop and progressBottom, both 0 when inactive.
+    // The combined style adds effects from both (only one is ever > 0 at a time).
+    // → This means we need to refactor the hook. See useRubberBandDual below.
+    // For now, use a workaround: store signed progress in a single value.
+    // Positive = top pull, Negative = bottom pull.
+    // We'll use interpolation with different output for +/- sides.
+
+    // scaleY for top pull (stretch toward top = slight squish + shift up)
+    const scaleTopOutput    = 1 + 0.15 * topFactor;    // rows near top stretch
+    const translateTopOutput = -MAX_PULL * 0.3 * topFactor; // shift toward top
+
+    // scaleY for bottom pull
+    const scaleBottomOutput    = 1 + 0.15 * bottomFactor;
+    const translateBottomOutput = MAX_PULL * 0.3 * bottomFactor;
+
+    return {
+      topFactor,
+      bottomFactor,
+      scaleTopOutput,
+      translateTopOutput,
+      scaleBottomOutput,
+      translateBottomOutput,
+    };
+  }, [rowIndex, totalRows]);
+
+  return (
+    <Animated.View
+      style={{
+        transform: [
+          {
+            scaleY: progress.interpolate({
+              inputRange: [-1, 0, 1],
+              outputRange: [animatedStyle.scaleBottomOutput, 1, animatedStyle.scaleTopOutput],
+              extrapolate: 'clamp',
+            }),
+          },
+          {
+            translateY: progress.interpolate({
+              inputRange: [-1, 0, 1],
+              outputRange: [
+                animatedStyle.translateBottomOutput,
+                0,
+                animatedStyle.translateTopOutput,
+              ],
+              extrapolate: 'clamp',
+            }),
+          },
+        ],
+      }}
+    >
+      <AppItem
+        item={item}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        showNames={showNames}
+      />
+    </Animated.View>
+  );
+});
+
+// ─── Dual-signed Rubber Band Hook ─────────────────────────────────────────────
+// progress range: -1 (full bottom pull) → 0 (neutral) → 1 (full top pull)
+const useRubberBandDual = () => {
+  // Signed: +1 = top pull, -1 = bottom pull
+  const progress      = useRef(new Animated.Value(0)).current;
+  const scrollY       = useRef(0);
+  const contentH      = useRef(0);
+  const containerH    = useRef(0);
+  const springAnim    = useRef<Animated.CompositeAnimation | null>(null);
+  const isAnimating   = useRef(false);
+  const edgeRef       = useRef<'top' | 'bottom' | 'none'>('none');
+
+  const snapBack = useCallback(() => {
+    springAnim.current?.stop();
+    isAnimating.current = true;
+    springAnim.current = Animated.spring(progress, {
+      toValue: 0,
+      friction: 4,
+      tension: 100,
+      useNativeDriver: true,
+    });
+    springAnim.current.start(() => {
+      isAnimating.current = false;
+      edgeRef.current = 'none';
+    });
+  }, [progress]);
+
+  const onContentSizeChange = useCallback((_: number, h: number) => {
+    contentH.current = h;
+  }, []);
+
+  const onLayout = useCallback((e: { nativeEvent: { layout: { height: number } } }) => {
+    containerH.current = e.nativeEvent.layout.height;
+  }, []);
+
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y         = e.nativeEvent.contentOffset.y;
+    scrollY.current = y;
+    const maxScroll = contentH.current - containerH.current;
+
+    if (isAnimating.current) return;
+
+    if (y < 0) {
+      // Top pull → positive progress
+      edgeRef.current = 'top';
+      progress.setValue(Math.min(-y / MAX_PULL, 1));
+    } else if (maxScroll > 0 && y > maxScroll) {
+      // Bottom pull → negative progress
+      edgeRef.current = 'bottom';
+      progress.setValue(-Math.min((y - maxScroll) / MAX_PULL, 1));
+    } else {
+      edgeRef.current = 'none';
+      progress.setValue(0);
+    }
+  }, [progress]);
+
+  const onScrollEndDrag = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y         = e.nativeEvent.contentOffset.y;
+    const maxScroll = contentH.current - containerH.current;
+    if (y < 0 || (maxScroll > 0 && y > maxScroll)) snapBack();
+  }, [snapBack]);
+
+  const onMomentumScrollEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y         = e.nativeEvent.contentOffset.y;
+    const maxScroll = contentH.current - containerH.current;
+    if (y <= 0 || y >= maxScroll) snapBack();
+  }, [snapBack]);
+
+  return {
+    progress,
+    edgeRef,
     onLayout,
     onContentSizeChange,
     onScroll,
@@ -164,8 +389,8 @@ const App = () => {
     return settingsModalAnim.current;
   }, []);
 
-  // Bounce hook
-  const bounce = useBounce();
+  // Rubber band dual hook (replaces old bounce hook)
+  const rubberBand = useRubberBandDual();
 
   const {
     allApps, setAllApps,
@@ -212,7 +437,6 @@ const App = () => {
       if (active) {
         setTimeout(() => refreshApps(), 400);
       } else {
-        // Free memory when going to background
         modalScaleAnim.current?.stopAnimation();
         settingsModalAnim.current?.stopAnimation();
         modalScaleAnim.current    = null;
@@ -320,21 +544,37 @@ const App = () => {
     setSettingsVisible(false);
   }, [tempName, tempAssistantName, updateUserName, updateAssistantName]);
 
-  // ─── FlatList stable refs ─────────────────────────────────────────────────
-  const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
-    <AppItem item={item} onPress={launchApp} onLongPress={handleLongPress} showNames={showNames} />
-  ), [launchApp, handleLongPress, showNames]);
+  // ─── FlatList with rubber band renderItem ─────────────────────────────────
+  const totalRows = useMemo(
+    () => Math.ceil(filteredApps.length / NUM_COLS),
+    [filteredApps.length]
+  );
+
+  const renderItem: ListRenderItem<AppData> = useCallback(({ item, index }) => {
+    const rowIndex = Math.floor(index / NUM_COLS);
+    return (
+      <RubberAppItem
+        item={item}
+        rowIndex={rowIndex}
+        totalRows={totalRows}
+        rubberBand={rubberBand}
+        onPress={launchApp}
+        onLongPress={handleLongPress}
+        showNames={showNames}
+      />
+    );
+  }, [launchApp, handleLongPress, showNames, totalRows, rubberBand]);
 
   const keyExtractor  = useCallback((item: AppData) => item.packageName, []);
   const getItemLayout = useCallback((_: any, index: number) => ({
-    length: 90, offset: 90 * index, index,
+    length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index,
   }), []);
 
   const dockApps = useMemo(
     () => allApps.filter(a => dockPackages.includes(a.packageName)).slice(0, 5),
     [allApps, dockPackages]
   );
-  const isDocked  = useMemo(() => dockPackages.includes(selectedPkg), [dockPackages, selectedPkg]);
+  const isDocked   = useMemo(() => dockPackages.includes(selectedPkg), [dockPackages, selectedPkg]);
   const listFooter = useMemo(() => <View style={styles.listFooter} />, []);
 
   if (loading) {
@@ -349,39 +589,36 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      <MaskedView style={styles.appsContainer} maskElement={MaskElement}>
-        {/* Bounce wrapper — only this View moves, not the FlatList itself */}
-        <Animated.View
-          style={[styles.bounceWrapper, { transform: [{ translateY: bounce.translateY }] }]}
-          onLayout={bounce.onLayout}
-        >
-          <FlatList
-            key={listKey}
-            data={filteredApps}
-            numColumns={4}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            contentContainerStyle={styles.list}
-            initialNumToRender={INITIAL_NUM_TO_RENDER}
-            maxToRenderPerBatch={MAX_TO_RENDER_PER_BATCH}
-            windowSize={WINDOW_SIZE}
-            removeClippedSubviews={true}
-            updateCellsBatchingPeriod={UPDATE_CELLS_BATCHING_PERIOD}
-            getItemLayout={getItemLayout}
-            showsVerticalScrollIndicator={false}
-            ListFooterComponent={listFooter}
-            // Disable native bounce so our custom one takes over
-            bounces={false}
-            overScrollMode="never"
-            // Smooth scroll
-            decelerationRate="normal"
-            scrollEventThrottle={16}
-            onContentSizeChange={bounce.onContentSizeChange}
-            onScroll={bounce.onScroll}
-            onScrollEndDrag={bounce.onScrollEndDrag}
-            onMomentumScrollEnd={bounce.onMomentumScrollEnd}
-          />
-        </Animated.View>
+      <MaskedView
+        style={styles.appsContainer}
+        maskElement={MaskElement}
+        onLayout={rubberBand.onLayout}
+      >
+        <FlatList
+          key={listKey}
+          data={filteredApps}
+          numColumns={NUM_COLS}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={styles.list}
+          initialNumToRender={INITIAL_NUM_TO_RENDER}
+          maxToRenderPerBatch={MAX_TO_RENDER_PER_BATCH}
+          windowSize={WINDOW_SIZE}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={UPDATE_CELLS_BATCHING_PERIOD}
+          getItemLayout={getItemLayout}
+          showsVerticalScrollIndicator={false}
+          ListFooterComponent={listFooter}
+          // Disable native bounce — our rubber band takes over
+          bounces={false}
+          overScrollMode="never"
+          decelerationRate="normal"
+          scrollEventThrottle={16}
+          onContentSizeChange={rubberBand.onContentSizeChange}
+          onScroll={rubberBand.onScroll}
+          onScrollEndDrag={rubberBand.onScrollEndDrag}
+          onMomentumScrollEnd={rubberBand.onMomentumScrollEnd}
+        />
       </MaskedView>
 
       <SimpleDock
@@ -433,7 +670,6 @@ const styles = StyleSheet.create({
   container:     { flex: 1, backgroundColor: 'transparent' },
   center:        { flex: 1, justifyContent: 'center', alignItems: 'center' },
   appsContainer: { flex: 1 },
-  bounceWrapper: { flex: 1 },
   list:          { paddingTop: 50, paddingBottom: 20 },
   listFooter:    { height: 120 },
 });
