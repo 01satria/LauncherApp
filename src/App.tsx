@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,7 +11,6 @@ import {
   AppStateStatus,
   Animated,
   ListRenderItem,
-  InteractionManager,
 } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import LinearGradient from 'react-native-linear-gradient';
@@ -35,24 +34,6 @@ import SimpleDock from './components/SimpleDock';
 import SettingsModal from './components/SettingsModal';
 import AppActionModal from './components/AppActionModal';
 
-// Static mask element - defined outside component so it never re-creates
-const MaskElement = (
-  <View style={{ flex: 1 }}>
-    <View style={{ height: 20, backgroundColor: 'transparent' }} />
-    <LinearGradient
-      colors={['transparent', 'rgba(0,0,0,0.3)', 'black']}
-      locations={[0, 0.1, 0.3]}
-      style={{ height: 35 }}
-    />
-    <LinearGradient
-      colors={['black', 'black', 'rgba(0,0,0,0.5)', 'transparent']}
-      locations={[0, 0.98, 0.99, 1]}
-      style={{ flex: 1 }}
-    />
-    <View style={{ height: 110, backgroundColor: 'transparent' }} />
-  </View>
-);
-
 const App = () => {
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
@@ -67,23 +48,23 @@ const App = () => {
   const [tempName, setTempName] = useState("User");
   const [tempAssistantName, setTempAssistantName] = useState("Assistant");
 
-  // Lazy animation refs - only allocated on first use
+  // Animations - lazy init
   const modalScaleAnim = useRef<Animated.Value | null>(null);
   const settingsModalAnim = useRef<Animated.Value | null>(null);
 
-  const getModalScaleAnim = useCallback(() => {
+  const getModalScaleAnim = () => {
     if (!modalScaleAnim.current) {
       modalScaleAnim.current = new Animated.Value(0);
     }
     return modalScaleAnim.current;
-  }, []);
+  };
 
-  const getSettingsModalAnim = useCallback(() => {
+  const getSettingsModalAnim = () => {
     if (!settingsModalAnim.current) {
       settingsModalAnim.current = new Animated.Value(0);
     }
     return settingsModalAnim.current;
-  }, []);
+  };
 
   const {
     allApps,
@@ -117,12 +98,11 @@ const App = () => {
     toggleShowNames,
   } = useUserSettings();
 
-  // ─── Init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Defer non-critical init to after first render
-    const task = InteractionManager.runAfterInteractions(async () => {
+    const init = async () => {
       await initializeStorage();
       const prefs = await loadUserPreferences();
+
       setUserName(prefs.userName);
       setAssistantName(prefs.assistantName);
       setHiddenPackages(prefs.hiddenPackages);
@@ -130,39 +110,35 @@ const App = () => {
       setAvatarSource(prefs.avatarSource);
       setDockPackages(prefs.dockPackages);
       setShowNames(prefs.showNames);
-      setLoading(false);
-    });
 
+      setLoading(false);
+    };
+
+    init();
     refreshApps();
 
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
-      // Only process if launcher is in foreground
       if (AppState.currentState === 'active') {
         refreshApps();
       }
     });
 
-    const appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      const active = next === 'active';
-      setIsActive(active);
+    const appStateSub = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      const isNowActive = nextAppState === 'active';
+      setIsActive(isNowActive);
 
-      if (active) {
-        // Stagger refresh to avoid jank on resume
-        setTimeout(() => refreshApps(), 400);
+      if (isNowActive) {
+        setTimeout(() => refreshApps(), 500);
       } else {
-        // ── BACKGROUND: release everything possible ──
+        // Stop animations when going to background
         modalScaleAnim.current?.stopAnimation();
         settingsModalAnim.current?.stopAnimation();
         modalScaleAnim.current?.setValue(0);
         settingsModalAnim.current?.setValue(0);
-        // Null out refs so GC can collect the Animated.Value objects
-        modalScaleAnim.current = null;
-        settingsModalAnim.current = null;
       }
     });
 
     return () => {
-      task.cancel();
       InstalledApps.stopListeningForAppInstallations();
       appStateSub.remove();
       modalScaleAnim.current?.stopAnimation();
@@ -172,12 +148,10 @@ const App = () => {
     };
   }, []);
 
-  // ─── Filter apps (skip in background) ──────────────────────────────────────
   useEffect(() => {
     if (!isActive) return;
-
-    // Run after interactions so scroll stays smooth during filter
-    const task = InteractionManager.runAfterInteractions(() => {
+    
+    const rafId = requestAnimationFrame(() => {
       const filtered = allApps.filter(app =>
         !dockPackages.includes(app.packageName) &&
         (showHidden || !hiddenPackages.includes(app.packageName))
@@ -185,17 +159,18 @@ const App = () => {
       setFilteredApps(filtered);
     });
 
-    return () => task.cancel();
+    return () => cancelAnimationFrame(rafId);
   }, [allApps, hiddenPackages, dockPackages, showHidden, isActive]);
 
-  // ─── Modal animations ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!isActive) return;
+    
     if (actionModalVisible) {
-      Animated.spring(getModalScaleAnim(), {
+      const anim = getModalScaleAnim();
+      Animated.spring(anim, {
         toValue: 1,
-        friction: 7,
-        tension: 120,
+        friction: 8,
+        tension: 100,
         useNativeDriver: true,
       }).start();
     } else {
@@ -205,11 +180,13 @@ const App = () => {
 
   useEffect(() => {
     if (!isActive) return;
+    
     if (settingsVisible) {
-      Animated.spring(getSettingsModalAnim(), {
+      const anim = getSettingsModalAnim();
+      Animated.spring(anim, {
         toValue: 1,
-        friction: 7,
-        tension: 120,
+        friction: 8,
+        tension: 100,
         useNativeDriver: true,
       }).start();
     } else {
@@ -217,7 +194,6 @@ const App = () => {
     }
   }, [settingsVisible, isActive]);
 
-  // ─── Handlers ───────────────────────────────────────────────────────────────
   const handleOpenSettings = useCallback(() => {
     setTempName(userName);
     setTempAssistantName(assistantName);
@@ -225,21 +201,27 @@ const App = () => {
   }, [userName, assistantName]);
 
   const handleLongPress = useCallback((pkg: string, label: string) => {
-    setActionType(hiddenPackages.includes(pkg) ? 'unhide' : 'hide');
+    const isHidden = hiddenPackages.includes(pkg);
+    setActionType(isHidden ? 'unhide' : 'hide');
     setSelectedPkg(pkg);
     setSelectedLabel(label);
     setActionModalVisible(true);
   }, [hiddenPackages]);
 
   const handleHideAction = useCallback(async () => {
-    if (actionType === 'unhide') await unhideApp(selectedPkg);
-    else await hideApp(selectedPkg);
+    if (actionType === 'unhide') {
+      await unhideApp(selectedPkg);
+    } else {
+      await hideApp(selectedPkg);
+    }
     setActionModalVisible(false);
   }, [actionType, selectedPkg, unhideApp, hideApp]);
 
   const handlePinToDock = useCallback(async () => {
-    const ok = await pinToDock(selectedPkg);
-    if (ok !== false) setActionModalVisible(false);
+    const success = await pinToDock(selectedPkg);
+    if (success !== false) {
+      setActionModalVisible(false);
+    }
   }, [selectedPkg, pinToDock]);
 
   const handleUninstall = useCallback(() => {
@@ -260,8 +242,9 @@ const App = () => {
       mediaType: 'photo',
       includeBase64: true,
       maxWidth: 200,
-      maxHeight: 200,
+      maxHeight: 200
     });
+
     if (res.assets?.[0]?.base64) {
       const b64 = res.assets[0].base64;
       setAvatarSource(`data:image/jpeg;base64,${b64}`);
@@ -275,8 +258,6 @@ const App = () => {
     setSettingsVisible(false);
   }, [tempName, tempAssistantName, updateUserName, updateAssistantName]);
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
-  // Stable renderItem - won't cause FlatList re-render
   const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
     <AppItem
       item={item}
@@ -286,28 +267,12 @@ const App = () => {
     />
   ), [launchApp, handleLongPress, showNames]);
 
-  // Stable keyExtractor
-  const keyExtractor = useCallback((item: AppData) => item.packageName, []);
-
-  // Stable getItemLayout - crucial for smooth scroll performance
-  const getItemLayout = useCallback((_: any, index: number) => ({
-    length: 90,
-    offset: 90 * index,
-    index,
-  }), []);
-
-  // Memoized derived data
-  const dockApps = useMemo(
-    () => allApps.filter(a => dockPackages.includes(a.packageName)).slice(0, 5),
+  const dockApps = React.useMemo(
+    () => allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5),
     [allApps, dockPackages]
   );
-
-  const isDocked = useMemo(
-    () => dockPackages.includes(selectedPkg),
-    [dockPackages, selectedPkg]
-  );
-
-  const listFooter = useMemo(() => <View style={styles.listFooter} />, []);
+  
+  const isDocked = dockPackages.includes(selectedPkg);
 
   if (loading) {
     return (
@@ -321,12 +286,30 @@ const App = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      <MaskedView style={styles.appsContainer} maskElement={MaskElement}>
+      <MaskedView
+        style={styles.appsContainer}
+        maskElement={
+          <View style={{ flex: 1 }}>
+            <View style={{ height: 20, backgroundColor: 'transparent' }} />
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.3)', 'black']}
+              locations={[0, 0.1, 0.3]}
+              style={{ height: 35 }}
+            />
+            <LinearGradient
+              colors={['black', 'black', 'rgba(0,0,0,0.5)', 'transparent']}
+              locations={[0, 0.98, 0.99, 1]}
+              style={{ flex: 1 }}
+            />
+            <View style={{ height: 110, backgroundColor: 'transparent' }} />
+          </View>
+        }
+      >
         <FlatList
           key={listKey}
           data={filteredApps}
           numColumns={4}
-          keyExtractor={keyExtractor}
+          keyExtractor={item => item.packageName}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           initialNumToRender={INITIAL_NUM_TO_RENDER}
@@ -334,15 +317,10 @@ const App = () => {
           windowSize={WINDOW_SIZE}
           removeClippedSubviews={true}
           updateCellsBatchingPeriod={UPDATE_CELLS_BATCHING_PERIOD}
-          getItemLayout={getItemLayout}
+          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
-          ListFooterComponent={listFooter}
-          // Smooth scroll optimizations
-          decelerationRate="fast"
-          scrollEventThrottle={16}
-          overScrollMode="never"
-          bounces={false}
+          ListFooterComponent={<View style={styles.listFooter} />}
         />
       </MaskedView>
 
@@ -394,15 +372,16 @@ const App = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'transparent'
   },
   center: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   appsContainer: {
     flex: 1,
+    position: 'relative',
   },
   list: {
     paddingTop: 50,
@@ -416,6 +395,7 @@ const styles = StyleSheet.create({
 // Website: https://01satria.vercel.app
 // Github: https://github.com/01satria
 // Instagram: https://www.instagram.com/satria.page/
-// If you find any bugs or have suggestions, please open an issue or reach out!
-// Made with ❤️ by Satria Bagus (01satria)
+// Indonesian: "Jangan lupa untuk memberikan kredit kepada Satria Dev jika Anda menggunakan atau memodifikasi kode ini dalam proyek Anda. Terima kasih telah menghargai karya saya!" - Satria Dev
+// English: "Please remember to give credit to Satria Dev if you use or modify this code in your projects. Thank you for respecting my work!" - Satria Dev
+
 export default App;
