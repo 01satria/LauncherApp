@@ -12,6 +12,8 @@ import {
   Animated,
   ListRenderItem,
   InteractionManager,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import MaskedView from '@react-native-masked-view/masked-view';
 import LinearGradient from 'react-native-linear-gradient';
@@ -35,7 +37,7 @@ import SimpleDock from './components/SimpleDock';
 import SettingsModal from './components/SettingsModal';
 import AppActionModal from './components/AppActionModal';
 
-// Static mask element - defined outside component so it never re-creates
+// ─── Static mask (never re-creates) ──────────────────────────────────────────
 const MaskElement = (
   <View style={{ flex: 1 }}>
     <View style={{ height: 20, backgroundColor: 'transparent' }} />
@@ -53,73 +55,138 @@ const MaskElement = (
   </View>
 );
 
+// ─── Custom Bounce Hook ───────────────────────────────────────────────────────
+// Lightweight: uses a single Animated.Value translateY, no extra components.
+// Only activates at top/bottom edges — zero overhead during normal scroll.
+const useBounce = () => {
+  const translateY   = useRef(new Animated.Value(0)).current;
+  const scrollY      = useRef(0);
+  const contentH     = useRef(0);
+  const containerH   = useRef(0);
+  const bouncing     = useRef(false);
+  const springAnim   = useRef<Animated.CompositeAnimation | null>(null);
+
+  const onLayout = useCallback((e: { nativeEvent: { layout: { height: number } } }) => {
+    containerH.current = e.nativeEvent.layout.height;
+  }, []);
+
+  const onContentSizeChange = useCallback((_: number, h: number) => {
+    contentH.current = h;
+  }, []);
+
+  const snapBack = useCallback(() => {
+    springAnim.current?.stop();
+    bouncing.current = true;
+    springAnim.current = Animated.spring(translateY, {
+      toValue: 0,
+      friction: 5,       // Controls wobble — lower = more bouncy
+      tension: 80,       // Controls speed of snap
+      useNativeDriver: true,
+    });
+    springAnim.current.start(() => {
+      bouncing.current = false;
+    });
+  }, [translateY]);
+
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y     = e.nativeEvent.contentOffset.y;
+    scrollY.current = y;
+
+    const maxScroll = contentH.current - containerH.current;
+
+    if (y < 0) {
+      // ── Pull past top ──
+      // Resist drag: divide by 3 so it feels heavy (rubberbanding)
+      translateY.setValue(-y / 3);
+    } else if (y > maxScroll && maxScroll > 0) {
+      // ── Push past bottom ──
+      translateY.setValue(-(y - maxScroll) / 3);
+    } else if (!bouncing.current) {
+      // Normal scroll — keep at 0
+      translateY.setValue(0);
+    }
+  }, [translateY]);
+
+  const onScrollEndDrag = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y       = e.nativeEvent.contentOffset.y;
+    const maxScroll = contentH.current - containerH.current;
+
+    if (y < 0 || (y > maxScroll && maxScroll > 0)) {
+      snapBack();
+    }
+  }, [snapBack]);
+
+  const onMomentumScrollEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y       = e.nativeEvent.contentOffset.y;
+    const maxScroll = contentH.current - containerH.current;
+
+    if (y <= 0 || y >= maxScroll) {
+      snapBack();
+    }
+  }, [snapBack]);
+
+  return {
+    translateY,
+    onLayout,
+    onContentSizeChange,
+    onScroll,
+    onScrollEndDrag,
+    onMomentumScrollEnd,
+  };
+};
+
+// ─── App ──────────────────────────────────────────────────────────────────────
 const App = () => {
-  const [loading, setLoading] = useState(true);
-  const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
-  const [isActive, setIsActive] = useState(true);
+  const [loading, setLoading]               = useState(true);
+  const [filteredApps, setFilteredApps]     = useState<AppData[]>([]);
+  const [isActive, setIsActive]             = useState(true);
 
   // Modals
-  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible]       = useState(false);
   const [actionModalVisible, setActionModalVisible] = useState(false);
-  const [actionType, setActionType] = useState<'hide' | 'unhide'>('hide');
-  const [selectedPkg, setSelectedPkg] = useState('');
-  const [selectedLabel, setSelectedLabel] = useState('');
-  const [tempName, setTempName] = useState("User");
-  const [tempAssistantName, setTempAssistantName] = useState("Assistant");
+  const [actionType, setActionType]                 = useState<'hide' | 'unhide'>('hide');
+  const [selectedPkg, setSelectedPkg]               = useState('');
+  const [selectedLabel, setSelectedLabel]           = useState('');
+  const [tempName, setTempName]                     = useState("User");
+  const [tempAssistantName, setTempAssistantName]   = useState("Assistant");
 
-  // Lazy animation refs - only allocated on first use
-  const modalScaleAnim = useRef<Animated.Value | null>(null);
+  // Lazy animation refs
+  const modalScaleAnim    = useRef<Animated.Value | null>(null);
   const settingsModalAnim = useRef<Animated.Value | null>(null);
 
   const getModalScaleAnim = useCallback(() => {
-    if (!modalScaleAnim.current) {
-      modalScaleAnim.current = new Animated.Value(0);
-    }
+    if (!modalScaleAnim.current) modalScaleAnim.current = new Animated.Value(0);
     return modalScaleAnim.current;
   }, []);
 
   const getSettingsModalAnim = useCallback(() => {
-    if (!settingsModalAnim.current) {
-      settingsModalAnim.current = new Animated.Value(0);
-    }
+    if (!settingsModalAnim.current) settingsModalAnim.current = new Animated.Value(0);
     return settingsModalAnim.current;
   }, []);
 
+  // Bounce hook
+  const bounce = useBounce();
+
   const {
-    allApps,
-    setAllApps,
-    hiddenPackages,
-    setHiddenPackages,
-    dockPackages,
-    setDockPackages,
-    listKey,
-    refreshApps,
-    hideApp,
-    unhideApp,
-    pinToDock,
-    uninstallApp,
+    allApps, setAllApps,
+    hiddenPackages, setHiddenPackages,
+    dockPackages, setDockPackages,
+    listKey, refreshApps,
+    hideApp, unhideApp, pinToDock, uninstallApp,
   } = useAppManagement();
 
   const {
-    userName,
-    setUserName,
-    assistantName,
-    setAssistantName,
-    showHidden,
-    setShowHidden,
-    showNames,
-    setShowNames,
-    avatarSource,
-    setAvatarSource,
-    updateUserName,
-    updateAssistantName,
-    toggleShowHidden,
-    toggleShowNames,
+    userName, setUserName,
+    assistantName, setAssistantName,
+    showHidden, setShowHidden,
+    showNames, setShowNames,
+    avatarSource, setAvatarSource,
+    updateUserName, updateAssistantName,
+    toggleShowHidden, toggleShowNames,
   } = useUserSettings();
 
-  // ─── Init ───────────────────────────────────────────────────────────────────
+  // ─── Init ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Defer non-critical init to after first render
     const task = InteractionManager.runAfterInteractions(async () => {
       await initializeStorage();
       const prefs = await loadUserPreferences();
@@ -136,27 +203,19 @@ const App = () => {
     refreshApps();
 
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
-      // Only process if launcher is in foreground
-      if (AppState.currentState === 'active') {
-        refreshApps();
-      }
+      if (AppState.currentState === 'active') refreshApps();
     });
 
     const appStateSub = AppState.addEventListener('change', (next: AppStateStatus) => {
       const active = next === 'active';
       setIsActive(active);
-
       if (active) {
-        // Stagger refresh to avoid jank on resume
         setTimeout(() => refreshApps(), 400);
       } else {
-        // ── BACKGROUND: release everything possible ──
+        // Free memory when going to background
         modalScaleAnim.current?.stopAnimation();
         settingsModalAnim.current?.stopAnimation();
-        modalScaleAnim.current?.setValue(0);
-        settingsModalAnim.current?.setValue(0);
-        // Null out refs so GC can collect the Animated.Value objects
-        modalScaleAnim.current = null;
+        modalScaleAnim.current    = null;
         settingsModalAnim.current = null;
       }
     });
@@ -167,36 +226,31 @@ const App = () => {
       appStateSub.remove();
       modalScaleAnim.current?.stopAnimation();
       settingsModalAnim.current?.stopAnimation();
-      modalScaleAnim.current = null;
+      modalScaleAnim.current    = null;
       settingsModalAnim.current = null;
     };
   }, []);
 
-  // ─── Filter apps (skip in background) ──────────────────────────────────────
+  // ─── Filter apps ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isActive) return;
-
-    // Run after interactions so scroll stays smooth during filter
     const task = InteractionManager.runAfterInteractions(() => {
-      const filtered = allApps.filter(app =>
-        !dockPackages.includes(app.packageName) &&
-        (showHidden || !hiddenPackages.includes(app.packageName))
+      setFilteredApps(
+        allApps.filter(app =>
+          !dockPackages.includes(app.packageName) &&
+          (showHidden || !hiddenPackages.includes(app.packageName))
+        )
       );
-      setFilteredApps(filtered);
     });
-
     return () => task.cancel();
   }, [allApps, hiddenPackages, dockPackages, showHidden, isActive]);
 
-  // ─── Modal animations ───────────────────────────────────────────────────────
+  // ─── Modal animations ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!isActive) return;
     if (actionModalVisible) {
       Animated.spring(getModalScaleAnim(), {
-        toValue: 1,
-        friction: 7,
-        tension: 120,
-        useNativeDriver: true,
+        toValue: 1, friction: 7, tension: 120, useNativeDriver: true,
       }).start();
     } else {
       modalScaleAnim.current?.setValue(0);
@@ -207,17 +261,14 @@ const App = () => {
     if (!isActive) return;
     if (settingsVisible) {
       Animated.spring(getSettingsModalAnim(), {
-        toValue: 1,
-        friction: 7,
-        tension: 120,
-        useNativeDriver: true,
+        toValue: 1, friction: 7, tension: 120, useNativeDriver: true,
       }).start();
     } else {
       settingsModalAnim.current?.setValue(0);
     }
   }, [settingsVisible, isActive]);
 
-  // ─── Handlers ───────────────────────────────────────────────────────────────
+  // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleOpenSettings = useCallback(() => {
     setTempName(userName);
     setTempAssistantName(assistantName);
@@ -248,19 +299,13 @@ const App = () => {
   }, [selectedPkg, uninstallApp]);
 
   const launchApp = useCallback((pkg: string) => {
-    try {
-      RNLauncherKitHelper.launchApplication(pkg);
-    } catch {
-      ToastAndroid.show("Cannot Open", ToastAndroid.SHORT);
-    }
+    try { RNLauncherKitHelper.launchApplication(pkg); }
+    catch { ToastAndroid.show("Cannot Open", ToastAndroid.SHORT); }
   }, []);
 
   const handleChangePhoto = useCallback(async () => {
     const res = await ImagePicker.launchImageLibrary({
-      mediaType: 'photo',
-      includeBase64: true,
-      maxWidth: 200,
-      maxHeight: 200,
+      mediaType: 'photo', includeBase64: true, maxWidth: 200, maxHeight: 200,
     });
     if (res.assets?.[0]?.base64) {
       const b64 = res.assets[0].base64;
@@ -275,38 +320,21 @@ const App = () => {
     setSettingsVisible(false);
   }, [tempName, tempAssistantName, updateUserName, updateAssistantName]);
 
-  // ─── Render ─────────────────────────────────────────────────────────────────
-  // Stable renderItem - won't cause FlatList re-render
+  // ─── FlatList stable refs ─────────────────────────────────────────────────
   const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
-    <AppItem
-      item={item}
-      onPress={launchApp}
-      onLongPress={handleLongPress}
-      showNames={showNames}
-    />
+    <AppItem item={item} onPress={launchApp} onLongPress={handleLongPress} showNames={showNames} />
   ), [launchApp, handleLongPress, showNames]);
 
-  // Stable keyExtractor
-  const keyExtractor = useCallback((item: AppData) => item.packageName, []);
-
-  // Stable getItemLayout - crucial for smooth scroll performance
+  const keyExtractor  = useCallback((item: AppData) => item.packageName, []);
   const getItemLayout = useCallback((_: any, index: number) => ({
-    length: 90,
-    offset: 90 * index,
-    index,
+    length: 90, offset: 90 * index, index,
   }), []);
 
-  // Memoized derived data
   const dockApps = useMemo(
     () => allApps.filter(a => dockPackages.includes(a.packageName)).slice(0, 5),
     [allApps, dockPackages]
   );
-
-  const isDocked = useMemo(
-    () => dockPackages.includes(selectedPkg),
-    [dockPackages, selectedPkg]
-  );
-
+  const isDocked  = useMemo(() => dockPackages.includes(selectedPkg), [dockPackages, selectedPkg]);
   const listFooter = useMemo(() => <View style={styles.listFooter} />, []);
 
   if (loading) {
@@ -322,28 +350,38 @@ const App = () => {
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       <MaskedView style={styles.appsContainer} maskElement={MaskElement}>
-        <FlatList
-          key={listKey}
-          data={filteredApps}
-          numColumns={4}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          initialNumToRender={INITIAL_NUM_TO_RENDER}
-          maxToRenderPerBatch={MAX_TO_RENDER_PER_BATCH}
-          windowSize={WINDOW_SIZE}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={UPDATE_CELLS_BATCHING_PERIOD}
-          getItemLayout={getItemLayout}
-          scrollEnabled={true}
-          showsVerticalScrollIndicator={false}
-          ListFooterComponent={listFooter}
-          // Smooth scroll optimizations
-          decelerationRate="fast"
-          scrollEventThrottle={16}
-          overScrollMode="never"
-          bounces={false}
-        />
+        {/* Bounce wrapper — only this View moves, not the FlatList itself */}
+        <Animated.View
+          style={[styles.bounceWrapper, { transform: [{ translateY: bounce.translateY }] }]}
+          onLayout={bounce.onLayout}
+        >
+          <FlatList
+            key={listKey}
+            data={filteredApps}
+            numColumns={4}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            initialNumToRender={INITIAL_NUM_TO_RENDER}
+            maxToRenderPerBatch={MAX_TO_RENDER_PER_BATCH}
+            windowSize={WINDOW_SIZE}
+            removeClippedSubviews={true}
+            updateCellsBatchingPeriod={UPDATE_CELLS_BATCHING_PERIOD}
+            getItemLayout={getItemLayout}
+            showsVerticalScrollIndicator={false}
+            ListFooterComponent={listFooter}
+            // Disable native bounce so our custom one takes over
+            bounces={false}
+            overScrollMode="never"
+            // Smooth scroll
+            decelerationRate="normal"
+            scrollEventThrottle={16}
+            onContentSizeChange={bounce.onContentSizeChange}
+            onScroll={bounce.onScroll}
+            onScrollEndDrag={bounce.onScrollEndDrag}
+            onMomentumScrollEnd={bounce.onMomentumScrollEnd}
+          />
+        </Animated.View>
       </MaskedView>
 
       <SimpleDock
@@ -392,30 +430,16 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  appsContainer: {
-    flex: 1,
-  },
-  list: {
-    paddingTop: 50,
-    paddingBottom: 20,
-  },
-  listFooter: {
-    height: 120,
-  },
+  container:     { flex: 1, backgroundColor: 'transparent' },
+  center:        { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  appsContainer: { flex: 1 },
+  bounceWrapper: { flex: 1 },
+  list:          { paddingTop: 50, paddingBottom: 20 },
+  listFooter:    { height: 120 },
 });
 
 // Website: https://01satria.vercel.app
 // Github: https://github.com/01satria
 // Instagram: https://www.instagram.com/satria.page/
-// If you find any bugs or have suggestions, please open an issue or reach out!
 // Made with ❤️ by Satria Bagus (01satria)
 export default App;

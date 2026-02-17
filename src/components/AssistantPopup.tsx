@@ -4,7 +4,7 @@ import React, {
 import {
   View, Text, TouchableOpacity, StyleSheet, Animated,
   Easing, TextInput, FlatList, KeyboardAvoidingView,
-  Platform, PanResponder, GestureResponderEvent,
+  Platform, PanResponder, GestureResponderEvent, Image,
 } from 'react-native';
 import { getNotificationMessage } from '../utils/storage';
 
@@ -20,6 +20,7 @@ interface AssistantPopupProps {
   onClose: () => void;
   userName: string;
   assistantName: string;
+  avatarSource?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -101,10 +102,10 @@ interface ToggleProps {
 
 export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae60' }: ToggleProps) => {
   const TRACK_W = 50;
-  const THUMB = 24;
-  const MAX_X = TRACK_W - THUMB - 4; // 22
+  const THUMB   = 24;
+  const MAX_X   = TRACK_W - THUMB - 4; // 22
 
-  const posX = useRef(new Animated.Value(value ? MAX_X : 2)).current;
+  const posX   = useRef(new Animated.Value(value ? MAX_X : 2)).current;
   const bgAnim = useRef(new Animated.Value(value ? 1 : 0)).current;
   const valueRef = useRef(value);
 
@@ -112,8 +113,8 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
   useEffect(() => {
     valueRef.current = value;
     Animated.parallel([
-      Animated.spring(posX, { toValue: value ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
-      Animated.spring(bgAnim, { toValue: value ? 1 : 0, friction: 6, tension: 120, useNativeDriver: false }),
+      Animated.spring(posX,   { toValue: value ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
+      Animated.spring(bgAnim, { toValue: value ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
     ]).start();
   }, [value]);
 
@@ -144,16 +145,16 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
         const shouldBeOn = gs.vx > 0.3
           ? true
           : gs.vx < -0.3
-            ? false
-            : nextPos > threshold + 2;
+          ? false
+          : nextPos > threshold + 2;
 
         if (shouldBeOn !== valueRef.current) {
           onValueChange(shouldBeOn);
         } else {
           // Snap back with animation
           Animated.parallel([
-            Animated.spring(posX, { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
-            Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0, friction: 6, tension: 120, useNativeDriver: false }),
+            Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
+            Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
           ]).start();
         }
       },
@@ -161,8 +162,8 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
       onPanResponderTerminate: () => {
         // Snap back on cancel
         Animated.parallel([
-          Animated.spring(posX, { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
-          Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0, friction: 6, tension: 120, useNativeDriver: false }),
+          Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
+          Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
         ]).start();
       },
     })
@@ -202,7 +203,7 @@ const toggleStyles = StyleSheet.create({
 });
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
-const Bubble = memo(({ msg, assistantName }: { msg: Message; assistantName: string }) => {
+const Bubble = memo(({ msg, assistantName, avatarSource }: { msg: Message; assistantName: string; avatarSource?: string }) => {
   const isUser = msg.from === 'user';
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideY = useRef(new Animated.Value(8)).current;
@@ -225,7 +226,11 @@ const Bubble = memo(({ msg, assistantName }: { msg: Message; assistantName: stri
     >
       {!isUser && (
         <View style={bubbleStyles.avatar}>
-          <Text style={bubbleStyles.avatarText}>🤖</Text>
+          {avatarSource ? (
+            <Image source={{ uri: avatarSource }} style={bubbleStyles.avatarImg} />
+          ) : (
+            <Text style={bubbleStyles.avatarText}>🤖</Text>
+          )}
         </View>
       )}
       <View style={[bubbleStyles.bubble, isUser ? bubbleStyles.userBubble : bubbleStyles.assistantBubble]}>
@@ -239,13 +244,15 @@ const Bubble = memo(({ msg, assistantName }: { msg: Message; assistantName: stri
 
 const bubbleStyles = StyleSheet.create({
   row: { flexDirection: 'row', marginBottom: 10, paddingHorizontal: 12, alignItems: 'flex-end' },
-  rowLeft: { justifyContent: 'flex-start' },
+  rowLeft:  { justifyContent: 'flex-start' },
   rowRight: { justifyContent: 'flex-end' },
   avatar: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center',
     marginRight: 6, marginBottom: 2,
+    overflow: 'hidden',
   },
+  avatarImg: { width: 28, height: 28, borderRadius: 14 },
   avatarText: { fontSize: 14 },
   bubble: {
     maxWidth: '75%', borderRadius: 16, padding: 10,
@@ -267,11 +274,11 @@ const bubbleStyles = StyleSheet.create({
 });
 
 // ─── AssistantPopup (Chat UI) ─────────────────────────────────────────────────
-const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopupProps) => {
-  const slideAnim = useRef(new Animated.Value(300)).current;
+const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }: AssistantPopupProps) => {
+  const slideAnim   = useRef(new Animated.Value(300)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
-  const flatRef = useRef<FlatList>(null);
-  const [input, setInput] = useState('');
+  const flatRef     = useRef<FlatList>(null);
+  const [input, setInput]       = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
   // Init messages
@@ -305,16 +312,16 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
   // Slide-up open animation
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(slideAnim, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: 1, duration: 320, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(slideAnim,   { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 320, easing: Easing.out(Easing.ease),  useNativeDriver: true }),
     ]).start();
     return () => { slideAnim.stopAnimation(); opacityAnim.stopAnimation(); };
   }, []);
 
   const handleClose = useCallback(() => {
     Animated.parallel([
-      Animated.timing(slideAnim, { toValue: 300, duration: 250, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: 0, duration: 250, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+      Animated.timing(slideAnim,   { toValue: 300, duration: 250, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 0,   duration: 250, easing: Easing.in(Easing.ease),  useNativeDriver: true }),
     ]).start(() => onClose());
   }, [onClose]);
 
@@ -364,8 +371,15 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.headerName}>{assistantName}</Text>
+            {avatarSource ? (
+              <Image source={{ uri: avatarSource }} style={styles.headerAvatar} />
+            ) : (
+              <View style={styles.onlineDot} />
+            )}
+            <View>
+              <Text style={styles.headerName}>{assistantName}</Text>
+              <Text style={styles.headerOnline}>● Online</Text>
+            </View>
           </View>
           <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
             <Text style={styles.closeText}>✕</Text>
@@ -377,7 +391,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
           ref={flatRef}
           data={messages}
           keyExtractor={m => m.id}
-          renderItem={({ item }) => <Bubble msg={item} assistantName={assistantName} />}
+          renderItem={({ item }) => <Bubble msg={item} assistantName={assistantName} avatarSource={avatarSource} />}
           style={styles.messageList}
           contentContainerStyle={styles.messageContent}
           onContentSizeChange={scrollToEnd}
@@ -387,7 +401,11 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
             isTyping ? (
               <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
                 <View style={bubbleStyles.avatar}>
-                  <Text style={bubbleStyles.avatarText}>🤖</Text>
+                  {avatarSource ? (
+                    <Image source={{ uri: avatarSource }} style={bubbleStyles.avatarImg} />
+                  ) : (
+                    <Text style={bubbleStyles.avatarText}>🤖</Text>
+                  )}
                 </View>
                 <View style={[bubbleStyles.bubble, bubbleStyles.assistantBubble]}>
                   <Text style={{ color: '#555', fontSize: 20, letterSpacing: 4 }}>•••</Text>
@@ -446,13 +464,18 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: 16, paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: '#1a1a1a',
     backgroundColor: '#111',
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerAvatar: {
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 2, borderColor: '#27ae60',
+  },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#27ae60' },
   headerName: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  headerOnline: { color: '#27ae60', fontSize: 10, marginTop: 1 },
   closeBtn: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: '#222', justifyContent: 'center', alignItems: 'center',
@@ -475,15 +498,11 @@ const styles = StyleSheet.create({
   },
   sendBtn: {
     width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#27ae60',
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#131313',
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#27ae60',
   },
   sendBtnDisabled: { backgroundColor: '#1e1e1e' },
   sendIcon: { color: '#fff', fontSize: 15, marginLeft: 2 },
 });
-
 
 export default AssistantPopup;
