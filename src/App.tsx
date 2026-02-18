@@ -27,9 +27,11 @@ import {
   initializeStorage,
   loadUserPreferences,
   saveAvatar,
+  saveLayoutMode,
 } from './utils/storage';
 import { useAppManagement, useUserSettings } from './hooks/useAppManagement';
 import AppItem from './components/AppItem';
+import AppListItem from './components/AppListItem';
 import SimpleDock from './components/SimpleDock';
 import SettingsModal from './components/SettingsModal';
 import AppActionModal from './components/AppActionModal';
@@ -38,6 +40,7 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
   const [isActive, setIsActive] = useState(true);
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid');
 
   // Modals
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -110,6 +113,7 @@ const App = () => {
       setAvatarSource(prefs.avatarSource);
       setDockPackages(prefs.dockPackages);
       setShowNames(prefs.showNames);
+      setLayoutMode(prefs.layoutMode);
 
       setLoading(false);
     };
@@ -130,7 +134,6 @@ const App = () => {
       if (isNowActive) {
         setTimeout(() => refreshApps(), 500);
       } else {
-        // Stop animations when going to background
         modalScaleAnim.current?.stopAnimation();
         settingsModalAnim.current?.stopAnimation();
         modalScaleAnim.current?.setValue(0);
@@ -252,14 +255,30 @@ const App = () => {
     }
   }, [setAvatarSource]);
 
+  const handleLayoutModeChange = useCallback(async (mode: 'grid' | 'list') => {
+    setLayoutMode(mode);
+    await saveLayoutMode(mode);
+  }, []);
+
   const handleSaveSettings = useCallback(async () => {
     await updateUserName(tempName);
     await updateAssistantName(tempAssistantName);
     setSettingsVisible(false);
   }, [tempName, tempAssistantName, updateUserName, updateAssistantName]);
 
-  const renderItem: ListRenderItem<AppData> = useCallback(({ item }) => (
+  // GRID MODE: 4 columns
+  const renderGridItem: ListRenderItem<AppData> = useCallback(({ item }) => (
     <AppItem
+      item={item}
+      onPress={launchApp}
+      onLongPress={handleLongPress}
+      showNames={showNames}
+    />
+  ), [launchApp, handleLongPress, showNames]);
+
+  // LIST MODE: 1 column (Niagara-style)
+  const renderListItem: ListRenderItem<AppData> = useCallback(({ item }) => (
+    <AppListItem
       item={item}
       onPress={launchApp}
       onLongPress={handleLongPress}
@@ -285,6 +304,7 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      
       <MaskedView
         style={styles.appsContainer}
         maskElement={
@@ -305,18 +325,17 @@ const App = () => {
         }
       >
         <FlatList
-          key={listKey}
+          key={`${listKey}-${layoutMode}`}
           data={filteredApps}
-          numColumns={4}
+          numColumns={layoutMode === 'grid' ? 4 : 1}
           keyExtractor={item => item.packageName}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
+          renderItem={layoutMode === 'grid' ? renderGridItem : renderListItem}
+          contentContainerStyle={layoutMode === 'grid' ? styles.listGrid : styles.listList}
           initialNumToRender={INITIAL_NUM_TO_RENDER}
           maxToRenderPerBatch={MAX_TO_RENDER_PER_BATCH}
           windowSize={WINDOW_SIZE}
           removeClippedSubviews={true}
           updateCellsBatchingPeriod={UPDATE_CELLS_BATCHING_PERIOD}
-          getItemLayout={(data, index) => ({ length: 90, offset: 90 * index, index })}
           scrollEnabled={true}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={<View style={styles.listFooter} />}
@@ -340,12 +359,14 @@ const App = () => {
           tempAssistantName={tempAssistantName}
           showHidden={showHidden}
           showNames={showNames}
+          layoutMode={layoutMode}
           scaleAnim={getSettingsModalAnim()}
           onClose={() => setSettingsVisible(false)}
           onTempNameChange={setTempName}
           onTempAssistantNameChange={setTempAssistantName}
           onToggleHidden={toggleShowHidden}
           onToggleShowNames={toggleShowNames}
+          onLayoutModeChange={handleLayoutModeChange}
           onChangePhoto={handleChangePhoto}
           onSave={handleSaveSettings}
         />
@@ -382,7 +403,11 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  list: {
+  listGrid: {
+    paddingTop: 50,
+    paddingBottom: 20,
+  },
+  listList: {
     paddingTop: 50,
     paddingBottom: 20,
   },

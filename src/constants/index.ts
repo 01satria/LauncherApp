@@ -18,6 +18,7 @@ export const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 export const CUSTOM_DOCK_PATH = `${CUSTOM_AVATAR_DIR}/dock.json`;
 export const CUSTOM_SHOW_NAMES_PATH = `${CUSTOM_AVATAR_DIR}/show_names.txt`;
 export const CUSTOM_NOTIF_DISMISSED_PATH = `${CUSTOM_AVATAR_DIR}/notif_dismissed.txt`;
+export const CUSTOM_LAYOUT_MODE_PATH = `${CUSTOM_AVATAR_DIR}/layout_mode.txt`;
 
 // Default values
 export const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";

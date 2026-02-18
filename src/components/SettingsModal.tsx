@@ -12,12 +12,14 @@ interface SettingsModalProps {
   tempAssistantName: string;
   showHidden: boolean;
   showNames: boolean;
+  layoutMode: 'grid' | 'list';
   scaleAnim: Animated.Value;
   onClose: () => void;
   onTempNameChange: (text: string) => void;
   onTempAssistantNameChange: (text: string) => void;
   onToggleHidden: (value: boolean) => void;
   onToggleShowNames: (value: boolean) => void;
+  onLayoutModeChange: (mode: 'grid' | 'list') => void;
   onChangePhoto: () => void;
   onSave: () => void;
 }
@@ -28,12 +30,14 @@ const SettingsModal = memo(({
   tempAssistantName,
   showHidden,
   showNames,
+  layoutMode,
   scaleAnim,
   onClose,
   onTempNameChange,
   onTempAssistantNameChange,
   onToggleHidden,
   onToggleShowNames,
+  onLayoutModeChange,
   onChangePhoto,
   onSave,
 }: SettingsModalProps) => {
@@ -58,6 +62,7 @@ const SettingsModal = memo(({
       <View style={styles.overlay}>
         <Animated.View style={[styles.sheet, animStyle]}>
 
+          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -65,46 +70,89 @@ const SettingsModal = memo(({
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>YOUR NAME</Text>
-          <TextInput
-            style={styles.input}
-            value={tempName}
-            onChangeText={onTempNameChange}
-            placeholder="Enter name..."
-            placeholderTextColor="#555"
-            selectionColor="#27ae60"
-          />
+          {/* User Name */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Your Name</Text>
+            <TextInput
+              style={styles.input}
+              value={tempName}
+              onChangeText={onTempNameChange}
+              placeholder="Enter your name"
+              placeholderTextColor="#555"
+            />
+          </View>
 
-          <Text style={styles.label}>ASSISTANT NAME</Text>
-          <TextInput
-            style={styles.input}
-            value={tempAssistantName}
-            onChangeText={onTempAssistantNameChange}
-            placeholder="Enter assistant name..."
-            placeholderTextColor="#555"
-            selectionColor="#27ae60"
-          />
+          {/* Assistant Name */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Assistant Name</Text>
+            <TextInput
+              style={styles.input}
+              value={tempAssistantName}
+              onChangeText={onTempAssistantNameChange}
+              placeholder="Enter assistant name"
+              placeholderTextColor="#555"
+            />
+          </View>
 
-          <View style={styles.divider} />
+          {/* Layout Mode Selector */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Layout Mode</Text>
+            <View style={styles.modeSelector}>
+              <TouchableOpacity
+                style={[
+                  styles.modeBtn,
+                  styles.modeBtnLeft,
+                  layoutMode === 'grid' && styles.modeBtnActive
+                ]}
+                onPress={() => onLayoutModeChange('grid')}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.modeBtnText,
+                  layoutMode === 'grid' && styles.modeBtnTextActive
+                ]}>
+                  ⊞  Grid
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeBtn,
+                  styles.modeBtnRight,
+                  layoutMode === 'list' && styles.modeBtnActive
+                ]}
+                onPress={() => onLayoutModeChange('list')}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.modeBtnText,
+                  layoutMode === 'list' && styles.modeBtnTextActive
+                ]}>
+                  ☰  List
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-          <View style={styles.row}>
-            <Text style={styles.rowText}>Show Hidden Apps</Text>
+          {/* Show Hidden Apps */}
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Show Hidden Apps</Text>
             <AnimatedToggle value={showHidden} onValueChange={onToggleHidden} />
           </View>
 
-          <View style={styles.row}>
-            <Text style={styles.rowText}>Show App Names</Text>
+          {/* Show App Names */}
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Show App Names</Text>
             <AnimatedToggle value={showNames} onValueChange={onToggleShowNames} />
           </View>
 
-          <View style={styles.divider} />
-
-          <TouchableOpacity style={[styles.btn, styles.btnBlue]} onPress={onChangePhoto} activeOpacity={0.8}>
-            <Text style={styles.btnText}>Change Avatar</Text>
+          {/* Change Photo */}
+          <TouchableOpacity style={styles.photoBtn} onPress={onChangePhoto} activeOpacity={0.7}>
+            <Text style={styles.photoBtnText}>Change Assistant Photo</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.btn, styles.btnGreen]} onPress={onSave} activeOpacity={0.8}>
-            <Text style={styles.btnText}>Save Changes</Text>
+          {/* Save Button */}
+          <TouchableOpacity style={styles.saveBtn} onPress={onSave} activeOpacity={0.7}>
+            <Text style={styles.saveBtnText}>Save Changes</Text>
           </TouchableOpacity>
 
         </Animated.View>
@@ -116,65 +164,135 @@ const SettingsModal = memo(({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
   },
   sheet: {
-    width: width * 0.85,
     backgroundColor: '#0d0d0d',
-    borderRadius: 24,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: '#222',
-    elevation: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 20,
+    maxHeight: '85%',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a1a',
   },
-  title: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+  },
   closeBtn: {
-    width: 30, height: 30,
-    justifyContent: 'center', alignItems: 'center',
-    backgroundColor: '#222', borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1a1a1a',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  closeText: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
+  closeText: {
+    color: '#aaa',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
   label: {
-    color: '#555', fontSize: 11,
-    letterSpacing: 1.2, marginBottom: 8, marginLeft: 2,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#aaa',
+    marginBottom: 8,
   },
   input: {
     backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     color: '#fff',
-    paddingHorizontal: 15, paddingVertical: 13,
-    borderRadius: 14, fontSize: 15, marginBottom: 18,
-    borderWidth: 1, borderColor: '#2a2a2a',
-  },
-  divider: { height: 1, backgroundColor: '#1e1e1e', marginVertical: 14 },
-  row: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 6, paddingHorizontal: 2, marginBottom: 4,
-  },
-  rowText: { color: '#ddd', fontSize: 15 },
-  btn: { paddingVertical: 14, borderRadius: 14, alignItems: 'center', marginBottom: 10 },
-  btnGreen: {
-    backgroundColor: '#131313',
-    color: '#11a34e',
-    borderStyle: 'dashed',
+    fontSize: 16,
     borderWidth: 1,
-    borderColor: '#11a34e'
+    borderColor: '#2a2a2a',
   },
-  btnBlue: {
-    backgroundColor: '#131313',
-    color: '#2980b9',
-    borderStyle: 'dashed',
+  modeSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 4,
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeBtnLeft: {
+    marginRight: 2,
+  },
+  modeBtnRight: {
+    marginLeft: 2,
+  },
+  modeBtnActive: {
+    backgroundColor: '#27ae60',
+  },
+  modeBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modeBtnTextActive: {
+    color: '#fff',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a1a',
+  },
+  toggleLabel: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  photoBtn: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#1a1a1a',
     borderWidth: 1,
-    borderColor: '#2980b9'
+    borderColor: '#27ae60',
+    alignItems: 'center',
   },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
+  photoBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#27ae60',
+  },
+  saveBtn: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#27ae60',
+    alignItems: 'center',
+  },
+  saveBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
 });
 
 export default SettingsModal;

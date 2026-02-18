@@ -9,6 +9,7 @@ import {
   CUSTOM_DOCK_PATH,
   CUSTOM_SHOW_NAMES_PATH,
   CUSTOM_NOTIF_DISMISSED_PATH,
+  CUSTOM_LAYOUT_MODE_PATH,
 } from '../constants';
 
 export const initializeStorage = async () => {
@@ -16,7 +17,7 @@ export const initializeStorage = async () => {
 };
 
 export const loadUserPreferences = async () => {
-  const [uName, aName, hidden, showH, avt, dock, showN] = await Promise.all([
+  const [uName, aName, hidden, showH, avt, dock, showN, layoutM] = await Promise.all([
     RNFS.exists(CUSTOM_USER_PATH).then(e => e ? RNFS.readFile(CUSTOM_USER_PATH, 'utf8') : null),
     RNFS.exists(CUSTOM_ASSISTANT_NAME_PATH).then(e => e ? RNFS.readFile(CUSTOM_ASSISTANT_NAME_PATH, 'utf8') : null),
     RNFS.exists(CUSTOM_HIDDEN_PATH).then(e => e ? RNFS.readFile(CUSTOM_HIDDEN_PATH, 'utf8') : null),
@@ -24,6 +25,7 @@ export const loadUserPreferences = async () => {
     RNFS.exists(CUSTOM_AVATAR_PATH).then(e => e ? RNFS.readFile(CUSTOM_AVATAR_PATH, 'base64') : null),
     RNFS.exists(CUSTOM_DOCK_PATH).then(e => e ? RNFS.readFile(CUSTOM_DOCK_PATH, 'utf8') : null),
     RNFS.exists(CUSTOM_SHOW_NAMES_PATH).then(e => e ? RNFS.readFile(CUSTOM_SHOW_NAMES_PATH, 'utf8') : null),
+    RNFS.exists(CUSTOM_LAYOUT_MODE_PATH).then(e => e ? RNFS.readFile(CUSTOM_LAYOUT_MODE_PATH, 'utf8') : null),
   ]);
 
   return {
@@ -34,6 +36,7 @@ export const loadUserPreferences = async () => {
     avatarSource: avt ? `data:image/jpeg;base64,${avt}` : null,
     dockPackages: dock ? JSON.parse(dock) : [],
     showNames: showN !== null ? showN === 'true' : true,
+    layoutMode: (layoutM as 'grid' | 'list') || 'grid',
   };
 };
 
@@ -59,6 +62,10 @@ export const saveShowHidden = async (show: boolean) => {
 
 export const saveShowNames = async (show: boolean) => {
   await RNFS.writeFile(CUSTOM_SHOW_NAMES_PATH, show ? 'true' : 'false', 'utf8');
+};
+
+export const saveLayoutMode = async (mode: 'grid' | 'list') => {
+  await RNFS.writeFile(CUSTOM_LAYOUT_MODE_PATH, mode, 'utf8');
 };
 
 export const saveAvatar = async (base64: string) => {
@@ -141,9 +148,9 @@ export const checkNotificationStatus = async (): Promise<boolean> => {
 
 export const getNotificationMessage = (userName: string): string => {
   const h = new Date().getHours();
-  if (h >= 22 || h < 4) return `It's late, ${userName}. Put the phone down now! 😠 u need rest to stay healthy.`;
-  if (h >= 4 && h < 11) return `Good morning, ${userName}! ☀️ Wake up and conquer the day. Remember, I'm always cheering for u right here. 😘`;
-  if (h >= 11 && h < 15) return `Stop working for a bit! 😠 Have u had lunch, ${userName}? Don't u dare skip meals, I don't want u getting sick! 🍔`;
-  if (h >= 15 && h < 18) return `U must be tired, ${userName}.. ☕ Take a break, okay?.. 🤗`;
-  return `Are u done for the day? 🌙 No more wandering around. It's time for u to relax. 🥰`;
+  if (h >= 22 || h < 4) return `It's late, ${userName}. Put the phone down and get some rest! 😠 Your health comes first.`;
+  if (h >= 4 && h < 11) return `Good morning, ${userName}! ☀️ Rise and conquer the day. I'm always cheering for you! 😘`;
+  if (h >= 11 && h < 15) return `Take a break! 😠 Have you had lunch yet, ${userName}? Don't skip meals! 🍔`;
+  if (h >= 15 && h < 18) return `You must be tired by now, ${userName}.. ☕ Go ahead and take a breather, okay? 🤗`;
+  return `All done for the day? 🌙 Time to wind down and relax, ${userName}. You deserve it. 🥰`;
 };
