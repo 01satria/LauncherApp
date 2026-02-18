@@ -1,11 +1,11 @@
 import React, { memo } from 'react';
-import { 
-  View, 
-  Text, 
-  Modal, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
   Animated,
-  StyleSheet 
+  StyleSheet
 } from 'react-native';
 import { width } from '../constants';
 
@@ -39,7 +39,7 @@ const AppActionModal = memo(({
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
-        <Animated.View 
+        <Animated.View
           style={[
             styles.modalContent,
             {
@@ -68,9 +68,9 @@ const AppActionModal = memo(({
           <View style={styles.verticalBtnGroup}>
             {/* Only show Pin/Unpin button if dock not full OR app already docked */}
             {showPinButton && (
-              <TouchableOpacity 
-                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]} 
-                onPress={onPinToDock} 
+              <TouchableOpacity
+                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]}
+                onPress={onPinToDock}
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
@@ -79,9 +79,9 @@ const AppActionModal = memo(({
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity 
-              style={[styles.actionBtn, styles.btnGreen, styles.btnFull]} 
-              onPress={onHideAction} 
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.btnGreen, styles.btnFull]}
+              onPress={onHideAction}
               activeOpacity={0.8}
             >
               <Text style={styles.actionBtnText}>
@@ -89,9 +89,9 @@ const AppActionModal = memo(({
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.actionBtn, styles.btnRed, styles.btnFull]} 
-              onPress={onUninstall} 
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.btnRed, styles.btnFull]}
+              onPress={onUninstall}
               activeOpacity={0.8}
             >
               <Text style={styles.actionBtnText}>🗑️ Uninstall</Text>
@@ -104,64 +104,64 @@ const AppActionModal = memo(({
 });
 
 const styles = StyleSheet.create({
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center'
   },
-  modalContent: { 
-    width: width * 0.85, 
-    backgroundColor: '#000000', 
-    borderRadius: 20, 
-    padding: 20, 
-    borderWidth: 1, 
-    borderColor: '#333', 
-    elevation: 10 
+  modalContent: {
+    width: width * 0.85,
+    backgroundColor: '#000000',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+    elevation: 10
   },
-  modalHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 20 
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20
   },
-  modalTitle: { 
-    color: '#fff', 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    flex: 1 
+  modalTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    flex: 1
   },
-  closeBtn: { 
-    width: 30, 
-    height: 30, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: '#333', 
-    borderRadius: 15 
+  closeBtn: {
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#333',
+    borderRadius: 15
   },
-  closeText: { 
-    color: '#fff', 
-    fontSize: 14, 
-    fontWeight: 'bold', 
-    marginTop: -2 
+  closeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: -2
   },
-  modalSubtitle: { 
-    color: '#aaa', 
-    fontSize: 14, 
-    marginBottom: 25 
+  modalSubtitle: {
+    color: '#aaa',
+    fontSize: 14,
+    marginBottom: 25
   },
-  verticalBtnGroup: { 
-    width: '100%', 
-    gap: 10 
+  verticalBtnGroup: {
+    width: '100%',
+    gap: 10
   },
-  actionBtn: { 
-    paddingVertical: 14, 
-    borderRadius: 12, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  actionBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  btnFull: { 
-    width: '100%' 
+  btnFull: {
+    width: '100%'
   },
   btnGreen: {
     backgroundColor: '#131313',
@@ -187,11 +187,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e67e22'
   },
-  actionBtnText: { 
-    color: '#fff', 
-    fontSize: 15, 
-    fontWeight: 'bold', 
-    letterSpacing: 0.5 
+  actionBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold',
+    letterSpacing: 0.5
   },
 });
 

@@ -5,12 +5,10 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Animated,
   TextInput, FlatList, KeyboardAvoidingView,
   Platform, PanResponder, GestureResponderEvent,
-  StatusBar, Dimensions, AppState, AppStateStatus,
+  StatusBar, AppState, AppStateStatus,
   Image, BackHandler,
 } from 'react-native';
 import { getNotificationMessage } from '../utils/storage';
-
-const SCREEN_H = Dimensions.get('window').height;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Message {
@@ -49,20 +47,33 @@ const getCurrentPeriod = (): string => {
   return 'night';
 };
 
+// ─── Module-level cache ───────────────────────────────────────────────────────
 let _chatCache: Message[] | null = null;
 let _cachePeriod: string = getCurrentPeriod();
 let _lastAssistantMsgId: string | null = null;
 let _hasUnread: boolean = false;
 
-const loadChat = (autoMsg: Message): Message[] => {
-  const h = new Date().getHours();
-  if (h === 1 && _cachePeriod !== 'late_night') _chatCache = null;
-  _cachePeriod = getCurrentPeriod();
-  if (_chatCache === null) {
+/**
+ * Membuat pesan otomatis dan memuatnya ke cache.
+ * Dipanggil dengan userName yang sudah tersedia.
+ */
+const initChat = (userName: string): Message[] => {
+  const period = getCurrentPeriod();
+
+  // Reset cache jika period berubah atau cache kosong
+  if (_chatCache === null || _cachePeriod !== period) {
+    const autoMsg: Message = {
+      id: makeId(),
+      text: getNotificationMessage(userName),
+      from: 'assistant',
+      time: now(),
+    };
     _chatCache = [autoMsg];
+    _cachePeriod = period;
     _lastAssistantMsgId = autoMsg.id;
     _hasUnread = true;
   }
+
   return _chatCache;
 };
 
@@ -194,52 +205,11 @@ const SendIcon = memo(({ active }: { active: boolean }) => (
 ));
 
 const sendStyles = StyleSheet.create({
-  wrap: {
-    width: 25,
-    height: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  shaft: {
-    position: 'absolute',
-    width: 24,
-    height: 2.5,
-    backgroundColor: '#555',
-    borderRadius: 2,
-    left: 1,
-    bottom: 7,
-    transform: [{ rotate: '-22deg' }],
-  },
-  shaft1: {
-    position: 'absolute',
-    width: 24,
-    height: 2.5,
-    backgroundColor: '#555',
-    borderRadius: 2,
-    left: 1,
-    top: 7,
-    transform: [{ rotate: '22deg' }],
-  },
-  headTop: {
-    position: 'absolute',
-    width: 12,
-    height: 2.5,
-    backgroundColor: '#555',
-    borderRadius: 2,
-    left: 0,
-    bottom: 7,
-    transform: [{ rotate: '-55deg' }],
-  },
-  headBot: {
-    position: 'absolute',
-    width: 12,
-    height: 2.5,
-    backgroundColor: '#555',
-    borderRadius: 2,
-    left: 0,
-    top: 7,
-    transform: [{ rotate: '55deg' }],
-  },
+  wrap: { width: 25, height: 25, justifyContent: 'center', alignItems: 'center' },
+  shaft: { position: 'absolute', width: 24, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 1, bottom: 7, transform: [{ rotate: '-22deg' }] },
+  shaft1: { position: 'absolute', width: 24, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 1, top: 7, transform: [{ rotate: '22deg' }] },
+  headTop: { position: 'absolute', width: 12, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 0, bottom: 7, transform: [{ rotate: '-55deg' }] },
+  headBot: { position: 'absolute', width: 12, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 0, top: 7, transform: [{ rotate: '55deg' }] },
   active: { backgroundColor: '#27ae60' },
 });
 
@@ -286,7 +256,12 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
   })).current;
 
   return (
-    <Animated.View style={[toggleStyles.track, { backgroundColor: bgAnim.interpolate({ inputRange: [0, 1], outputRange: ['#3a3a3a', activeColor] }) }]} {...panResponder.panHandlers}>
+    <Animated.View
+      style={[toggleStyles.track, {
+        backgroundColor: bgAnim.interpolate({ inputRange: [0, 1], outputRange: ['#3a3a3a', activeColor] }),
+      }]}
+      {...panResponder.panHandlers}
+    >
       <Animated.View style={[toggleStyles.thumb, { transform: [{ translateX: posX }] }]} />
     </Animated.View>
   );
@@ -297,10 +272,9 @@ const toggleStyles = StyleSheet.create({
   thumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', position: 'absolute', elevation: 3 },
 });
 
-// ─── ULTRA-LIGHT Message Bubble ───────────────────────────────────────────────
-const Bubble = memo(({ msg, isLast }: { msg: Message; isLast: boolean }) => {
+// ─── Message Bubble ───────────────────────────────────────────────────────────
+const Bubble = memo(({ msg }: { msg: Message }) => {
   const isUser = msg.from === 'user';
-
   return (
     <View style={[bubbleStyles.row, isUser ? bubbleStyles.rowRight : bubbleStyles.rowLeft]}>
       <View style={[bubbleStyles.bubble, isUser ? bubbleStyles.userBubble : bubbleStyles.aiBubble]}>
@@ -351,7 +325,7 @@ const typingStyles = StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#666', marginHorizontal: 2 },
 });
 
-// ─── FULLSCREEN AssistantPopup ────────────────────────────────────────────────
+// ─── AssistantPopup ───────────────────────────────────────────────────────────
 const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }: AssistantPopupProps) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const flatRef = useRef<FlatList>(null);
@@ -360,42 +334,36 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  const autoMsg: Message = { id: 'auto', text: getNotificationMessage(userName), from: 'assistant', time: now() };
-  const [messages, setMessages] = useState<Message[]>(() => loadChat(autoMsg));
+  // Inisialisasi pesan dengan initChat agar auto message selalu muncul
+  const [messages, setMessages] = useState<Message[]>(() => initChat(userName));
 
-  // ─── handleClose (shared by ✕ button AND back handler) ──────────────────
   const handleClose = useCallback(() => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => onClose());
+    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true })
+      .start(() => onClose());
   }, [onClose]);
 
-  // ─── Android hardware back button / gesture navigation ──────────────────
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       handleClose();
-      // Return true → event consumed, prevents default back action (e.g. app exit / screen pop)
       return true;
     });
     return () => subscription.remove();
   }, [handleClose]);
 
+  // Cek pergantian period setiap menit
   useEffect(() => {
     const checkPeriodTransition = () => {
       const currentPeriod = getCurrentPeriod();
-      const h = new Date().getHours();
-      if (h === 1 && _cachePeriod !== 'late_night') {
-        const freshMsg: Message = { id: makeId(), text: getNotificationMessage(userName), from: 'assistant', time: now() };
-        _chatCache = [freshMsg];
-        _cachePeriod = currentPeriod;
-        notifyNewMessage(freshMsg.id);
-        setMessages([freshMsg]);
-        return;
-      }
       if (currentPeriod !== _cachePeriod) {
-        const newMsg: Message = { id: makeId(), text: getNotificationMessage(userName), from: 'assistant', time: now() };
+        const newMsg: Message = {
+          id: makeId(),
+          text: getNotificationMessage(userName),
+          from: 'assistant',
+          time: now(),
+        };
+        _cachePeriod = currentPeriod;
         setMessages(prev => {
           const updated = [...prev, newMsg];
-          _chatCache = updated;
-          _cachePeriod = currentPeriod;
           saveChat(updated);
           notifyNewMessage(newMsg.id);
           return updated;
@@ -422,13 +390,20 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const sendMessage = useCallback(() => {
     const text = input.trim();
     if (!text) return;
+
     const userMsg: Message = { id: makeId(), text, from: 'user', time: now() };
     setMessages(prev => { const n = [...prev, userMsg]; saveChat(n); return n; });
     setInput('');
     scrollToEnd();
     setIsTyping(true);
+
     replyTimer.current = setTimeout(() => {
-      const reply: Message = { id: makeId(), text: getReply(text, userName, assistantName), from: 'assistant', time: now() };
+      const reply: Message = {
+        id: makeId(),
+        text: getReply(text, userName, assistantName),
+        from: 'assistant',
+        time: now(),
+      };
       setIsTyping(false);
       setMessages(prev => { const n = [...prev, reply]; saveChat(n); return n; });
       scrollToEnd();
@@ -436,9 +411,9 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   }, [input, userName, assistantName, scrollToEnd]);
 
   const keyExtractor = useCallback((m: Message) => m.id, []);
-  const renderItem = useCallback(({ item, index }: { item: Message; index: number }) => (
-    <Bubble msg={item} isLast={index === messages.length - 1} />
-  ), [messages.length]);
+  const renderItem = useCallback(({ item }: { item: Message }) => (
+    <Bubble msg={item} />
+  ), []);
 
   const hasInput = input.trim().length > 0;
 
@@ -482,6 +457,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         onLayout={scrollToEnd}
+        onContentSizeChange={scrollToEnd}
         ListFooterComponent={isTyping ? (
           <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
             <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble, { flexDirection: 'row', gap: 4 }]}>
@@ -524,7 +500,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
 const styles = StyleSheet.create({
   fullscreen: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000', zIndex: 1000 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: StatusBar.currentHeight || 40, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
   closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
   closeText: { color: '#aaa', fontSize: 14, fontWeight: 'bold' },
   avatarWrap: { position: 'relative' },

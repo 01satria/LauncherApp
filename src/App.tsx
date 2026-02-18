@@ -29,7 +29,6 @@ import {
   saveAvatar,
   saveLayoutMode,
 } from './utils/storage';
-import CacheManager from './utils/CacheManager';
 import { useAppManagement, useUserSettings } from './hooks/useAppManagement';
 import AppItem from './components/AppItem';
 import AppListItem from './components/AppListItem';
@@ -40,7 +39,6 @@ import AppActionModal from './components/AppActionModal';
 const App = () => {
   const [loading, setLoading] = useState(true);
   const [filteredApps, setFilteredApps] = useState<AppData[]>([]);
-  const [isActive, setIsActive] = useState(true);
   const [layoutMode, setLayoutMode] = useState<'grid' | 'list'>('grid');
 
   // Modals
@@ -52,31 +50,12 @@ const App = () => {
   const [tempName, setTempName] = useState("User");
   const [tempAssistantName, setTempAssistantName] = useState("Assistant");
 
-  // Animations - lazy init
-  const modalScaleAnim = useRef<Animated.Value | null>(null);
-  const settingsModalAnim = useRef<Animated.Value | null>(null);
-  
-  // Cache management timers
-  const backgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const deepCacheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const getModalScaleAnim = () => {
-    if (!modalScaleAnim.current) {
-      modalScaleAnim.current = new Animated.Value(0);
-    }
-    return modalScaleAnim.current;
-  };
-
-  const getSettingsModalAnim = () => {
-    if (!settingsModalAnim.current) {
-      settingsModalAnim.current = new Animated.Value(0);
-    }
-    return settingsModalAnim.current;
-  };
+  // Animations
+  const modalScaleAnim = useRef(new Animated.Value(0));
+  const settingsModalAnim = useRef(new Animated.Value(0));
 
   const {
     allApps,
-    setAllApps,
     hiddenPackages,
     setHiddenPackages,
     dockPackages,
@@ -133,100 +112,55 @@ const App = () => {
     });
 
     const appStateSub = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      const isNowActive = nextAppState === 'active';
-      setIsActive(isNowActive);
-
-      if (isNowActive) {
-        // App returning to foreground - cancel any pending cache clears
-        if (backgroundTimerRef.current) clearTimeout(backgroundTimerRef.current);
-        if (deepCacheTimerRef.current) clearTimeout(deepCacheTimerRef.current);
-        
+      if (nextAppState === 'active') {
         setTimeout(() => refreshApps(), 500);
-        CacheManager.warmupCache();
       } else {
-        // App going to background - progressive cache clearing
-        
-        // 1. Immediate: Stop animations to save CPU
-        modalScaleAnim.current?.stopAnimation();
-        settingsModalAnim.current?.stopAnimation();
-        modalScaleAnim.current?.setValue(0);
-        settingsModalAnim.current?.setValue(0);
-        
-        // 2. After 5 seconds: Clear basic cache (decoded images)
-        backgroundTimerRef.current = setTimeout(() => {
-          if (AppState.currentState !== 'active') {
-            CacheManager.clearBackgroundCache();
-          }
-        }, 5000);
-        
-        // 3. After 30 seconds: Deep cache clear (for extended background)
-        deepCacheTimerRef.current = setTimeout(() => {
-          if (AppState.currentState !== 'active') {
-            CacheManager.clearDeepCache();
-          }
-        }, 30000);
+        modalScaleAnim.current.stopAnimation();
+        settingsModalAnim.current.stopAnimation();
+        modalScaleAnim.current.setValue(0);
+        settingsModalAnim.current.setValue(0);
       }
     });
 
     return () => {
       InstalledApps.stopListeningForAppInstallations();
       appStateSub.remove();
-      modalScaleAnim.current?.stopAnimation();
-      settingsModalAnim.current?.stopAnimation();
-      modalScaleAnim.current = null;
-      settingsModalAnim.current = null;
-      
-      // Clear cache management timers
-      if (backgroundTimerRef.current) clearTimeout(backgroundTimerRef.current);
-      if (deepCacheTimerRef.current) clearTimeout(deepCacheTimerRef.current);
+      modalScaleAnim.current.stopAnimation();
+      settingsModalAnim.current.stopAnimation();
     };
   }, []);
 
   useEffect(() => {
-    if (!isActive) return;
-    
-    const rafId = requestAnimationFrame(() => {
-      const filtered = allApps.filter(app =>
-        !dockPackages.includes(app.packageName) &&
-        (showHidden || !hiddenPackages.includes(app.packageName))
-      );
-      setFilteredApps(filtered);
-    });
-
-    return () => cancelAnimationFrame(rafId);
-  }, [allApps, hiddenPackages, dockPackages, showHidden, isActive]);
+    const filtered = allApps.filter(app =>
+      !dockPackages.includes(app.packageName) &&
+      (showHidden || !hiddenPackages.includes(app.packageName))
+    );
+    setFilteredApps(filtered);
+  }, [allApps, hiddenPackages, dockPackages, showHidden]);
 
   useEffect(() => {
-    if (!isActive) return;
-    
     if (actionModalVisible) {
-      const anim = getModalScaleAnim();
-      Animated.spring(anim, {
+      Animated.timing(modalScaleAnim.current, {
         toValue: 1,
-        friction: 8,
-        tension: 100,
+        duration: 150,
         useNativeDriver: true,
       }).start();
     } else {
-      modalScaleAnim.current?.setValue(0);
+      modalScaleAnim.current.setValue(0);
     }
-  }, [actionModalVisible, isActive]);
+  }, [actionModalVisible]);
 
   useEffect(() => {
-    if (!isActive) return;
-    
     if (settingsVisible) {
-      const anim = getSettingsModalAnim();
-      Animated.spring(anim, {
+      Animated.timing(settingsModalAnim.current, {
         toValue: 1,
-        friction: 8,
-        tension: 100,
+        duration: 150,
         useNativeDriver: true,
       }).start();
     } else {
-      settingsModalAnim.current?.setValue(0);
+      settingsModalAnim.current.setValue(0);
     }
-  }, [settingsVisible, isActive]);
+  }, [settingsVisible]);
 
   const handleOpenSettings = useCallback(() => {
     setTempName(userName);
@@ -297,7 +231,6 @@ const App = () => {
     setSettingsVisible(false);
   }, [tempName, tempAssistantName, updateUserName, updateAssistantName]);
 
-  // GRID MODE: 4 columns
   const renderGridItem: ListRenderItem<AppData> = useCallback(({ item }) => (
     <AppItem
       item={item}
@@ -307,7 +240,6 @@ const App = () => {
     />
   ), [launchApp, handleLongPress, showNames]);
 
-  // LIST MODE: 1 column (Niagara-style)
   const renderListItem: ListRenderItem<AppData> = useCallback(({ item }) => (
     <AppListItem
       item={item}
@@ -317,12 +249,11 @@ const App = () => {
     />
   ), [launchApp, handleLongPress, showNames]);
 
-  const dockApps = React.useMemo(
-    () => allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5),
-    [allApps, dockPackages]
-  );
-  
-  const isDocked = dockPackages.includes(selectedPkg);
+  const { dockApps, isDocked } = React.useMemo(() => {
+    const apps = allApps.filter(app => dockPackages.includes(app.packageName)).slice(0, 5);
+    const docked = dockPackages.includes(selectedPkg);
+    return { dockApps: apps, isDocked: docked };
+  }, [allApps, dockPackages, selectedPkg]);
 
   if (loading) {
     return (
@@ -335,7 +266,7 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-      
+
       <MaskedView
         style={styles.appsContainer}
         maskElement={
@@ -351,7 +282,7 @@ const App = () => {
               locations={[0, 0.98, 0.99, 1]}
               style={{ flex: 1 }}
             />
-            <View style={{ height: 85, backgroundColor: 'transparent' }} />
+            <View style={{ height: 90, backgroundColor: 'transparent' }} />
           </View>
         }
       >
@@ -391,7 +322,7 @@ const App = () => {
           showHidden={showHidden}
           showNames={showNames}
           layoutMode={layoutMode}
-          scaleAnim={getSettingsModalAnim()}
+          scaleAnim={settingsModalAnim.current}
           onClose={() => setSettingsVisible(false)}
           onTempNameChange={setTempName}
           onTempAssistantNameChange={setTempAssistantName}
@@ -410,7 +341,7 @@ const App = () => {
           actionType={actionType}
           isDocked={isDocked}
           dockCount={dockApps.length}
-          scaleAnim={getModalScaleAnim()}
+          scaleAnim={modalScaleAnim.current}
           onClose={() => setActionModalVisible(false)}
           onPinToDock={handlePinToDock}
           onHideAction={handleHideAction}
@@ -433,7 +364,6 @@ const styles = StyleSheet.create({
   },
   appsContainer: {
     flex: 1,
-    position: 'relative',
   },
   listGrid: {
     paddingTop: 50,
@@ -447,11 +377,5 @@ const styles = StyleSheet.create({
     height: 120,
   },
 });
-
-// Website: https://01satria.vercel.app
-// Github: https://github.com/01satria
-// Instagram: https://www.instagram.com/satria.page/
-// Indonesian: "Jangan lupa untuk memberikan kredit kepada Satria Dev jika Anda menggunakan atau memodifikasi kode ini dalam proyek Anda. Terima kasih telah menghargai karya saya!" - Satria Dev
-// English: "Please remember to give credit to Satria Dev if you use or modify this code in your projects. Thank you for respecting my work!" - Satria Dev
 
 export default App;
