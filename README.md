@@ -466,6 +466,7 @@ border: 2px #27ae60 (online status)
 | Scrolling | 15-20% |
 | Background | <1% |
 | Chat Typing | 5-8% |
+*Depending on the model and architecture of your mobile phone* 
 
 ---
 
