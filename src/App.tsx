@@ -29,6 +29,7 @@ import {
   saveAvatar,
   saveLayoutMode,
 } from './utils/storage';
+import CacheManager from './utils/CacheManager';
 import { useAppManagement, useUserSettings } from './hooks/useAppManagement';
 import AppItem from './components/AppItem';
 import AppListItem from './components/AppListItem';
@@ -54,6 +55,10 @@ const App = () => {
   // Animations - lazy init
   const modalScaleAnim = useRef<Animated.Value | null>(null);
   const settingsModalAnim = useRef<Animated.Value | null>(null);
+  
+  // Cache management timers
+  const backgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deepCacheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getModalScaleAnim = () => {
     if (!modalScaleAnim.current) {
@@ -132,12 +137,34 @@ const App = () => {
       setIsActive(isNowActive);
 
       if (isNowActive) {
+        // App returning to foreground - cancel any pending cache clears
+        if (backgroundTimerRef.current) clearTimeout(backgroundTimerRef.current);
+        if (deepCacheTimerRef.current) clearTimeout(deepCacheTimerRef.current);
+        
         setTimeout(() => refreshApps(), 500);
+        CacheManager.warmupCache();
       } else {
+        // App going to background - progressive cache clearing
+        
+        // 1. Immediate: Stop animations to save CPU
         modalScaleAnim.current?.stopAnimation();
         settingsModalAnim.current?.stopAnimation();
         modalScaleAnim.current?.setValue(0);
         settingsModalAnim.current?.setValue(0);
+        
+        // 2. After 5 seconds: Clear basic cache (decoded images)
+        backgroundTimerRef.current = setTimeout(() => {
+          if (AppState.currentState !== 'active') {
+            CacheManager.clearBackgroundCache();
+          }
+        }, 5000);
+        
+        // 3. After 30 seconds: Deep cache clear (for extended background)
+        deepCacheTimerRef.current = setTimeout(() => {
+          if (AppState.currentState !== 'active') {
+            CacheManager.clearDeepCache();
+          }
+        }, 30000);
       }
     });
 
@@ -148,6 +175,10 @@ const App = () => {
       settingsModalAnim.current?.stopAnimation();
       modalScaleAnim.current = null;
       settingsModalAnim.current = null;
+      
+      // Clear cache management timers
+      if (backgroundTimerRef.current) clearTimeout(backgroundTimerRef.current);
+      if (deepCacheTimerRef.current) clearTimeout(deepCacheTimerRef.current);
     };
   }, []);
 
@@ -378,6 +409,7 @@ const App = () => {
           selectedLabel={selectedLabel}
           actionType={actionType}
           isDocked={isDocked}
+          dockCount={dockApps.length}
           scaleAnim={getModalScaleAnim()}
           onClose={() => setActionModalVisible(false)}
           onPinToDock={handlePinToDock}

@@ -45,7 +45,7 @@ const AppListItem = memo(({ item, onPress, onLongPress, showNames }: AppListItem
         { transform: [{ scale: scaleAnim }] }
       ]}>
         {showNames ? (
-          // WITH NAMES: Icon + Text (both centered together)
+          // WITH NAMES: Icon + Text (LEFT aligned, Niagara-style)
           <View style={styles.contentWithName}>
             <SafeAppIcon iconUri={item.icon} size={52} />
             <Text style={styles.label} numberOfLines={1}>
@@ -53,7 +53,7 @@ const AppListItem = memo(({ item, onPress, onLongPress, showNames }: AppListItem
             </Text>
           </View>
         ) : (
-          // WITHOUT NAMES: Icon only (centered)
+          // WITHOUT NAMES: Icon only (CENTER aligned)
           <View style={styles.contentIconOnly}>
             <SafeAppIcon iconUri={item.icon} size={52} />
           </View>
@@ -69,17 +69,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginVertical: 2,
   },
-  // WITH NAMES: horizontal layout, centered
+  // WITH NAMES: horizontal layout, LEFT aligned (Niagara-style)
   contentWithName: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',  // LEFT align
     paddingVertical: 8,
   },
-  // WITHOUT NAMES: icon centered
+  // WITHOUT NAMES: icon CENTER aligned
   contentIconOnly: {
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center',      // CENTER align
     paddingVertical: 8,
   },
   label: {
