@@ -1,5 +1,6 @@
-import React, { memo, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, Animated } from 'react-native';
+import React, { memo, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import SafeAppIcon from './SafeAppIcon';
 import { AppData } from '../types';
 
 interface AppListItemProps {
@@ -14,8 +15,9 @@ const AppListItem = memo(({ item, onPress, onLongPress, showNames }: AppListItem
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      friction: 5,
+      toValue: 0.96,
+      friction: 6,
+      tension: 120,
       useNativeDriver: true,
     }).start();
   };
@@ -23,7 +25,8 @@ const AppListItem = memo(({ item, onPress, onLongPress, showNames }: AppListItem
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
-      friction: 5,
+      friction: 6,
+      tension: 120,
       useNativeDriver: true,
     }).start();
   };
@@ -39,14 +42,21 @@ const AppListItem = memo(({ item, onPress, onLongPress, showNames }: AppListItem
     >
       <Animated.View style={[
         styles.listItem,
-        showNames ? styles.listItemWithName : styles.listItemIconOnly,
         { transform: [{ scale: scaleAnim }] }
       ]}>
-        <Image source={{ uri: `data:image/png;base64,${item.icon}` }} style={styles.icon} />
-        {showNames && (
-          <Text style={styles.label} numberOfLines={1}>
-            {item.label}
-          </Text>
+        {showNames ? (
+          // WITH NAMES: Icon + Text (both centered together)
+          <View style={styles.contentWithName}>
+            <SafeAppIcon iconUri={item.icon} size={52} />
+            <Text style={styles.label} numberOfLines={1}>
+              {item.label}
+            </Text>
+          </View>
+        ) : (
+          // WITHOUT NAMES: Icon only (centered)
+          <View style={styles.contentIconOnly}>
+            <SafeAppIcon iconUri={item.icon} size={52} />
+          </View>
         )}
       </Animated.View>
     </TouchableOpacity>
@@ -55,31 +65,28 @@ const AppListItem = memo(({ item, onPress, onLongPress, showNames }: AppListItem
 
 const styles = StyleSheet.create({
   listItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    marginVertical: 2,
+  },
+  // WITH NAMES: horizontal layout, centered
+  contentWithName: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    marginHorizontal: 12,
-    marginVertical: 2,
-    borderRadius: 16,
-  },
-  listItemWithName: {
-    justifyContent: 'flex-start',
-  },
-  listItemIconOnly: {
     justifyContent: 'center',
+    paddingVertical: 8,
   },
-  icon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+  // WITHOUT NAMES: icon centered
+  contentIconOnly: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
   },
   label: {
     marginLeft: 16,
     fontSize: 16,
     fontWeight: '500',
     color: '#fff',
-    flex: 1,
   },
 });
 
