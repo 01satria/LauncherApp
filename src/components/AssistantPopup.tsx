@@ -8,7 +8,6 @@ import {
   StatusBar, AppState, AppStateStatus,
   Image, BackHandler, Alert,
 } from 'react-native';
-import { getNotificationMessage } from '../utils/storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Message {
@@ -39,38 +38,91 @@ const now = () => {
 
 const makeId = () => `${Date.now()}-${Math.random()}`;
 
-const getCurrentPeriod = (): string => {
-  const h = new Date().getHours();
-  if (h >= 22 || h < 4) return 'late_night';
-  if (h >= 4 && h < 11) return 'morning';
-  if (h >= 11 && h < 15) return 'afternoon';
-  if (h >= 15 && h < 20) return 'evening';
-  return 'night';
-};
+// ─── Scheduled message config ─────────────────────────────────────────────────
+// Tiap entry = { hour: jam tepat, text: pesan yang dikirim }
+// Hanya trigger SEKALI per hari di jam tersebut — meski popup buka/tutup.
+interface ScheduledMsg {
+  hour: number;
+  getText: (userName: string) => string;
+}
 
-// ─── Module-level cache ─────────────────────────────────────────────────────────────────────────────────
-// History hanya ditambah — tidak pernah dihapus otomatis.
-// Clear manual dilakukan user lewat tombol trash di header.
+const SCHEDULED_MSGS: ScheduledMsg[] = [
+  { hour: 6,  getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
+  { hour: 12, getText: (n) => `Hey ${n}, it's noon! 🍔 Have you had lunch yet? Don't skip your meals!` },
+  { hour: 18, getText: (n) => `Evening, ${n}! 🌆 How's your day been? Time to wind down a bit. ☕` },
+  { hour: 21, getText: (n) => `Hey ${n} 🌙 It's getting late — make sure you're taking care of yourself!` },
+  { hour: 22, getText: (n) => `Last call, ${n}! 😠 It's 22:00 — put the phone down and get some rest! Your health comes first. 💤` },
+];
+
+// ─── Module-level cache & scheduler ──────────────────────────────────────────
 let _chatCache: Message[] | null = null;
-let _cachePeriod: string = getCurrentPeriod();
 let _hasUnread = false;
 
-// initChat: kembalikan cache yang ada, atau array kosong jika belum ada.
-// Pesan sambutan TIDAK dibuat di sini — dibuat oleh useEffect setelah mount,
-// sehingga selalu muncul sebagai bubble baru, bukan modifikasi state lama.
+// Set jam yang sudah dikirim hari ini — key: "YYYY-MM-DD:HH"
+const _firedKeys = new Set<string>();
+
+// Listener yang dipanggil scheduler saat popup sedang terbuka,
+// agar setMessages bisa di-trigger dari luar komponen.
+let _popupListener: ((msg: Message) => void) | null = null;
+
+const getFiredKey = (hour: number): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}:${hour}`;
+};
+
+// Scheduler — dijalankan sekali, hidup sepanjang app berjalan.
+// Interval 30 detik untuk presisi cukup tanpa boros CPU.
+let _schedulerStarted = false;
+let _schedulerUserName = '';
+
+const startScheduler = (userName: string) => {
+  _schedulerUserName = userName; // update nama terbaru
+
+  if (_schedulerStarted) return; // sudah berjalan, skip
+  _schedulerStarted = true;
+
+  const tick = () => {
+    const h = new Date().getHours();
+    const m = new Date().getMinutes();
+    // Hanya trigger di menit 00 (toleransi: menit 0 saja)
+    if (m !== 0) return;
+
+    const scheduled = SCHEDULED_MSGS.find(s => s.hour === h);
+    if (!scheduled) return;
+
+    const key = getFiredKey(h);
+    if (_firedKeys.has(key)) return; // sudah kirim hari ini
+    _firedKeys.add(key);
+
+    const msg: Message = {
+      id: makeId(),
+      text: scheduled.getText(_schedulerUserName),
+      from: 'assistant',
+      time: now(),
+    };
+
+    // Append ke cache (berlaku meski popup tertutup)
+    if (_chatCache === null) _chatCache = [];
+    _chatCache = [..._chatCache, msg];
+
+    // Tandai unread → dot merah di dock
+    _hasUnread = true;
+
+    // Jika popup sedang terbuka, update state langsung
+    if (_popupListener) _popupListener(msg);
+  };
+
+  setInterval(tick, 30_000);
+};
+
 const initChat = (): Message[] => {
   if (_chatCache !== null) return _chatCache;
   _chatCache = [];
   return _chatCache;
 };
+
 const saveChat = (msgs: Message[]) => { _chatCache = msgs; };
 
-/**
- * Dipanggil oleh parent (dock) untuk menampilkan/menyembunyikan dot merah.
- * markAsRead() sengaja TIDAK dipanggil langsung saat mount — melainkan
- * setelah animasi fade-in selesai, agar parent sempat membaca _hasUnread = true
- * dan me-render dot sebelum di-reset.
- */
 export const markAsRead = () => { _hasUnread = false; };
 export const hasUnreadMessages = () => _hasUnread;
 export const notifyNewMessage = () => { _hasUnread = true; };
@@ -139,7 +191,7 @@ const getReply = (input: string, userName: string, assistantName: string): strin
   if (hasKeyword(t, ['makasih', 'thanks', 'thank you', 'thx', 'tengkyu', 'ty', 'terima kasih', 'thankyou', 'tq']))
     return `You're welcome, ${userName}! 😊`;
   if (hasKeyword(t, ['bisa apa', 'what can you do', 'kamu bisa apa', 'capabilities', 'fitur', 'apa kemampuan']))
-    return `I can chat with you, tell you the time, and remind you to rest! 💬`;
+    return `I can chat with you, tell you the time, and send you reminders! 💬`;
   if (hasKeyword(t, [
     'jam berapa', 'what time', 'whats time', 'what is time', 'wht is time',
     'current time', 'waktu sekarang', 'jam sekarang', 'jamber', 'jamberapa',
@@ -315,13 +367,11 @@ const typingStyles = StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#666', marginHorizontal: 2 },
 });
 
-// ─── Trash Icon ─────────────────────────────────────────────────────────────────────────────────
+// ─── Trash Icon ───────────────────────────────────────────────────────────────
 const TrashIcon = memo(() => (
   <View style={trashStyles.wrap}>
-    {/* Lid */}
     <View style={trashStyles.lid} />
     <View style={trashStyles.lidHandle} />
-    {/* Body */}
     <View style={trashStyles.body}>
       <View style={trashStyles.line} />
       <View style={trashStyles.line} />
@@ -343,11 +393,29 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const flatRef = useRef<FlatList>(null);
   const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const periodTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => initChat());
+
+  // Mulai scheduler (idempoten — hanya berjalan sekali meski komponen mount ulang)
+  // dan daftarkan listener agar pesan terjadwal bisa masuk ke state saat popup terbuka.
+  useEffect(() => {
+    startScheduler(userName);
+
+    _popupListener = (msg: Message) => {
+      setMessages(prev => {
+        const updated = [...prev, msg];
+        saveChat(updated);
+        return updated;
+      });
+    };
+
+    return () => {
+      // Hapus listener saat popup tertutup — scheduler tetap hidup di background
+      _popupListener = null;
+    };
+  }, [userName]);
 
   const handleClearChat = useCallback(() => {
     Alert.alert(
@@ -359,7 +427,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           text: 'Clear',
           style: 'destructive',
           onPress: () => {
-            // Clear total — tidak menyisakan pesan apapun
             _chatCache = [];
             setMessages([]);
           },
@@ -374,27 +441,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
       .start(() => onClose());
   }, [onClose]);
 
-  // Kirim pesan sambutan setiap kali popup dibuka (mount).
-  // Karena dijalankan di useEffect (bukan di useState init), pesan ini
-  // selalu muncul sebagai bubble BARU yang di-append, tidak pernah
-  // menimpa atau 'mengedit' pesan yang sudah ada di history.
-  useEffect(() => {
-    const greetMsg: Message = {
-      id: makeId(),
-      text: getNotificationMessage(userName),
-      from: 'assistant',
-      time: now(),
-    };
-    _cachePeriod = getCurrentPeriod();
-    notifyNewMessage();
-    setMessages(prev => {
-      const updated = [...prev, greetMsg];
-      saveChat(updated);
-      return updated;
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Hanya saat mount — dependency kosong disengaja
-
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       handleClose();
@@ -403,47 +449,15 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     return () => sub.remove();
   }, [handleClose]);
 
-  // Cek pergantian period setiap 60 detik
-  useEffect(() => {
-    const checkPeriod = () => {
-      const currentPeriod = getCurrentPeriod();
-      if (currentPeriod === _cachePeriod) return;
-
-      _cachePeriod = currentPeriod;
-
-      const newMsg: Message = {
-        id: makeId(),
-        text: getNotificationMessage(userName),
-        from: 'assistant',
-        time: now(),
-      };
-
-      notifyNewMessage();
-      setMessages(prev => {
-        const updated = [...prev, newMsg];
-        saveChat(updated);
-        return updated;
-      });
-    };
-
-    periodTimerRef.current = setInterval(checkPeriod, 60_000);
-    return () => {
-      if (periodTimerRef.current) clearInterval(periodTimerRef.current);
-    };
-  }, [userName]);
-
   // Fade-in: markAsRead dipanggil setelah animasi selesai agar dot merah
   // sempat terlihat sebelum di-reset.
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true })
-      .start(() => {
-        markAsRead();
-      });
+      .start(() => { markAsRead(); });
 
     return () => {
       fadeAnim.stopAnimation();
       if (replyTimer.current) clearTimeout(replyTimer.current);
-      if (periodTimerRef.current) clearInterval(periodTimerRef.current);
     };
   }, []);
 
