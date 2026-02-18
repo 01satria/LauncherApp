@@ -6,6 +6,7 @@ import {
   TextInput, FlatList, KeyboardAvoidingView,
   Platform, PanResponder, GestureResponderEvent,
   StatusBar, Dimensions, AppState, AppStateStatus,
+  Image,
 } from 'react-native';
 import { getNotificationMessage } from '../utils/storage';
 
@@ -41,8 +42,8 @@ const makeId = () => `${Date.now()}-${Math.random()}`;
 
 const getCurrentPeriod = (): string => {
   const h = new Date().getHours();
-  if (h >= 22 || h < 4)  return 'late_night';
-  if (h >= 4 && h < 11)  return 'morning';
+  if (h >= 22 || h < 4) return 'late_night';
+  if (h >= 4 && h < 11) return 'morning';
   if (h >= 11 && h < 15) return 'afternoon';
   if (h >= 15 && h < 18) return 'evening';
   return 'night';
@@ -91,10 +92,10 @@ const lev = (a: string, b: string): number => {
       dp[i * (n + 1) + j] = a[i - 1] === b[j - 1]
         ? dp[(i - 1) * (n + 1) + (j - 1)]
         : 1 + Math.min(
-            dp[(i - 1) * (n + 1) + j],
-            dp[i * (n + 1) + (j - 1)],
-            dp[(i - 1) * (n + 1) + (j - 1)],
-          );
+          dp[(i - 1) * (n + 1) + j],
+          dp[i * (n + 1) + (j - 1)],
+          dp[(i - 1) * (n + 1) + (j - 1)],
+        );
     }
   }
   return dp[m * (n + 1) + n];
@@ -129,45 +130,45 @@ const hasKeyword = (input: string, keywords: string[], threshold = 0.78): boolea
 
 const getReply = (input: string, userName: string, assistantName: string): string => {
   const t = norm(input);
-  if (hasKeyword(t, ['hai','hi','halo','hello','hey','sup','yo','howdy'], 0.82))
+  if (hasKeyword(t, ['hai', 'hi', 'halo', 'hello', 'hey', 'sup', 'yo', 'howdy'], 0.82))
     return `Hey ${userName}! 👋 What can I do for you?`;
-  if (hasKeyword(t, ['apa kabar','how are you','gimana kabar','hows it going','how r u','kabar kamu']))
+  if (hasKeyword(t, ['apa kabar', 'how are you', 'gimana kabar', 'hows it going', 'how r u', 'kabar kamu']))
     return `I'm doing great, ${userName}! 😊 How about you?`;
-  if (hasKeyword(t, ['siapa kamu','who are you','nama kamu','namamu','your name','siapa lo','who r u']))
+  if (hasKeyword(t, ['siapa kamu', 'who are you', 'nama kamu', 'namamu', 'your name', 'siapa lo', 'who r u']))
     return `I'm ${assistantName}, your personal assistant! 🤖`;
-  if (hasKeyword(t, ['makasih','thanks','thank you','thx','tengkyu','ty','terima kasih','thankyou','tq']))
+  if (hasKeyword(t, ['makasih', 'thanks', 'thank you', 'thx', 'tengkyu', 'ty', 'terima kasih', 'thankyou', 'tq']))
     return `You're welcome, ${userName}! 😊`;
-  if (hasKeyword(t, ['bisa apa','what can you do','kamu bisa apa','capabilities','fitur','apa kemampuan']))
+  if (hasKeyword(t, ['bisa apa', 'what can you do', 'kamu bisa apa', 'capabilities', 'fitur', 'apa kemampuan']))
     return `I can chat with you, tell you the time, and remind you to rest! 💬`;
   if (hasKeyword(t, [
-    'jam berapa','what time','whats time','what is time','wht is time',
-    'current time','waktu sekarang','jam sekarang','jamber','jamberapa',
-    'time now','pukul berapa','skrg jam','sekarang jam',
+    'jam berapa', 'what time', 'whats time', 'what is time', 'wht is time',
+    'current time', 'waktu sekarang', 'jam sekarang', 'jamber', 'jamberapa',
+    'time now', 'pukul berapa', 'skrg jam', 'sekarang jam',
   ], 0.72))
     return `It's ${now()} right now, ${userName}! ⏰`;
-  if (hasKeyword(t, ['bored','bosan','gabut','nothing to do','iseng','boring']))
+  if (hasKeyword(t, ['bored', 'bosan', 'gabut', 'nothing to do', 'iseng', 'boring']))
     return `Try opening your favorite app! 📱 Or just keep chatting with me 😄`;
-  if (hasKeyword(t, ['capek','lelah','tired','exhausted','ngantuk','sleepy','kecapekan']))
+  if (hasKeyword(t, ['capek', 'lelah', 'tired', 'exhausted', 'ngantuk', 'sleepy', 'kecapekan']))
     return `Take a break, ${userName}! 😴 Your health matters.`;
-  if (hasKeyword(t, ['lapar','makan','hungry','food','eat','dinner','lunch','breakfast','belum makan','laper']))
+  if (hasKeyword(t, ['lapar', 'makan', 'hungry', 'food', 'eat', 'dinner', 'lunch', 'breakfast', 'belum makan', 'laper']))
     return `Hungry? Don't skip your meals, ${userName}! 🍔`;
-  if (hasKeyword(t, ['bye','dadah','sampai jumpa','see you','goodbye','later','ciao','selamat tinggal','good bye']))
+  if (hasKeyword(t, ['bye', 'dadah', 'sampai jumpa', 'see you', 'goodbye', 'later', 'ciao', 'selamat tinggal', 'good bye']))
     return `Bye ${userName}! 👋 See you later~`;
   if (/^(oke|ok|sip|siap|got it|alright|sure|noted|oke deh|oke siap)$/.test(t))
     return `Got it! 👍`;
-  if (hasKeyword(t, ['tolong','help','bantuan','assist','minta tolong','please help','butuh bantuan']))
+  if (hasKeyword(t, ['tolong', 'help', 'bantuan', 'assist', 'minta tolong', 'please help', 'butuh bantuan']))
     return `I'm right here, ${userName}! Tell me what's on your mind. 😊`;
-  if (hasKeyword(t, ['good morning','selamat pagi','pagi pagi','morning','gm']))
+  if (hasKeyword(t, ['good morning', 'selamat pagi', 'pagi pagi', 'morning', 'gm']))
     return `Good morning, ${userName}! ☀️ Hope you have a great day!`;
-  if (hasKeyword(t, ['good night','selamat malam','good evening','malam','gn','goodnight']))
+  if (hasKeyword(t, ['good night', 'selamat malam', 'good evening', 'malam', 'gn', 'goodnight']))
     return `Good night, ${userName}! 🌙 Sweet dreams!`;
-  if (hasKeyword(t, ['i love you','love u','aku suka kamu','sayang kamu','luv u','i luv you']))
+  if (hasKeyword(t, ['i love you', 'love u', 'aku suka kamu', 'sayang kamu', 'luv u', 'i luv you']))
     return `Aww, I appreciate that, ${userName}! 🥰`;
-  if (hasKeyword(t, ['miss you','kangen','i miss','miss u','kangen kamu']))
+  if (hasKeyword(t, ['miss you', 'kangen', 'i miss', 'miss u', 'kangen kamu']))
     return `I'm always right here for you, ${userName}! 💚`;
-  if (hasKeyword(t, ['joke','jokes','lucu','funny','cerita lucu','buat lelucon','tell me a joke']))
+  if (hasKeyword(t, ['joke', 'jokes', 'lucu', 'funny', 'cerita lucu', 'buat lelucon', 'tell me a joke']))
     return `Why don't scientists trust atoms? Because they make up everything! 😄`;
-  if (hasKeyword(t, ['weather','cuaca','hujan','rain','panas','hot','cold','dingin','mendung']))
+  if (hasKeyword(t, ['weather', 'cuaca', 'hujan', 'rain', 'panas', 'hot', 'cold', 'dingin', 'mendung']))
     return `I can't check the weather, but stay safe out there, ${userName}! 🌤️`;
 
   const defaults = [
@@ -185,40 +186,40 @@ const getReply = (input: string, userName: string, assistantName: string): strin
 // ─── Send Icon ────────────────────────────────────────────────────────────────
 const SendIcon = memo(({ active }: { active: boolean }) => (
   <View style={sendStyles.wrap}>
-    <View style={[sendStyles.shaft,   active && sendStyles.active]} />
-    <View style={[sendStyles.tail,    active && sendStyles.active]} />
+    <View style={[sendStyles.shaft, active && sendStyles.active]} />
+    <View style={[sendStyles.tail, active && sendStyles.active]} />
     <View style={[sendStyles.headTop, active && sendStyles.active]} />
     <View style={[sendStyles.headBot, active && sendStyles.active]} />
   </View>
 ));
 
 const sendStyles = StyleSheet.create({
-  wrap:    { width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
-  shaft:   { position: 'absolute', width: 18, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 0, top: 11, transform: [{ rotate: '-20deg' }] },
-  tail:    { position: 'absolute', width: 2.5, height: 6, backgroundColor: '#555', borderRadius: 2, left: 2, top: 9, transform: [{ rotate: '90deg' }] },
+  wrap: { width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
+  shaft: { position: 'absolute', width: 18, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 0, top: 11, transform: [{ rotate: '-20deg' }] },
+  tail: { position: 'absolute', width: 2.5, height: 6, backgroundColor: '#555', borderRadius: 2, left: 2, top: 9, transform: [{ rotate: '90deg' }] },
   headTop: { position: 'absolute', width: 8, height: 2.5, backgroundColor: '#555', borderRadius: 2, right: 2, top: 6, transform: [{ rotate: '-50deg' }] },
   headBot: { position: 'absolute', width: 8, height: 2.5, backgroundColor: '#555', borderRadius: 2, right: 2, bottom: 6, transform: [{ rotate: '50deg' }] },
-  active:  { backgroundColor: '#fff' },
+  active: { backgroundColor: '#fff' },
 });
 
 // ─── Animated Toggle ──────────────────────────────────────────────────────────
 export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae60' }: ToggleProps) => {
   const TRACK_W = 50, THUMB = 24, MAX_X = TRACK_W - THUMB - 4;
-  const posX     = useRef(new Animated.Value(value ? MAX_X : 2)).current;
-  const bgAnim   = useRef(new Animated.Value(value ? 1 : 0)).current;
+  const posX = useRef(new Animated.Value(value ? MAX_X : 2)).current;
+  const bgAnim = useRef(new Animated.Value(value ? 1 : 0)).current;
   const valueRef = useRef(value);
 
   useEffect(() => {
     valueRef.current = value;
     Animated.parallel([
-      Animated.spring(posX,   { toValue: value ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
-      Animated.spring(bgAnim, { toValue: value ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
+      Animated.spring(posX, { toValue: value ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
+      Animated.spring(bgAnim, { toValue: value ? 1 : 0, friction: 6, tension: 120, useNativeDriver: false }),
     ]).start();
   }, [value]);
 
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder:  () => true,
+    onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: () => { posX.stopAnimation(); bgAnim.stopAnimation(); },
     onPanResponderMove: (_: GestureResponderEvent, gs) => {
       const next = Math.min(MAX_X, Math.max(2, (valueRef.current ? MAX_X : 2) + gs.dx));
@@ -233,13 +234,13 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
       const shouldOn = gs.vx > 0.3 ? true : gs.vx < -0.3 ? false : ((valueRef.current ? MAX_X : 2) + gs.dx) > MAX_X / 2 + 2;
       if (shouldOn !== valueRef.current) onValueChange(shouldOn);
       else Animated.parallel([
-        Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
-        Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
+        Animated.spring(posX, { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
+        Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0, friction: 6, tension: 120, useNativeDriver: false }),
       ]).start();
     },
     onPanResponderTerminate: () => Animated.parallel([
-      Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
-      Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
+      Animated.spring(posX, { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
+      Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0, friction: 6, tension: 120, useNativeDriver: false }),
     ]).start(),
   })).current;
 
@@ -258,7 +259,7 @@ const toggleStyles = StyleSheet.create({
 // ─── ULTRA-LIGHT Message Bubble (NO IMAGES, minimal View nesting) ────────────
 const Bubble = memo(({ msg, isLast }: { msg: Message; isLast: boolean }) => {
   const isUser = msg.from === 'user';
-  
+
   return (
     <View style={[bubbleStyles.row, isUser ? bubbleStyles.rowRight : bubbleStyles.rowLeft]}>
       <View style={[bubbleStyles.bubble, isUser ? bubbleStyles.userBubble : bubbleStyles.aiBubble]}>
@@ -270,14 +271,14 @@ const Bubble = memo(({ msg, isLast }: { msg: Message; isLast: boolean }) => {
 });
 
 const bubbleStyles = StyleSheet.create({
-  row:        { paddingHorizontal: 16, marginBottom: 8 },
-  rowLeft:    { alignItems: 'flex-start' },
-  rowRight:   { alignItems: 'flex-end' },
-  bubble:     { maxWidth: '80%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  row: { paddingHorizontal: 16, marginBottom: 8 },
+  rowLeft: { alignItems: 'flex-start' },
+  rowRight: { alignItems: 'flex-end' },
+  bubble: { maxWidth: '80%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   userBubble: { backgroundColor: '#27ae60', borderBottomRightRadius: 4 },
-  aiBubble:   { backgroundColor: '#2a2a2a', borderBottomLeftRadius: 4 },
-  text:       { color: '#fff', fontSize: 15, lineHeight: 21 },
-  time:       { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
+  aiBubble: { backgroundColor: '#2a2a2a', borderBottomLeftRadius: 4 },
+  text: { color: '#fff', fontSize: 15, lineHeight: 21 },
+  time: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
 });
 
 // ─── Typing Indicator ─────────────────────────────────────────────────────────
@@ -289,7 +290,7 @@ const TypingDot = memo(({ delay }: { delay: number }) => {
     loopRef.current = Animated.loop(Animated.sequence([
       Animated.delay(delay),
       Animated.timing(anim, { toValue: -4, duration: 300, useNativeDriver: true }),
-      Animated.timing(anim, { toValue: 0,  duration: 300, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: 0, duration: 300, useNativeDriver: true }),
       Animated.delay(300),
     ]));
     loopRef.current.start();
@@ -310,12 +311,12 @@ const typingStyles = StyleSheet.create({
 });
 
 // ─── FULLSCREEN AssistantPopup ────────────────────────────────────────────────
-const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopupProps) => {
+const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }: AssistantPopupProps) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const flatRef  = useRef<FlatList>(null);
+  const flatRef = useRef<FlatList>(null);
   const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [input, setInput]       = useState('');
+  const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
   const autoMsg: Message = { id: 'auto', text: getNotificationMessage(userName), from: 'assistant', time: now() };
@@ -380,10 +381,10 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
       setMessages(prev => { const n = [...prev, reply]; saveChat(n); return n; });
       scrollToEnd();
     }, 600 + Math.random() * 600);
-  }, [input, userName, assistantName, scrollToEnd]);
+  }, [input, userName, assistantName, avatarSource, scrollToEnd]);
 
   const keyExtractor = useCallback((m: Message) => m.id, []);
-  const renderItem   = useCallback(({ item, index }: { item: Message; index: number }) => (
+  const renderItem = useCallback(({ item, index }: { item: Message; index: number }) => (
     <Bubble msg={item} isLast={index === messages.length - 1} />
   ), [messages.length]);
 
@@ -395,7 +396,17 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{assistantName}</Text>
+        <View style={styles.avatarWrap}>
+          {avatarSource
+            ? <Image source={{ uri: avatarSource }} style={styles.headerAvatar} />
+            : <Text style={styles.headerEmoji}>🤖</Text>
+          }
+          <View style={styles.onlineBadge} />
+        </View>
+        <View>
+          <Text style={styles.headerName}>{assistantName}</Text>
+          <Text style={styles.headerSub}>Online</Text>
+        </View>
         <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
@@ -458,17 +469,23 @@ const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopu
 });
 
 const styles = StyleSheet.create({
-  fullscreen:   { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000', zIndex: 1000 },
-  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: StatusBar.currentHeight || 40, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
-  headerTitle:  { color: '#fff', fontSize: 17, fontWeight: '700' },
-  closeBtn:     { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
-  closeText:    { color: '#aaa', fontSize: 14, fontWeight: 'bold' },
-  msgList:      { flex: 1 },
-  msgContent:   { paddingTop: 12, paddingBottom: 12 },
-  inputRow:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#1a1a1a', gap: 8 },
-  input:        { flex: 1, height: 42, backgroundColor: '#1a1a1a', borderRadius: 21, paddingHorizontal: 16, color: '#fff', fontSize: 15 },
-  sendBtn:      { width: 42, height: 42, borderRadius: 21, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
-  sendBtnActive:{ backgroundColor: '#27ae60' },
+  fullscreen: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000', zIndex: 1000 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: StatusBar.currentHeight || 40, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
+  closeText: { color: '#aaa', fontSize: 14, fontWeight: 'bold' },
+  avatarWrap: { position: 'relative' },
+  headerAvatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#27ae60' },
+  headerEmoji:  { fontSize: 20 },
+  onlineBadge:  { position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#27ae60', borderWidth: 1.5, borderColor: '#111' },
+  headerName: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  headerSub: { color: '#555', fontSize: 12 },
+  msgList: { flex: 1 },
+  msgContent: { paddingTop: 12, paddingBottom: 12 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#1a1a1a', gap: 8 },
+  input: { flex: 1, height: 42, backgroundColor: '#1a1a1a', borderRadius: 21, paddingHorizontal: 16, color: '#fff', fontSize: 15 },
+  sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
+  sendBtnActive: { backgroundColor: '#27ae60' },
 });
 
 export default AssistantPopup;
