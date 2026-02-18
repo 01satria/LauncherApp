@@ -186,20 +186,61 @@ const getReply = (input: string, userName: string, assistantName: string): strin
 // ─── Send Icon ────────────────────────────────────────────────────────────────
 const SendIcon = memo(({ active }: { active: boolean }) => (
   <View style={sendStyles.wrap}>
-    <View style={[sendStyles.shaft, active && sendStyles.active]} />
-    <View style={[sendStyles.tail, active && sendStyles.active]} />
-    <View style={[sendStyles.headTop, active && sendStyles.active]} />
-    <View style={[sendStyles.headBot, active && sendStyles.active]} />
+    <View style={[sendStyles.shaft1, active && sendStyles.active]} />
+    <View style={[sendStyles.shaft2, active && sendStyles.active]} />
+    <View style={[sendStyles.line1, active && sendStyles.active]} />
+    <View style={[sendStyles.line2, active && sendStyles.active]} />
   </View>
 ));
 
 const sendStyles = StyleSheet.create({
-  wrap: { width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
-  shaft: { position: 'absolute', width: 18, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 0, top: 11, transform: [{ rotate: '-20deg' }] },
-  tail: { position: 'absolute', width: 2.5, height: 6, backgroundColor: '#555', borderRadius: 2, left: 2, top: 9, transform: [{ rotate: '90deg' }] },
-  headTop: { position: 'absolute', width: 8, height: 2.5, backgroundColor: '#555', borderRadius: 2, right: 2, top: 6, transform: [{ rotate: '-50deg' }] },
-  headBot: { position: 'absolute', width: 8, height: 2.5, backgroundColor: '#555', borderRadius: 2, right: 2, bottom: 6, transform: [{ rotate: '50deg' }] },
-  active: { backgroundColor: '#fff' },
+  wrap: {
+    width: 26,
+    height: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shaft1: {
+    position: 'absolute',
+    width: 18,
+    height: 2.5,
+    backgroundColor: '#555',
+    borderRadius: 2,
+    left: 4,
+    top: 14,
+    transform: [{ rotate: '-20deg' }],
+  },
+  shaft2: {
+    position: 'absolute',
+    width: 18,
+    height: 2.5,
+    backgroundColor: '#555',
+    borderRadius: 2,
+    left: 4,
+    top: 8,
+    transform: [{ rotate: '20deg' }],
+  },
+  line1: {
+    position: 'absolute',
+    width: 10,
+    height: 2.5,
+    backgroundColor: '#555',
+    borderRadius: 2,
+    left: 2,
+    bottom: 10,
+    transform: [{ rotate: '-50deg' }],
+  },
+  line2: {
+    position: 'absolute',
+    width: 10,
+    height: 2.5,
+    backgroundColor: '#555',
+    borderRadius: 2,
+    left: 2,
+    top: 8,
+    transform: [{ rotate: '50deg' }],
+  },
+  active: { backgroundColor: '#27ae60' },
 });
 
 // ─── Animated Toggle ──────────────────────────────────────────────────────────
@@ -498,7 +539,7 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#1a1a1a', gap: 8 },
   input: { flex: 1, height: 42, backgroundColor: '#1a1a1a', borderRadius: 21, paddingHorizontal: 16, color: '#fff', fontSize: 15 },
   sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
-  sendBtnActive: { backgroundColor: '#27ae60' },
+  sendBtnActive: { backgroundColor: '#1a1a1a', borderColor: '#27ae60', borderWidth: 1 },
 });
 
 export default AssistantPopup;
