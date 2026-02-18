@@ -6,7 +6,7 @@ import {
   TextInput, FlatList, KeyboardAvoidingView,
   Platform, PanResponder, GestureResponderEvent,
   StatusBar, Dimensions, AppState, AppStateStatus,
-  Image,
+  Image, BackHandler,
 } from 'react-native';
 import { getNotificationMessage } from '../utils/storage';
 
@@ -256,7 +256,7 @@ const toggleStyles = StyleSheet.create({
   thumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', position: 'absolute', elevation: 3 },
 });
 
-// ─── ULTRA-LIGHT Message Bubble (NO IMAGES, minimal View nesting) ────────────
+// ─── ULTRA-LIGHT Message Bubble ───────────────────────────────────────────────
 const Bubble = memo(({ msg, isLast }: { msg: Message; isLast: boolean }) => {
   const isUser = msg.from === 'user';
 
@@ -322,6 +322,21 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const autoMsg: Message = { id: 'auto', text: getNotificationMessage(userName), from: 'assistant', time: now() };
   const [messages, setMessages] = useState<Message[]>(() => loadChat(autoMsg));
 
+  // ─── handleClose (shared by ✕ button AND back handler) ──────────────────
+  const handleClose = useCallback(() => {
+    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => onClose());
+  }, [onClose]);
+
+  // ─── Android hardware back button / gesture navigation ──────────────────
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleClose();
+      // Return true → event consumed, prevents default back action (e.g. app exit / screen pop)
+      return true;
+    });
+    return () => subscription.remove();
+  }, [handleClose]);
+
   useEffect(() => {
     const checkPeriodTransition = () => {
       const currentPeriod = getCurrentPeriod();
@@ -359,10 +374,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     };
   }, []);
 
-  const handleClose = useCallback(() => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => onClose());
-  }, [onClose]);
-
   const scrollToEnd = useCallback(() => {
     requestAnimationFrame(() => flatRef.current?.scrollToEnd({ animated: true }));
   }, []);
@@ -381,7 +392,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
       setMessages(prev => { const n = [...prev, reply]; saveChat(n); return n; });
       scrollToEnd();
     }, 600 + Math.random() * 600);
-  }, [input, userName, assistantName, avatarSource, scrollToEnd]);
+  }, [input, userName, assistantName, scrollToEnd]);
 
   const keyExtractor = useCallback((m: Message) => m.id, []);
   const renderItem = useCallback(({ item, index }: { item: Message; index: number }) => (
@@ -396,23 +407,25 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
 
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.avatarWrap}>
-          {avatarSource
-            ? <Image source={{ uri: avatarSource }} style={styles.headerAvatar} />
-            : <Text style={styles.headerEmoji}>🤖</Text>
-          }
-          <View style={styles.onlineBadge} />
-        </View>
-        <View>
-          <Text style={styles.headerName}>{assistantName}</Text>
-          <Text style={styles.headerSub}>Online</Text>
+        <View style={styles.headerLeft}>
+          <View style={styles.avatarWrap}>
+            {avatarSource
+              ? <Image source={{ uri: avatarSource }} style={styles.headerAvatar} />
+              : <Text style={styles.headerEmoji}>🤖</Text>
+            }
+            <View style={styles.onlineBadge} />
+          </View>
+          <View>
+            <Text style={styles.headerName}>{assistantName}</Text>
+            <Text style={styles.headerSub}>Online</Text>
+          </View>
         </View>
         <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Messages - OPTIMIZED FlatList */}
+      {/* Messages */}
       <FlatList
         ref={flatRef}
         data={messages}
@@ -421,7 +434,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
         style={styles.msgList}
         contentContainerStyle={styles.msgContent}
         showsVerticalScrollIndicator={false}
-        // ULTRA-LIGHT CONFIG — no clipping, no complex layout
         initialNumToRender={20}
         maxToRenderPerBatch={10}
         windowSize={5}
@@ -476,10 +488,11 @@ const styles = StyleSheet.create({
   closeText: { color: '#aaa', fontSize: 14, fontWeight: 'bold' },
   avatarWrap: { position: 'relative' },
   headerAvatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#27ae60' },
-  headerEmoji:  { fontSize: 20 },
-  onlineBadge:  { position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#27ae60', borderWidth: 1.5, borderColor: '#111' },
+  headerEmoji: { fontSize: 20 },
+  onlineBadge: { position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#27ae60', borderWidth: 1.5, borderColor: '#111' },
   headerName: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  headerSub: { color: '#555', fontSize: 12 },
+  headerSub: { color: '#00d134', fontSize: 12 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   msgList: { flex: 1 },
   msgContent: { paddingTop: 12, paddingBottom: 12 },
   inputRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#1a1a1a', gap: 8 },
