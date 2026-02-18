@@ -41,17 +41,50 @@ const now = () => {
 };
 const makeId = () => `${Date.now()}-${Math.random()}`;
 
+// Track current time period to detect transitions
+const getCurrentPeriod = (): string => {
+  const h = new Date().getHours();
+  if (h >= 22 || h < 4)  return 'late_night'; // 22:00 - 03:59
+  if (h >= 4 && h < 11)  return 'morning';    // 04:00 - 10:59
+  if (h >= 11 && h < 15) return 'afternoon';  // 11:00 - 14:59
+  if (h >= 15 && h < 18) return 'evening';    // 15:00 - 17:59
+  return 'night';                              // 18:00 - 21:59
+};
+
 let _chatCache: Message[] | null = null;
-let _cacheHour: number = -1;
+let _cachePeriod: string = getCurrentPeriod();
+// Unread tracking: ID of last assistant message
+let _lastAssistantMsgId: string | null = null;
+let _hasUnread: boolean = false;
 
 const loadChat = (autoMsg: Message): Message[] => {
+  // Reset at 01:00 (start of new day)
   const h = new Date().getHours();
-  if (h === 1 && _cacheHour !== 1) _chatCache = null;
-  _cacheHour = h;
-  if (_chatCache === null) _chatCache = [autoMsg];
+  if (h === 1 && _cachePeriod !== 'late_night') {
+    _chatCache = null;
+  }
+  _cachePeriod = getCurrentPeriod();
+  if (_chatCache === null) {
+    _chatCache = [autoMsg];
+    _lastAssistantMsgId = autoMsg.id;
+    _hasUnread = true;  // Initial message is unread
+  }
   return _chatCache;
 };
+
 const saveChat = (msgs: Message[]) => { _chatCache = msgs; };
+
+// Mark as read (called when popup opens)
+export const markAsRead = () => { _hasUnread = false; };
+
+// Check if there's unread (for badge)
+export const hasUnreadMessages = () => _hasUnread;
+
+// Notify new assistant message (called after auto-send)
+export const notifyNewMessage = (msgId: string) => {
+  _lastAssistantMsgId = msgId;
+  _hasUnread = true;
+};
 
 // ─── Fuzzy matching engine ────────────────────────────────────────────────────
 // FIX 2: All regex compiled once at module level, not re-created per call
@@ -167,58 +200,24 @@ const getReply = (input: string, userName: string, assistantName: string): strin
   return defaults[Math.floor(Math.random() * defaults.length)];
 };
 
+// ─── Send Icon (pure RN) ──────────────────────────────────────────────────────
+// FIX 4: Styles moved to StyleSheet.create (computed once, not per render)
 const SendIcon = memo(({ active }: { active: boolean }) => (
-  <View style={solidStyles.container}>
-    {/* Body Pesawat (Segitiga Utama) */}
-    <View style={[solidStyles.planeBody, active && solidStyles.activeBody]} />
-    
-    {/* Ekor Pesawat (Segitiga Kecil untuk membuat lekukan di belakang) */}
-    <View style={solidStyles.planeTail} />
+  <View style={sendStyles.wrap}>
+    <View style={[sendStyles.shaft,   active && sendStyles.active]} />
+    <View style={[sendStyles.tail,    active && sendStyles.active]} />
+    <View style={[sendStyles.headTop, active && sendStyles.active]} />
+    <View style={[sendStyles.headBot, active && sendStyles.active]} />
   </View>
 ));
 
-const solidStyles = StyleSheet.create({
-  container: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    // Rotasi sedikit agar menukik ke atas (opsional)
-    transform: [{ rotate: '-10deg' }] 
-  },
-  planeBody: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderTopWidth: 12,    // Setengah tinggi
-    borderRightWidth: 0,
-    borderBottomWidth: 12, // Setengah tinggi
-    borderLeftWidth: 22,   // Panjang pesawat
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderLeftColor: '#888', // Warna default
-  },
-  planeTail: {
-    position: 'absolute',
-    left: -2, // Menggeser pemotong untuk membentuk lekukan
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderTopWidth: 8,
-    borderRightWidth: 0,
-    borderBottomWidth: 8,
-    borderLeftWidth: 10, 
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderLeftColor: '#fff', // HARUS SAMA dengan warna background aplikasi
-  },
-  activeBody: {
-    borderLeftColor: '#007AFF', // Warna aktif (Biru iOS)
-  }
+const sendStyles = StyleSheet.create({
+  wrap:    { width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
+  shaft:   { position: 'absolute', width: 18, height: 2.5, backgroundColor: '#555', borderRadius: 2, left: 0, top: 11, transform: [{ rotate: '-20deg' }] },
+  tail:    { position: 'absolute', width: 2.5, height: 6, backgroundColor: '#555', borderRadius: 2, left: 2, top: 9, transform: [{ rotate: '90deg' }] },
+  headTop: { position: 'absolute', width: 8, height: 2.5, backgroundColor: '#555', borderRadius: 2, right: 2, top: 6, transform: [{ rotate: '-50deg' }] },
+  headBot: { position: 'absolute', width: 8, height: 2.5, backgroundColor: '#555', borderRadius: 2, right: 2, bottom: 6, transform: [{ rotate: '50deg' }] },
+  active:  { backgroundColor: '#fff' },
 });
 
 // ─── Animated Toggle ──────────────────────────────────────────────────────────
@@ -418,27 +417,57 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   };
   const [messages, setMessages] = useState<Message[]>(() => loadChat(autoMsg));
 
-  // Hourly reset at 01:00
+  // Auto-send message at every period transition
   useEffect(() => {
-    const iv = setInterval(() => {
+    const checkPeriodTransition = () => {
+      const currentPeriod = getCurrentPeriod();
       const h = new Date().getHours();
-      if (h === 1 && _cacheHour !== 1) {
-        const fresh: Message[] = [{
+
+      // Reset at 01:00 (start of new day)
+      if (h === 1 && _cachePeriod !== 'late_night') {
+        const freshMsg: Message = {
           id: makeId(),
           text: getNotificationMessage(userName),
           from: 'assistant',
           time: now(),
-        }];
+        };
+        const fresh = [freshMsg];
         _chatCache = fresh;
-        _cacheHour = 1;
+        _cachePeriod = currentPeriod;
+        notifyNewMessage(freshMsg.id); // Mark as unread
         setMessages(fresh);
+        return;
       }
-    }, 60_000);
+
+      // Period transition detected — send new auto message
+      if (currentPeriod !== _cachePeriod) {
+        const newMsg: Message = {
+          id: makeId(),
+          text: getNotificationMessage(userName),
+          from: 'assistant',
+          time: now(),
+        };
+        setMessages(prev => {
+          const updated = [...prev, newMsg];
+          _chatCache = updated;
+          _cachePeriod = currentPeriod;
+          saveChat(updated);
+          notifyNewMessage(newMsg.id); // Mark as unread
+          return updated;
+        });
+      }
+    };
+
+    // Check every minute (periods transition on the hour)
+    const iv = setInterval(checkPeriodTransition, 60_000);
     return () => clearInterval(iv);
   }, [userName]);
 
   // Open animation
   useEffect(() => {
+    // Mark all messages as read when popup opens
+    markAsRead();
+
     const openAnim = Animated.parallel([
       Animated.timing(slideAnim,   { toValue: 0, duration: 280, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }),
       Animated.timing(opacityAnim, { toValue: 1, duration: 250, easing: Easing.out(Easing.ease),      useNativeDriver: true }),

@@ -1,7 +1,7 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import DockAppItem from './DockAppItem';
-import AssistantPopup from './AssistantPopup';
+import AssistantPopup, { hasUnreadMessages } from './AssistantPopup';
 import { AppData } from '../types';
 import { DOCK_ICON_SIZE, DEFAULT_ASSISTANT_AVATAR } from '../constants';
 
@@ -25,6 +25,27 @@ const SimpleDock = memo(({
   userName,
 }: SimpleDockProps) => {
   const [showPopup, setShowPopup] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+
+  // Poll for unread messages every 10 seconds
+  useEffect(() => {
+    const checkUnread = () => {
+      setHasUnread(hasUnreadMessages());
+    };
+    
+    // Initial check
+    checkUnread();
+    
+    // Poll every 10s
+    const interval = setInterval(checkUnread, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleOpenPopup = () => {
+    setShowPopup(true);
+    // Badge will be cleared when popup opens (via markAsRead in AssistantPopup)
+    setTimeout(() => setHasUnread(false), 300);
+  };
 
   // Calculate dynamic width
   const appCount = dockApps.length;
@@ -61,13 +82,17 @@ const SimpleDock = memo(({
             {/* Avatar Assistant (Always on Left) */}
             <TouchableOpacity
               style={styles.avatarContainer}
-              onPress={() => setShowPopup(true)}
+              onPress={handleOpenPopup}
               activeOpacity={0.7}
             >
               <Image 
                 source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
                 style={styles.avatar} 
               />
+              {/* Unread Badge */}
+              {hasUnread && (
+                <View style={styles.unreadBadge} />
+              )}
             </TouchableOpacity>
 
             {/* Separator (Only if there are dock apps) */}
@@ -132,10 +157,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.12)',
+    position: 'relative', // For badge positioning
   },
   avatar: {
     width: '100%',
     height: '100%',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#ff3b30', // iOS red
+    borderWidth: 2,
+    borderColor: 'rgba(0, 0, 0, 0.92)', // Match dock bg
   },
   separator: {
     width: 1,
