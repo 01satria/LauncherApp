@@ -6,7 +6,7 @@ import {
   TextInput, FlatList, KeyboardAvoidingView,
   Platform, PanResponder, GestureResponderEvent,
   StatusBar, AppState, AppStateStatus,
-  Image, BackHandler,
+  Image, BackHandler, Alert,
 } from 'react-native';
 import { getNotificationMessage } from '../utils/storage';
 
@@ -39,31 +39,27 @@ const now = () => {
 
 const makeId = () => `${Date.now()}-${Math.random()}`;
 
-// Gunakan range jam yang benar, tidak ada referensi ke _cachePeriod
 const getCurrentPeriod = (): string => {
   const h = new Date().getHours();
   if (h >= 22 || h < 4) return 'late_night';
   if (h >= 4 && h < 11) return 'morning';
   if (h >= 11 && h < 15) return 'afternoon';
   if (h >= 15 && h < 20) return 'evening';
-  return 'night'; // 18–22
+  return 'night';
 };
 
-// ─── Module-level cache (ringan, hanya satu array) ────────────────────────────
+// ─── Module-level cache ─────────────────────────────────────────────────────────────────────────────────
+// History hanya ditambah — tidak pernah dihapus otomatis.
+// Clear manual dilakukan user lewat tombol trash di header.
 let _chatCache: Message[] | null = null;
 let _cachePeriod: string = getCurrentPeriod();
 let _hasUnread = false;
 
-// initChat dipanggil sekali saat komponen mount
+// initChat: dipanggil sekali saat mount.
+// Cache kosong → buat pesan pembuka. Cache ada → kembalikan apa adanya.
 const initChat = (userName: string): Message[] => {
-  const period = getCurrentPeriod();
+  if (_chatCache !== null) return _chatCache;
 
-  // Jika cache sudah ada dan period sama, pakai cache langsung
-  if (_chatCache !== null && _cachePeriod === period) {
-    return _chatCache;
-  }
-
-  // Buat pesan auto baru
   const autoMsg: Message = {
     id: makeId(),
     text: getNotificationMessage(userName),
@@ -72,14 +68,18 @@ const initChat = (userName: string): Message[] => {
   };
 
   _chatCache = [autoMsg];
-  _cachePeriod = period;
+  _cachePeriod = getCurrentPeriod();
   _hasUnread = true;
-
   return _chatCache;
 };
-
 const saveChat = (msgs: Message[]) => { _chatCache = msgs; };
 
+/**
+ * Dipanggil oleh parent (dock) untuk menampilkan/menyembunyikan dot merah.
+ * markAsRead() sengaja TIDAK dipanggil langsung saat mount — melainkan
+ * setelah animasi fade-in selesai, agar parent sempat membaca _hasUnread = true
+ * dan me-render dot sebelum di-reset.
+ */
 export const markAsRead = () => { _hasUnread = false; };
 export const hasUnreadMessages = () => _hasUnread;
 export const notifyNewMessage = () => { _hasUnread = true; };
@@ -324,6 +324,29 @@ const typingStyles = StyleSheet.create({
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#666', marginHorizontal: 2 },
 });
 
+// ─── Trash Icon ─────────────────────────────────────────────────────────────────────────────────
+const TrashIcon = memo(() => (
+  <View style={trashStyles.wrap}>
+    {/* Lid */}
+    <View style={trashStyles.lid} />
+    <View style={trashStyles.lidHandle} />
+    {/* Body */}
+    <View style={trashStyles.body}>
+      <View style={trashStyles.line} />
+      <View style={trashStyles.line} />
+      <View style={trashStyles.line} />
+    </View>
+  </View>
+));
+
+const trashStyles = StyleSheet.create({
+  wrap: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center' },
+  lid: { width: 16, height: 2.5, backgroundColor: '#aaa', borderRadius: 1.5, marginBottom: 1 },
+  lidHandle: { width: 6, height: 2, backgroundColor: '#aaa', borderRadius: 1, marginBottom: 1 },
+  body: { width: 14, height: 14, borderWidth: 2, borderColor: '#aaa', borderRadius: 2, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', paddingTop: 1 },
+  line: { width: 1.5, height: 8, backgroundColor: '#aaa', borderRadius: 1 },
+});
+
 // ─── AssistantPopup ───────────────────────────────────────────────────────────
 const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }: AssistantPopupProps) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -334,6 +357,31 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => initChat(userName));
+
+  const handleClearChat = useCallback(() => {
+    Alert.alert(
+      'Clear Chat',
+      'Are you sure you want to delete all messages? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: () => {
+            const freshMsg: Message = {
+              id: makeId(),
+              text: getNotificationMessage(userName),
+              from: 'assistant',
+              time: now(),
+            };
+            saveChat([freshMsg]);
+            setMessages([freshMsg]);
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  }, [userName]);
 
   const handleClose = useCallback(() => {
     Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true })
@@ -348,11 +396,13 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     return () => sub.remove();
   }, [handleClose]);
 
-  // Cek pergantian period — interval 60 detik, ringan
+  // Cek pergantian period setiap 60 detik
   useEffect(() => {
     const checkPeriod = () => {
       const currentPeriod = getCurrentPeriod();
-      if (currentPeriod === _cachePeriod) return; // Tidak ada perubahan, skip
+      if (currentPeriod === _cachePeriod) return;
+
+      _cachePeriod = currentPeriod;
 
       const newMsg: Message = {
         id: makeId(),
@@ -360,9 +410,8 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
         from: 'assistant',
         time: now(),
       };
-      _cachePeriod = currentPeriod;
-      notifyNewMessage();
 
+      notifyNewMessage();
       setMessages(prev => {
         const updated = [...prev, newMsg];
         saveChat(updated);
@@ -376,9 +425,13 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     };
   }, [userName]);
 
+  // Fade-in: markAsRead dipanggil setelah animasi selesai agar dot merah
+  // sempat terlihat sebelum di-reset.
   useEffect(() => {
-    markAsRead();
-    Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true })
+      .start(() => {
+        markAsRead();
+      });
 
     return () => {
       fadeAnim.stopAnimation();
@@ -440,9 +493,14 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
             <Text style={styles.headerSub}>Online</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
-          <Text style={styles.closeText}>✕</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={handleClearChat} style={styles.trashBtn} activeOpacity={0.7}>
+            <TrashIcon />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
+            <Text style={styles.closeText}>✕</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Messages */}
@@ -519,6 +577,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, height: 42, backgroundColor: '#1a1a1a', borderRadius: 21, paddingHorizontal: 16, color: '#fff', fontSize: 15 },
   sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
   sendBtnActive: { backgroundColor: '#1a1a1a', borderColor: '#27ae60', borderWidth: 1 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trashBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
 });
 
 export default AssistantPopup;
