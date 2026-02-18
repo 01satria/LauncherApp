@@ -151,6 +151,6 @@ export const getNotificationMessage = (userName: string): string => {
   if (h >= 22 || h < 4) return `It's late, ${userName}. Put the phone down and get some rest! 😠 Your health comes first.`;
   if (h >= 4 && h < 11) return `Good morning, ${userName}! ☀️ Rise and conquer the day. I'm always cheering for you! 😘`;
   if (h >= 11 && h < 15) return `Take a break! 😠 Have you had lunch yet, ${userName}? Don't skip meals! 🍔`;
-  if (h >= 15 && h < 18) return `You must be tired by now, ${userName}.. ☕ Go ahead and take a breather, okay? 🤗`;
+  if (h >= 15 && h < 20) return `You must be tired by now, ${userName}.. ☕ Go ahead and take a breather, okay? 🤗`;
   return `All done for the day? 🌙 Time to wind down and relax, ${userName}. You deserve it. 🥰`;
 };

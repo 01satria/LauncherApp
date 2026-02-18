@@ -36,43 +36,44 @@ const now = () => {
   const d = new Date();
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 };
+
 const makeId = () => `${Date.now()}-${Math.random()}`;
 
+// Gunakan range jam yang benar, tidak ada referensi ke _cachePeriod
 const getCurrentPeriod = (): string => {
   const h = new Date().getHours();
   if (h >= 22 || h < 4) return 'late_night';
   if (h >= 4 && h < 11) return 'morning';
   if (h >= 11 && h < 15) return 'afternoon';
-  if (h >= 15 && h < 18) return 'evening';
-  return 'night';
+  if (h >= 15 && h < 20) return 'evening';
+  return 'night'; // 18–22
 };
 
-// ─── Module-level cache ───────────────────────────────────────────────────────
+// ─── Module-level cache (ringan, hanya satu array) ────────────────────────────
 let _chatCache: Message[] | null = null;
 let _cachePeriod: string = getCurrentPeriod();
-let _lastAssistantMsgId: string | null = null;
-let _hasUnread: boolean = false;
+let _hasUnread = false;
 
-/**
- * Membuat pesan otomatis dan memuatnya ke cache.
- * Dipanggil dengan userName yang sudah tersedia.
- */
+// initChat dipanggil sekali saat komponen mount
 const initChat = (userName: string): Message[] => {
   const period = getCurrentPeriod();
 
-  // Reset cache jika period berubah atau cache kosong
-  if (_chatCache === null || _cachePeriod !== period) {
-    const autoMsg: Message = {
-      id: makeId(),
-      text: getNotificationMessage(userName),
-      from: 'assistant',
-      time: now(),
-    };
-    _chatCache = [autoMsg];
-    _cachePeriod = period;
-    _lastAssistantMsgId = autoMsg.id;
-    _hasUnread = true;
+  // Jika cache sudah ada dan period sama, pakai cache langsung
+  if (_chatCache !== null && _cachePeriod === period) {
+    return _chatCache;
   }
+
+  // Buat pesan auto baru
+  const autoMsg: Message = {
+    id: makeId(),
+    text: getNotificationMessage(userName),
+    from: 'assistant',
+    time: now(),
+  };
+
+  _chatCache = [autoMsg];
+  _cachePeriod = period;
+  _hasUnread = true;
 
   return _chatCache;
 };
@@ -81,10 +82,7 @@ const saveChat = (msgs: Message[]) => { _chatCache = msgs; };
 
 export const markAsRead = () => { _hasUnread = false; };
 export const hasUnreadMessages = () => _hasUnread;
-export const notifyNewMessage = (msgId: string) => {
-  _lastAssistantMsgId = msgId;
-  _hasUnread = true;
-};
+export const notifyNewMessage = () => { _hasUnread = true; };
 
 // ─── Fuzzy matching ───────────────────────────────────────────────────────────
 const RE_PUNCT = /[''`.,!?]/g;
@@ -242,7 +240,8 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
         onValueChange(!valueRef.current);
         return;
       }
-      const shouldOn = gs.vx > 0.3 ? true : gs.vx < -0.3 ? false : ((valueRef.current ? MAX_X : 2) + gs.dx) > MAX_X / 2 + 2;
+      const shouldOn = gs.vx > 0.3 ? true : gs.vx < -0.3 ? false
+        : ((valueRef.current ? MAX_X : 2) + gs.dx) > MAX_X / 2 + 2;
       if (shouldOn !== valueRef.current) onValueChange(shouldOn);
       else Animated.parallel([
         Animated.spring(posX, { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
@@ -330,11 +329,10 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const flatRef = useRef<FlatList>(null);
   const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const periodTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-
-  // Inisialisasi pesan dengan initChat agar auto message selalu muncul
   const [messages, setMessages] = useState<Message[]>(() => initChat(userName));
 
   const handleClose = useCallback(() => {
@@ -343,43 +341,49 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   }, [onClose]);
 
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       handleClose();
       return true;
     });
-    return () => subscription.remove();
+    return () => sub.remove();
   }, [handleClose]);
 
-  // Cek pergantian period setiap menit
+  // Cek pergantian period — interval 60 detik, ringan
   useEffect(() => {
-    const checkPeriodTransition = () => {
+    const checkPeriod = () => {
       const currentPeriod = getCurrentPeriod();
-      if (currentPeriod !== _cachePeriod) {
-        const newMsg: Message = {
-          id: makeId(),
-          text: getNotificationMessage(userName),
-          from: 'assistant',
-          time: now(),
-        };
-        _cachePeriod = currentPeriod;
-        setMessages(prev => {
-          const updated = [...prev, newMsg];
-          saveChat(updated);
-          notifyNewMessage(newMsg.id);
-          return updated;
-        });
-      }
+      if (currentPeriod === _cachePeriod) return; // Tidak ada perubahan, skip
+
+      const newMsg: Message = {
+        id: makeId(),
+        text: getNotificationMessage(userName),
+        from: 'assistant',
+        time: now(),
+      };
+      _cachePeriod = currentPeriod;
+      notifyNewMessage();
+
+      setMessages(prev => {
+        const updated = [...prev, newMsg];
+        saveChat(updated);
+        return updated;
+      });
     };
-    const iv = setInterval(checkPeriodTransition, 60_000);
-    return () => clearInterval(iv);
+
+    periodTimerRef.current = setInterval(checkPeriod, 60_000);
+    return () => {
+      if (periodTimerRef.current) clearInterval(periodTimerRef.current);
+    };
   }, [userName]);
 
   useEffect(() => {
     markAsRead();
     Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+
     return () => {
       fadeAnim.stopAnimation();
       if (replyTimer.current) clearTimeout(replyTimer.current);
+      if (periodTimerRef.current) clearInterval(periodTimerRef.current);
     };
   }, []);
 
