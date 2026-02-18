@@ -277,7 +277,7 @@ const App = () => {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#0f0" size="large" />
+        <ActivityIndicator color="rgb(255, 255, 255)" size="large" />
       </View>
     );
   }
@@ -285,7 +285,6 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-
       <MaskedView
         style={styles.appsContainer}
         maskElement={

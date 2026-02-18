@@ -186,59 +186,59 @@ const getReply = (input: string, userName: string, assistantName: string): strin
 // ─── Send Icon ────────────────────────────────────────────────────────────────
 const SendIcon = memo(({ active }: { active: boolean }) => (
   <View style={sendStyles.wrap}>
+    <View style={[sendStyles.shaft, active && sendStyles.active]} />
     <View style={[sendStyles.shaft1, active && sendStyles.active]} />
-    <View style={[sendStyles.shaft2, active && sendStyles.active]} />
-    <View style={[sendStyles.line1, active && sendStyles.active]} />
-    <View style={[sendStyles.line2, active && sendStyles.active]} />
+    <View style={[sendStyles.headTop, active && sendStyles.active]} />
+    <View style={[sendStyles.headBot, active && sendStyles.active]} />
   </View>
 ));
 
 const sendStyles = StyleSheet.create({
   wrap: {
-    width: 26,
-    height: 26,
+    width: 25,
+    height: 25,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  shaft: {
+    position: 'absolute',
+    width: 24,
+    height: 2.5,
+    backgroundColor: '#555',
+    borderRadius: 2,
+    left: 1,
+    bottom: 7,
+    transform: [{ rotate: '-22deg' }],
+  },
   shaft1: {
     position: 'absolute',
-    width: 18,
+    width: 24,
     height: 2.5,
     backgroundColor: '#555',
     borderRadius: 2,
-    left: 4,
-    top: 14,
-    transform: [{ rotate: '-20deg' }],
+    left: 1,
+    top: 7,
+    transform: [{ rotate: '22deg' }],
   },
-  shaft2: {
+  headTop: {
     position: 'absolute',
-    width: 18,
+    width: 12,
     height: 2.5,
     backgroundColor: '#555',
     borderRadius: 2,
-    left: 4,
-    top: 8,
-    transform: [{ rotate: '20deg' }],
+    left: 0,
+    bottom: 7,
+    transform: [{ rotate: '-55deg' }],
   },
-  line1: {
+  headBot: {
     position: 'absolute',
-    width: 10,
+    width: 12,
     height: 2.5,
     backgroundColor: '#555',
     borderRadius: 2,
-    left: 2,
-    bottom: 10,
-    transform: [{ rotate: '-50deg' }],
-  },
-  line2: {
-    position: 'absolute',
-    width: 10,
-    height: 2.5,
-    backgroundColor: '#555',
-    borderRadius: 2,
-    left: 2,
-    top: 8,
-    transform: [{ rotate: '50deg' }],
+    left: 0,
+    top: 7,
+    transform: [{ rotate: '55deg' }],
   },
   active: { backgroundColor: '#27ae60' },
 });
