@@ -55,21 +55,12 @@ let _chatCache: Message[] | null = null;
 let _cachePeriod: string = getCurrentPeriod();
 let _hasUnread = false;
 
-// initChat: dipanggil sekali saat mount.
-// Cache kosong → buat pesan pembuka. Cache ada → kembalikan apa adanya.
-const initChat = (userName: string): Message[] => {
+// initChat: kembalikan cache yang ada, atau array kosong jika belum ada.
+// Pesan sambutan TIDAK dibuat di sini — dibuat oleh useEffect setelah mount,
+// sehingga selalu muncul sebagai bubble baru, bukan modifikasi state lama.
+const initChat = (): Message[] => {
   if (_chatCache !== null) return _chatCache;
-
-  const autoMsg: Message = {
-    id: makeId(),
-    text: getNotificationMessage(userName),
-    from: 'assistant',
-    time: now(),
-  };
-
-  _chatCache = [autoMsg];
-  _cachePeriod = getCurrentPeriod();
-  _hasUnread = true;
+  _chatCache = [];
   return _chatCache;
 };
 const saveChat = (msgs: Message[]) => { _chatCache = msgs; };
@@ -356,7 +347,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(() => initChat(userName));
+  const [messages, setMessages] = useState<Message[]>(() => initChat());
 
   const handleClearChat = useCallback(() => {
     Alert.alert(
@@ -368,25 +359,41 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           text: 'Clear',
           style: 'destructive',
           onPress: () => {
-            const freshMsg: Message = {
-              id: makeId(),
-              text: getNotificationMessage(userName),
-              from: 'assistant',
-              time: now(),
-            };
-            saveChat([freshMsg]);
-            setMessages([freshMsg]);
+            // Clear total — tidak menyisakan pesan apapun
+            _chatCache = [];
+            setMessages([]);
           },
         },
       ],
       { cancelable: true },
     );
-  }, [userName]);
+  }, []);
 
   const handleClose = useCallback(() => {
     Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true })
       .start(() => onClose());
   }, [onClose]);
+
+  // Kirim pesan sambutan setiap kali popup dibuka (mount).
+  // Karena dijalankan di useEffect (bukan di useState init), pesan ini
+  // selalu muncul sebagai bubble BARU yang di-append, tidak pernah
+  // menimpa atau 'mengedit' pesan yang sudah ada di history.
+  useEffect(() => {
+    const greetMsg: Message = {
+      id: makeId(),
+      text: getNotificationMessage(userName),
+      from: 'assistant',
+      time: now(),
+    };
+    _cachePeriod = getCurrentPeriod();
+    notifyNewMessage();
+    setMessages(prev => {
+      const updated = [...prev, greetMsg];
+      saveChat(updated);
+      return updated;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Hanya saat mount — dependency kosong disengaja
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
