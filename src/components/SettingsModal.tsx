@@ -1,9 +1,8 @@
-import React, { memo } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import {
   View, Text, Modal, TouchableOpacity,
-  TextInput, Animated, StyleSheet,
+  TextInput, Animated, StyleSheet, BackHandler,
 } from 'react-native';
-import { width } from '../constants';
 import { AnimatedToggle } from './AssistantPopup';
 
 interface SettingsModalProps {
@@ -41,13 +40,23 @@ const SettingsModal = memo(({
   onChangePhoto,
   onSave,
 }: SettingsModalProps) => {
+
+  // Handle tombol back & home Android
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, onClose]);
+
   const animStyle = {
     transform: [
-      { scale: scaleAnim },
       {
         translateY: scaleAnim.interpolate({
           inputRange: [0, 1],
-          outputRange: [40, 0],
+          outputRange: [300, 0],
         }),
       },
     ],
@@ -58,16 +67,32 @@ const SettingsModal = memo(({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <Animated.View style={[styles.sheet, animStyle]}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      {/* Tap overlay untuk dismiss */}
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <Animated.View
+          style={[styles.sheet, animStyle]}
+          // Cegah tap di dalam sheet menutup modal
+          onStartShouldSetResponder={() => true}
+        >
+          {/* iOS-style drag handle */}
+          <View style={styles.handleContainer}>
+            <View style={styles.handle} />
+          </View>
 
-          {/* Header */}
+          {/* Header tanpa tombol silang */}
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
           </View>
 
           {/* User Name */}
@@ -99,34 +124,20 @@ const SettingsModal = memo(({
             <Text style={styles.label}>Layout Mode</Text>
             <View style={styles.modeSelector}>
               <TouchableOpacity
-                style={[
-                  styles.modeBtn,
-                  styles.modeBtnLeft,
-                  layoutMode === 'grid' && styles.modeBtnActive
-                ]}
+                style={[styles.modeBtn, styles.modeBtnLeft, layoutMode === 'grid' && styles.modeBtnActive]}
                 onPress={() => onLayoutModeChange('grid')}
                 activeOpacity={0.7}
               >
-                <Text style={[
-                  styles.modeBtnText,
-                  layoutMode === 'grid' && styles.modeBtnTextActive
-                ]}>
+                <Text style={[styles.modeBtnText, layoutMode === 'grid' && styles.modeBtnTextActive]}>
                   ⊞  Grid
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modeBtn,
-                  styles.modeBtnRight,
-                  layoutMode === 'list' && styles.modeBtnActive
-                ]}
+                style={[styles.modeBtn, styles.modeBtnRight, layoutMode === 'list' && styles.modeBtnActive]}
                 onPress={() => onLayoutModeChange('list')}
                 activeOpacity={0.7}
               >
-                <Text style={[
-                  styles.modeBtnText,
-                  layoutMode === 'list' && styles.modeBtnTextActive
-                ]}>
+                <Text style={[styles.modeBtnText, layoutMode === 'list' && styles.modeBtnTextActive]}>
                   ☰  List
                 </Text>
               </TouchableOpacity>
@@ -156,7 +167,7 @@ const SettingsModal = memo(({
           </TouchableOpacity>
 
         </Animated.View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   );
 });
@@ -164,22 +175,30 @@ const SettingsModal = memo(({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   sheet: {
     backgroundColor: '#0d0d0d',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: 20,
-    maxHeight: '85%',
+    paddingBottom: 32,
+    maxHeight: '88%',
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#3a3a3a',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 8,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#1a1a1a',
@@ -188,19 +207,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#fff',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#1a1a1a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeText: {
-    color: '#aaa',
-    fontSize: 16,
-    fontWeight: 'bold',
+    textAlign: 'center',
   },
   section: {
     paddingHorizontal: 20,
@@ -235,23 +242,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modeBtnLeft: {
-    marginRight: 2,
-  },
-  modeBtnRight: {
-    marginLeft: 2,
-  },
-  modeBtnActive: {
-    backgroundColor: '#27ae60',
-  },
-  modeBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#666',
-  },
-  modeBtnTextActive: {
-    color: '#fff',
-  },
+  modeBtnLeft: { marginRight: 2 },
+  modeBtnRight: { marginLeft: 2 },
+  modeBtnActive: { backgroundColor: '#27ae60' },
+  modeBtnText: { fontSize: 15, fontWeight: '600', color: '#666' },
+  modeBtnTextActive: { color: '#fff' },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -261,10 +256,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1a1a1a',
   },
-  toggleLabel: {
-    fontSize: 16,
-    color: '#fff',
-  },
+  toggleLabel: { fontSize: 16, color: '#fff' },
   photoBtn: {
     marginHorizontal: 20,
     marginTop: 20,
@@ -275,11 +267,7 @@ const styles = StyleSheet.create({
     borderColor: '#27ae60',
     alignItems: 'center',
   },
-  photoBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#27ae60',
-  },
+  photoBtnText: { fontSize: 16, fontWeight: '600', color: '#27ae60' },
   saveBtn: {
     marginHorizontal: 20,
     marginTop: 12,
@@ -288,11 +276,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#27ae60',
     alignItems: 'center',
   },
-  saveBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-  },
+  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });
 
 export default SettingsModal;

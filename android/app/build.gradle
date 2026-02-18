@@ -91,7 +91,6 @@ android {
         // KONFIGURASI RELEASE (Mendukung Lokal & GitHub Actions)
         release {
             if (System.getenv("MYAPP_RELEASE_STORE_FILE")) {
-                // Jika env var ditemukan (di GitHub Actions), pakai config ini
                 storeFile file(System.getenv("MYAPP_RELEASE_STORE_FILE"))
                 storePassword System.getenv("MYAPP_RELEASE_STORE_PASSWORD")
                 keyAlias System.getenv("MYAPP_RELEASE_KEY_ALIAS")

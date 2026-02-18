@@ -1,20 +1,20 @@
-import React, { memo } from 'react';
+import React, { memo, useEffect } from 'react';
 import {
   View,
   Text,
   Modal,
   TouchableOpacity,
   Animated,
-  StyleSheet
+  StyleSheet,
+  BackHandler,
 } from 'react-native';
-import { width } from '../constants';
 
 interface AppActionModalProps {
   visible: boolean;
   selectedLabel: string;
   actionType: 'hide' | 'unhide';
   isDocked: boolean;
-  dockCount: number;  // Current number of apps in dock
+  dockCount: number;
   scaleAnim: Animated.Value;
   onClose: () => void;
   onPinToDock: () => void;
@@ -34,42 +34,66 @@ const AppActionModal = memo(({
   onHideAction,
   onUninstall,
 }: AppActionModalProps) => {
-  // Hide "Pin to Dock" button if dock is full (4 apps) and app is not already docked
+
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, onClose]);
+
   const showPinButton = isDocked || dockCount < 4;
+
+  const animStyle = {
+    transform: [
+      {
+        translateY: scaleAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [300, 0],
+        }),
+      },
+    ],
+    opacity: scaleAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+    }),
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
         <Animated.View
-          style={[
-            styles.modalContent,
-            {
-              transform: [
-                { scale: scaleAnim },
-                {
-                  translateY: scaleAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [50, 0]
-                  })
-                }
-              ],
-              opacity: scaleAnim
-            }
-          ]}
+          style={[styles.sheet, animStyle]}
+          onStartShouldSetResponder={() => true}
         >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle} numberOfLines={1}>{selectedLabel}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
+          {/* iOS-style drag handle */}
+          <View style={styles.handleContainer}>
+            <View style={styles.handle} />
           </View>
 
-          <Text style={styles.modalSubtitle}>Select an action for this app:</Text>
+          {/* Header — nama app, tanpa tombol silang */}
+          <View style={styles.header}>
+            <Text style={styles.title} numberOfLines={1}>{selectedLabel}</Text>
+            <Text style={styles.subtitle}>Select an action for this app</Text>
+          </View>
 
-          <View style={styles.verticalBtnGroup}>
-            {/* Only show Pin/Unpin button if dock not full OR app already docked */}
+          {/* Buttons */}
+          <View style={styles.btnGroup}>
             {showPinButton && (
               <TouchableOpacity
-                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple, styles.btnFull]}
+                style={[styles.actionBtn, isDocked ? styles.btnOrange : styles.btnPurple]}
                 onPress={onPinToDock}
                 activeOpacity={0.8}
               >
@@ -80,7 +104,7 @@ const AppActionModal = memo(({
             )}
 
             <TouchableOpacity
-              style={[styles.actionBtn, styles.btnGreen, styles.btnFull]}
+              style={[styles.actionBtn, styles.btnGreen]}
               onPress={onHideAction}
               activeOpacity={0.8}
             >
@@ -90,108 +114,86 @@ const AppActionModal = memo(({
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionBtn, styles.btnRed, styles.btnFull]}
+              style={[styles.actionBtn, styles.btnRed]}
               onPress={onUninstall}
               activeOpacity={0.8}
             >
               <Text style={styles.actionBtnText}>🗑️ Uninstall</Text>
             </TouchableOpacity>
           </View>
+
         </Animated.View>
-      </View>
+      </TouchableOpacity>
     </Modal>
   );
 });
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center'
+    justifyContent: 'flex-end',
   },
-  modalContent: {
-    width: width * 0.85,
-    backgroundColor: '#000000',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#333',
-    elevation: 10
+  sheet: {
+    backgroundColor: '#0d0d0d',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 32,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  handleContainer: {
     alignItems: 'center',
-    marginBottom: 20
+    paddingTop: 12,
+    paddingBottom: 4,
   },
-  modalTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    flex: 1
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#3a3a3a',
   },
-  closeBtn: {
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a1a',
     alignItems: 'center',
-    backgroundColor: '#333',
-    borderRadius: 15
   },
-  closeText: {
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: -2
+    textAlign: 'center',
   },
-  modalSubtitle: {
-    color: '#aaa',
-    fontSize: 14,
-    marginBottom: 25
+  subtitle: {
+    fontSize: 13,
+    color: '#555',
+    marginTop: 4,
+    textAlign: 'center',
   },
-  verticalBtnGroup: {
-    width: '100%',
-    gap: 10
+  btnGroup: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    gap: 10,
   },
   actionBtn: {
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center'
-  },
-  btnFull: {
-    width: '100%'
-  },
-  btnGreen: {
-    backgroundColor: '#131313',
+    justifyContent: 'center',
     borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: '#11a34e'
-  },
-  btnRed: {
     backgroundColor: '#131313',
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#c0392b'
   },
-  btnPurple: {
-    backgroundColor: '#131313',
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#8e44ad'
-  },
-  btnOrange: {
-    backgroundColor: '#131313',
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#e67e22'
-  },
+  btnGreen: { borderColor: '#11a34e' },
+  btnRed: { borderColor: '#c0392b' },
+  btnPurple: { borderColor: '#8e44ad' },
+  btnOrange: { borderColor: '#e67e22' },
   actionBtnText: {
     color: '#fff',
     fontSize: 15,
     fontWeight: 'bold',
-    letterSpacing: 0.5
+    letterSpacing: 0.5,
   },
 });
 
