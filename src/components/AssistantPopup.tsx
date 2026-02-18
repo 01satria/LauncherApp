@@ -3,14 +3,13 @@ import React, {
 } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Animated,
-  Easing, TextInput, FlatList, KeyboardAvoidingView,
-  Platform, PanResponder, GestureResponderEvent, Image,
-  Dimensions, AppState, AppStateStatus,
+  TextInput, FlatList, KeyboardAvoidingView,
+  Platform, PanResponder, GestureResponderEvent,
+  StatusBar, Dimensions, AppState, AppStateStatus,
 } from 'react-native';
 import { getNotificationMessage } from '../utils/storage';
 
 const SCREEN_H = Dimensions.get('window').height;
-const CARD_H   = Math.min(480, SCREEN_H * 0.62);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Message {
@@ -27,7 +26,6 @@ interface AssistantPopupProps {
   avatarSource?: string;
 }
 
-// FIX 1: Removed duplicate ToggleProps interface (was declared twice)
 interface ToggleProps {
   value: boolean;
   onValueChange: (v: boolean) => void;
@@ -41,53 +39,42 @@ const now = () => {
 };
 const makeId = () => `${Date.now()}-${Math.random()}`;
 
-// Track current time period to detect transitions
 const getCurrentPeriod = (): string => {
   const h = new Date().getHours();
-  if (h >= 22 || h < 4)  return 'late_night'; // 22:00 - 03:59
-  if (h >= 4 && h < 11)  return 'morning';    // 04:00 - 10:59
-  if (h >= 11 && h < 15) return 'afternoon';  // 11:00 - 14:59
-  if (h >= 15 && h < 18) return 'evening';    // 15:00 - 17:59
-  return 'night';                              // 18:00 - 21:59
+  if (h >= 22 || h < 4)  return 'late_night';
+  if (h >= 4 && h < 11)  return 'morning';
+  if (h >= 11 && h < 15) return 'afternoon';
+  if (h >= 15 && h < 18) return 'evening';
+  return 'night';
 };
 
 let _chatCache: Message[] | null = null;
 let _cachePeriod: string = getCurrentPeriod();
-// Unread tracking: ID of last assistant message
 let _lastAssistantMsgId: string | null = null;
 let _hasUnread: boolean = false;
 
 const loadChat = (autoMsg: Message): Message[] => {
-  // Reset at 01:00 (start of new day)
   const h = new Date().getHours();
-  if (h === 1 && _cachePeriod !== 'late_night') {
-    _chatCache = null;
-  }
+  if (h === 1 && _cachePeriod !== 'late_night') _chatCache = null;
   _cachePeriod = getCurrentPeriod();
   if (_chatCache === null) {
     _chatCache = [autoMsg];
     _lastAssistantMsgId = autoMsg.id;
-    _hasUnread = true;  // Initial message is unread
+    _hasUnread = true;
   }
   return _chatCache;
 };
 
 const saveChat = (msgs: Message[]) => { _chatCache = msgs; };
 
-// Mark as read (called when popup opens)
 export const markAsRead = () => { _hasUnread = false; };
-
-// Check if there's unread (for badge)
 export const hasUnreadMessages = () => _hasUnread;
-
-// Notify new assistant message (called after auto-send)
 export const notifyNewMessage = (msgId: string) => {
   _lastAssistantMsgId = msgId;
   _hasUnread = true;
 };
 
-// ─── Fuzzy matching engine ────────────────────────────────────────────────────
-// FIX 2: All regex compiled once at module level, not re-created per call
+// ─── Fuzzy matching ───────────────────────────────────────────────────────────
 const RE_PUNCT = /[''`.,!?]/g;
 const RE_SPACE = /\s+/g;
 
@@ -96,7 +83,6 @@ const norm = (s: string) =>
 
 const lev = (a: string, b: string): number => {
   const m = a.length, n = b.length;
-  // FIX 3: Reuse single flat array instead of 2D array — cuts GC pressure
   const dp = new Uint16Array((m + 1) * (n + 1));
   for (let i = 0; i <= m; i++) dp[i * (n + 1)] = i;
   for (let j = 0; j <= n; j++) dp[j] = j;
@@ -128,9 +114,7 @@ const hasKeyword = (input: string, keywords: string[], threshold = 0.78): boolea
     const kwNorm = norm(kw);
     if (normInput.includes(kwNorm)) return true;
     if (!kwNorm.includes(' ')) {
-      for (const w of words) {
-        if (sim(w, kwNorm) >= threshold) return true;
-      }
+      for (const w of words) if (sim(w, kwNorm) >= threshold) return true;
     } else {
       const kwWords = kwNorm.split(' ');
       for (let i = 0; i <= words.length - kwWords.length; i++) {
@@ -143,10 +127,8 @@ const hasKeyword = (input: string, keywords: string[], threshold = 0.78): boolea
   return false;
 };
 
-// ─── Bilingual AI reply ───────────────────────────────────────────────────────
 const getReply = (input: string, userName: string, assistantName: string): string => {
   const t = norm(input);
-
   if (hasKeyword(t, ['hai','hi','halo','hello','hey','sup','yo','howdy'], 0.82))
     return `Hey ${userName}! 👋 What can I do for you?`;
   if (hasKeyword(t, ['apa kabar','how are you','gimana kabar','hows it going','how r u','kabar kamu']))
@@ -200,8 +182,7 @@ const getReply = (input: string, userName: string, assistantName: string): strin
   return defaults[Math.floor(Math.random() * defaults.length)];
 };
 
-// ─── Send Icon (pure RN) ──────────────────────────────────────────────────────
-// FIX 4: Styles moved to StyleSheet.create (computed once, not per render)
+// ─── Send Icon ────────────────────────────────────────────────────────────────
 const SendIcon = memo(({ active }: { active: boolean }) => (
   <View style={sendStyles.wrap}>
     <View style={[sendStyles.shaft,   active && sendStyles.active]} />
@@ -222,10 +203,7 @@ const sendStyles = StyleSheet.create({
 
 // ─── Animated Toggle ──────────────────────────────────────────────────────────
 export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae60' }: ToggleProps) => {
-  const TRACK_W = 50;
-  const THUMB   = 24;
-  const MAX_X   = TRACK_W - THUMB - 4;
-
+  const TRACK_W = 50, THUMB = 24, MAX_X = TRACK_W - THUMB - 4;
   const posX     = useRef(new Animated.Value(value ? MAX_X : 2)).current;
   const bgAnim   = useRef(new Animated.Value(value ? 1 : 0)).current;
   const valueRef = useRef(value);
@@ -238,49 +216,35 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
     ]).start();
   }, [value]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder:  () => true,
-      onPanResponderGrant: () => { posX.stopAnimation(); bgAnim.stopAnimation(); },
-      onPanResponderMove: (_: GestureResponderEvent, gs) => {
-        const base = valueRef.current ? MAX_X : 2;
-        const next = Math.min(MAX_X, Math.max(2, base + gs.dx));
-        posX.setValue(next);
-        bgAnim.setValue((next - 2) / MAX_X);
-      },
-      onPanResponderRelease: (_: GestureResponderEvent, gs) => {
-        if (Math.abs(gs.dx) < 5 && Math.abs(gs.dy) < 5) {
-          onValueChange(!valueRef.current);
-          return;
-        }
-        const nextPos  = (valueRef.current ? MAX_X : 2) + gs.dx;
-        const shouldOn = gs.vx > 0.3 ? true : gs.vx < -0.3 ? false : nextPos > MAX_X / 2 + 2;
-        if (shouldOn !== valueRef.current) {
-          onValueChange(shouldOn);
-        } else {
-          Animated.parallel([
-            Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
-            Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
-          ]).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.parallel([
-          Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
-          Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
-        ]).start();
-      },
-    })
-  ).current;
-
-  const trackColor = bgAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#3a3a3a', activeColor],
-  });
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder:  () => true,
+    onPanResponderGrant: () => { posX.stopAnimation(); bgAnim.stopAnimation(); },
+    onPanResponderMove: (_: GestureResponderEvent, gs) => {
+      const next = Math.min(MAX_X, Math.max(2, (valueRef.current ? MAX_X : 2) + gs.dx));
+      posX.setValue(next);
+      bgAnim.setValue((next - 2) / MAX_X);
+    },
+    onPanResponderRelease: (_: GestureResponderEvent, gs) => {
+      if (Math.abs(gs.dx) < 5 && Math.abs(gs.dy) < 5) {
+        onValueChange(!valueRef.current);
+        return;
+      }
+      const shouldOn = gs.vx > 0.3 ? true : gs.vx < -0.3 ? false : ((valueRef.current ? MAX_X : 2) + gs.dx) > MAX_X / 2 + 2;
+      if (shouldOn !== valueRef.current) onValueChange(shouldOn);
+      else Animated.parallel([
+        Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
+        Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
+      ]).start();
+    },
+    onPanResponderTerminate: () => Animated.parallel([
+      Animated.spring(posX,   { toValue: valueRef.current ? MAX_X : 2, friction: 6, tension: 120, useNativeDriver: false }),
+      Animated.spring(bgAnim, { toValue: valueRef.current ? 1 : 0,     friction: 6, tension: 120, useNativeDriver: false }),
+    ]).start(),
+  })).current;
 
   return (
-    <Animated.View style={[toggleStyles.track, { backgroundColor: trackColor }]} {...panResponder.panHandlers}>
+    <Animated.View style={[toggleStyles.track, { backgroundColor: bgAnim.interpolate({ inputRange: [0, 1], outputRange: ['#3a3a3a', activeColor] }) }]} {...panResponder.panHandlers}>
       <Animated.View style={[toggleStyles.thumb, { transform: [{ translateX: posX }] }]} />
     </Animated.View>
   );
@@ -288,372 +252,223 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
 
 const toggleStyles = StyleSheet.create({
   track: { width: 50, height: 28, borderRadius: 14, justifyContent: 'center' },
-  thumb: {
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: '#fff', position: 'absolute', elevation: 3,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.25, shadowRadius: 2,
-  },
+  thumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', position: 'absolute', elevation: 3 },
 });
 
-// ─── Message Bubble ───────────────────────────────────────────────────────────
-const Bubble = memo(({ msg, assistantName, avatarSource }: {
-  msg: Message; assistantName: string; avatarSource?: string;
-}) => {
+// ─── ULTRA-LIGHT Message Bubble (NO IMAGES, minimal View nesting) ────────────
+const Bubble = memo(({ msg, isLast }: { msg: Message; isLast: boolean }) => {
   const isUser = msg.from === 'user';
-  // FIX 5: Animated.Values created once, never leak — cleanup in return
-  const fadeIn = useRef(new Animated.Value(0)).current;
-  const slideY = useRef(new Animated.Value(8)).current;
-
-  useEffect(() => {
-    const anim = Animated.parallel([
-      Animated.timing(fadeIn, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.spring(slideY, { toValue: 0, friction: 7, tension: 120, useNativeDriver: true }),
-    ]);
-    anim.start();
-    return () => {
-      anim.stop();
-      fadeIn.stopAnimation();
-      slideY.stopAnimation();
-    };
-  }, []);
-
+  
   return (
-    <Animated.View style={[
-      bubbleStyles.row,
-      isUser ? bubbleStyles.rowRight : bubbleStyles.rowLeft,
-      { opacity: fadeIn, transform: [{ translateY: slideY }] },
-    ]}>
-      {!isUser && (
-        <View style={bubbleStyles.avatar}>
-          {avatarSource
-            ? <Image source={{ uri: avatarSource }} style={bubbleStyles.avatarImg} />
-            : <Text style={bubbleStyles.avatarEmoji}>🤖</Text>
-          }
-        </View>
-      )}
+    <View style={[bubbleStyles.row, isUser ? bubbleStyles.rowRight : bubbleStyles.rowLeft]}>
       <View style={[bubbleStyles.bubble, isUser ? bubbleStyles.userBubble : bubbleStyles.aiBubble]}>
-        {!isUser && <Text style={bubbleStyles.sender}>{assistantName}</Text>}
         <Text style={bubbleStyles.text}>{msg.text}</Text>
         <Text style={bubbleStyles.time}>{msg.time}</Text>
       </View>
-    </Animated.View>
+    </View>
   );
 });
 
 const bubbleStyles = StyleSheet.create({
-  row:        { flexDirection: 'row', marginBottom: 10, paddingHorizontal: 12, alignItems: 'flex-end' },
-  rowLeft:    { justifyContent: 'flex-start' },
-  rowRight:   { justifyContent: 'flex-end' },
-  avatar:     { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center', marginRight: 6, marginBottom: 2, overflow: 'hidden' },
-  avatarImg:  { width: 28, height: 28, borderRadius: 14 },
-  avatarEmoji:{ fontSize: 14 },
-  bubble:     { maxWidth: '75%', borderRadius: 16, padding: 10, elevation: 2 },
+  row:        { paddingHorizontal: 16, marginBottom: 8 },
+  rowLeft:    { alignItems: 'flex-start' },
+  rowRight:   { alignItems: 'flex-end' },
+  bubble:     { maxWidth: '80%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
   userBubble: { backgroundColor: '#27ae60', borderBottomRightRadius: 4 },
-  aiBubble:   { backgroundColor: '#1e1e1e', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#2a2a2a' },
-  sender:     { color: '#27ae60', fontSize: 10, fontWeight: '700', marginBottom: 3 },
-  text:       { color: '#fff', fontSize: 14, lineHeight: 20 },
-  time:       { color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
+  aiBubble:   { backgroundColor: '#2a2a2a', borderBottomLeftRadius: 4 },
+  text:       { color: '#fff', fontSize: 15, lineHeight: 21 },
+  time:       { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
 });
 
 // ─── Typing Indicator ─────────────────────────────────────────────────────────
-// FIX 6: TypingDot stops loop when component unmounts AND when app goes background
 const TypingDot = memo(({ delay }: { delay: number }) => {
-  const anim    = useRef(new Animated.Value(0)).current;
+  const anim = useRef(new Animated.Value(0)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
-    loopRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(anim, { toValue: -4, duration: 300, useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0,  duration: 300, useNativeDriver: true }),
-        Animated.delay(300),
-      ])
-    );
+    loopRef.current = Animated.loop(Animated.sequence([
+      Animated.delay(delay),
+      Animated.timing(anim, { toValue: -4, duration: 300, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: 0,  duration: 300, useNativeDriver: true }),
+      Animated.delay(300),
+    ]));
     loopRef.current.start();
 
-    // FIX 7: Pause loop when app goes to background, resume on foreground
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state !== 'active') {
-        loopRef.current?.stop();
-        anim.setValue(0);
-      } else {
-        loopRef.current?.start();
-      }
+      if (state !== 'active') { loopRef.current?.stop(); anim.setValue(0); }
+      else loopRef.current?.start();
     });
 
-    return () => {
-      loopRef.current?.stop();
-      anim.stopAnimation();
-      sub.remove();
-    };
+    return () => { loopRef.current?.stop(); anim.stopAnimation(); sub.remove(); };
   }, []);
 
   return <Animated.View style={[typingStyles.dot, { transform: [{ translateY: anim }] }]} />;
 });
 
 const typingStyles = StyleSheet.create({
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#555', marginHorizontal: 2 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#666', marginHorizontal: 2 },
 });
 
-// ─── AssistantPopup ───────────────────────────────────────────────────────────
-const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }: AssistantPopupProps) => {
-  const slideAnim   = useRef(new Animated.Value(40)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-  const flatRef     = useRef<FlatList>(null);
-  const replyTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // SCROLL FIX: gate prevents multiple simultaneous scroll calls
-  const scrollGate  = useRef(false);
+// ─── FULLSCREEN AssistantPopup ────────────────────────────────────────────────
+const AssistantPopup = memo(({ onClose, userName, assistantName }: AssistantPopupProps) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const flatRef  = useRef<FlatList>(null);
+  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [input, setInput]       = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  const autoMsg: Message = {
-    id: 'auto',
-    text: getNotificationMessage(userName),
-    from: 'assistant',
-    time: now(),
-  };
+  const autoMsg: Message = { id: 'auto', text: getNotificationMessage(userName), from: 'assistant', time: now() };
   const [messages, setMessages] = useState<Message[]>(() => loadChat(autoMsg));
 
-  // Auto-send message at every period transition
   useEffect(() => {
     const checkPeriodTransition = () => {
       const currentPeriod = getCurrentPeriod();
       const h = new Date().getHours();
-
-      // Reset at 01:00 (start of new day)
       if (h === 1 && _cachePeriod !== 'late_night') {
-        const freshMsg: Message = {
-          id: makeId(),
-          text: getNotificationMessage(userName),
-          from: 'assistant',
-          time: now(),
-        };
-        const fresh = [freshMsg];
-        _chatCache = fresh;
+        const freshMsg: Message = { id: makeId(), text: getNotificationMessage(userName), from: 'assistant', time: now() };
+        _chatCache = [freshMsg];
         _cachePeriod = currentPeriod;
-        notifyNewMessage(freshMsg.id); // Mark as unread
-        setMessages(fresh);
+        notifyNewMessage(freshMsg.id);
+        setMessages([freshMsg]);
         return;
       }
-
-      // Period transition detected — send new auto message
       if (currentPeriod !== _cachePeriod) {
-        const newMsg: Message = {
-          id: makeId(),
-          text: getNotificationMessage(userName),
-          from: 'assistant',
-          time: now(),
-        };
+        const newMsg: Message = { id: makeId(), text: getNotificationMessage(userName), from: 'assistant', time: now() };
         setMessages(prev => {
           const updated = [...prev, newMsg];
           _chatCache = updated;
           _cachePeriod = currentPeriod;
           saveChat(updated);
-          notifyNewMessage(newMsg.id); // Mark as unread
+          notifyNewMessage(newMsg.id);
           return updated;
         });
       }
     };
-
-    // Check every minute (periods transition on the hour)
     const iv = setInterval(checkPeriodTransition, 60_000);
     return () => clearInterval(iv);
   }, [userName]);
 
-  // Open animation
   useEffect(() => {
-    // Mark all messages as read when popup opens
     markAsRead();
-
-    const openAnim = Animated.parallel([
-      Animated.timing(slideAnim,   { toValue: 0, duration: 280, easing: Easing.out(Easing.back(1.2)), useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: 1, duration: 250, easing: Easing.out(Easing.ease),      useNativeDriver: true }),
-    ]);
-    openAnim.start();
-
+    Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     return () => {
-      openAnim.stop();
-      slideAnim.stopAnimation();
-      opacityAnim.stopAnimation();
+      fadeAnim.stopAnimation();
       if (replyTimer.current) clearTimeout(replyTimer.current);
     };
   }, []);
 
   const handleClose = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(slideAnim,   { toValue: 30, duration: 200, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: 0,  duration: 200, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-    ]).start(() => onClose());
+    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => onClose());
   }, [onClose]);
 
-  // SCROLL FIX: Use requestAnimationFrame — waits for layout commit, zero setTimeout overhead
   const scrollToEnd = useCallback(() => {
-    if (scrollGate.current) return;
-    scrollGate.current = true;
-    requestAnimationFrame(() => {
-      flatRef.current?.scrollToEnd({ animated: true });
-      // Reset gate after scroll animation (~300ms)
-      setTimeout(() => { scrollGate.current = false; }, 320);
-    });
+    requestAnimationFrame(() => flatRef.current?.scrollToEnd({ animated: true }));
   }, []);
 
   const sendMessage = useCallback(() => {
     const text = input.trim();
     if (!text) return;
-
     const userMsg: Message = { id: makeId(), text, from: 'user', time: now() };
     setMessages(prev => { const n = [...prev, userMsg]; saveChat(n); return n; });
     setInput('');
-    // Reset gate so user message scroll always fires immediately
-    scrollGate.current = false;
     scrollToEnd();
-
     setIsTyping(true);
     replyTimer.current = setTimeout(() => {
-      const reply: Message = {
-        id: makeId(),
-        text: getReply(text, userName, assistantName),
-        from: 'assistant',
-        time: now(),
-      };
+      const reply: Message = { id: makeId(), text: getReply(text, userName, assistantName), from: 'assistant', time: now() };
       setIsTyping(false);
       setMessages(prev => { const n = [...prev, reply]; saveChat(n); return n; });
-      scrollGate.current = false;
       scrollToEnd();
     }, 600 + Math.random() * 600);
   }, [input, userName, assistantName, scrollToEnd]);
 
-  // FIX 12: Stable keyExtractor — not an inline arrow (avoids FlatList re-render)
   const keyExtractor = useCallback((m: Message) => m.id, []);
-
-  // FIX 13: Stable renderItem with useCallback
-  const renderItem = useCallback(({ item }: { item: Message }) => (
-    <Bubble msg={item} assistantName={assistantName} avatarSource={avatarSource} />
-  ), [assistantName, avatarSource]);
+  const renderItem   = useCallback(({ item, index }: { item: Message; index: number }) => (
+    <Bubble msg={item} isLast={index === messages.length - 1} />
+  ), [messages.length]);
 
   const hasInput = input.trim().length > 0;
 
-  // FIX 14: Memoized typing footer — avoids re-creating JSX on every render
-  const typingFooter = isTyping ? (
-    <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
-      <View style={bubbleStyles.avatar}>
-        {avatarSource
-          ? <Image source={{ uri: avatarSource }} style={bubbleStyles.avatarImg} />
-          : <Text style={bubbleStyles.avatarEmoji}>🤖</Text>
-        }
-      </View>
-      <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble, styles.typingBubble]}>
-        <View style={styles.dotsRow}>
-          <TypingDot delay={0} />
-          <TypingDot delay={150} />
-          <TypingDot delay={300} />
-        </View>
-      </View>
-    </View>
-  ) : null;
-
   return (
-    <>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
+    <Animated.View style={[styles.fullscreen, { opacity: fadeAnim }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      <Animated.View style={[styles.card, { opacity: opacityAnim, transform: [{ translateY: slideAnim }] }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>{assistantName}</Text>
+        <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
+          <Text style={styles.closeText}>✕</Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.avatarWrap}>
-              {avatarSource
-                ? <Image source={{ uri: avatarSource }} style={styles.headerAvatar} />
-                : <Text style={styles.headerEmoji}>🤖</Text>
-              }
-              <View style={styles.onlineBadge} />
-            </View>
-            <View>
-              <Text style={styles.headerName}>{assistantName}</Text>
-              <Text style={styles.headerSub}>Online</Text>
+      {/* Messages - OPTIMIZED FlatList */}
+      <FlatList
+        ref={flatRef}
+        data={messages}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        style={styles.msgList}
+        contentContainerStyle={styles.msgContent}
+        showsVerticalScrollIndicator={false}
+        // ULTRA-LIGHT CONFIG — no clipping, no complex layout
+        initialNumToRender={20}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        decelerationRate="normal"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        onLayout={scrollToEnd}
+        ListFooterComponent={isTyping ? (
+          <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
+            <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble, { flexDirection: 'row', gap: 4 }]}>
+              <TypingDot delay={0} />
+              <TypingDot delay={150} />
+              <TypingDot delay={300} />
             </View>
           </View>
-          <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7}>
-            <Text style={styles.closeText}>✕</Text>
+        ) : null}
+      />
+
+      {/* Input */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            value={input}
+            onChangeText={setInput}
+            placeholder={`Message ${assistantName}...`}
+            placeholderTextColor="#555"
+            selectionColor="#27ae60"
+            onSubmitEditing={sendMessage}
+            returnKeyType="send"
+            blurOnSubmit={false}
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, hasInput && styles.sendBtnActive]}
+            onPress={sendMessage}
+            activeOpacity={0.7}
+            disabled={!hasInput}
+          >
+            <SendIcon active={hasInput} />
           </TouchableOpacity>
         </View>
-
-        {/* Messages */}
-        <FlatList
-          ref={flatRef}
-          data={messages}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          style={styles.msgList}
-          contentContainerStyle={styles.msgContent}
-          // SCROLL FIX 1: Remove onContentSizeChange — fired on every layout px change
-          // causing scroll to pile up. scrollToEnd is now called explicitly after setState.
-          // SCROLL FIX 2: Remove removeClippedSubviews — causes mount/unmount jank on short lists
-          showsVerticalScrollIndicator={false}
-          // SCROLL FIX 3: maintainVisibleContentPosition keeps scroll stable when new items added at bottom
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-          decelerationRate="normal"
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          ListFooterComponent={typingFooter}
-          // SCROLL FIX 4: Initial scroll on open via onLayout (fires once, not repeatedly)
-          onLayout={scrollToEnd}
-        />
-
-        {/* Input */}
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder={`Message ${assistantName}...`}
-              placeholderTextColor="#444"
-              selectionColor="#27ae60"
-              onSubmitEditing={sendMessage}
-              returnKeyType="send"
-              blurOnSubmit={false}
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, hasInput && styles.sendBtnActive]}
-              onPress={sendMessage}
-              activeOpacity={0.7}
-              disabled={!hasInput}
-            >
-              <SendIcon active={hasInput} />
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-
-      </Animated.View>
-    </>
+      </KeyboardAvoidingView>
+    </Animated.View>
   );
 });
 
 const styles = StyleSheet.create({
-  backdrop:     { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 998 },
-  card:         { position: 'absolute', top: '50%', left: 16, right: 16, height: CARD_H, marginTop: -(CARD_H / 2), backgroundColor: '#0d0d0d', borderRadius: 24, borderWidth: 1, borderColor: '#1e1e1e', overflow: 'hidden', elevation: 20, zIndex: 999 },
-  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1a1a1a', backgroundColor: '#111' },
-  headerLeft:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatarWrap:   { position: 'relative' },
-  headerAvatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#27ae60' },
-  headerEmoji:  { fontSize: 20 },
-  onlineBadge:  { position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#27ae60', borderWidth: 1.5, borderColor: '#111' },
-  headerName:   { color: '#fff', fontSize: 14, fontWeight: '700' },
-  headerSub:    { color: '#27ae60', fontSize: 10, marginTop: 1 },
-  closeBtn:     { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1e1e1e', justifyContent: 'center', alignItems: 'center' },
-  closeText:    { color: '#aaa', fontSize: 12, fontWeight: 'bold' },
+  fullscreen:   { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000', zIndex: 1000 },
+  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: StatusBar.currentHeight || 40, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  headerTitle:  { color: '#fff', fontSize: 17, fontWeight: '700' },
+  closeBtn:     { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
+  closeText:    { color: '#aaa', fontSize: 14, fontWeight: 'bold' },
   msgList:      { flex: 1 },
-  msgContent:   { paddingTop: 12, paddingBottom: 8 },
-  typingBubble: { paddingVertical: 10, paddingHorizontal: 14 },
-  dotsRow:      { flexDirection: 'row', alignItems: 'center' },
-  inputRow:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#1a1a1a', backgroundColor: '#111', gap: 8 },
-  input:        { flex: 1, height: 40, backgroundColor: '#1a1a1a', borderRadius: 20, paddingHorizontal: 14, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: '#252525' },
-  sendBtn:      { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2a2a2a', justifyContent: 'center', alignItems: 'center' },
-  sendBtnActive:{ backgroundColor: '#1a1a1a', borderStyle: 'dashed', borderColor: '#27ae60' },
+  msgContent:   { paddingTop: 12, paddingBottom: 12 },
+  inputRow:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#1a1a1a', gap: 8 },
+  input:        { flex: 1, height: 42, backgroundColor: '#1a1a1a', borderRadius: 21, paddingHorizontal: 16, color: '#fff', fontSize: 15 },
+  sendBtn:      { width: 42, height: 42, borderRadius: 21, backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' },
+  sendBtnActive:{ backgroundColor: '#27ae60' },
 });
 
 export default AssistantPopup;
