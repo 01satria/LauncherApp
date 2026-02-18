@@ -1,7 +1,8 @@
 import React, { memo, useEffect, useRef } from 'react';
 import {
-  View, Text, Modal, TouchableOpacity,
-  TextInput, Animated, StyleSheet, BackHandler,
+  View, Text, Modal, TouchableOpacity, TextInput,
+  Animated, StyleSheet, BackHandler, PanResponder,
+  GestureResponderEvent,
 } from 'react-native';
 import { AnimatedToggle } from './AssistantPopup';
 
@@ -24,24 +25,12 @@ interface SettingsModalProps {
 }
 
 const SettingsModal = memo(({
-  visible,
-  tempName,
-  tempAssistantName,
-  showHidden,
-  showNames,
-  layoutMode,
-  scaleAnim,
-  onClose,
-  onTempNameChange,
-  onTempAssistantNameChange,
-  onToggleHidden,
-  onToggleShowNames,
-  onLayoutModeChange,
-  onChangePhoto,
-  onSave,
+  visible, tempName, tempAssistantName, showHidden, showNames,
+  layoutMode, scaleAnim, onClose, onTempNameChange,
+  onTempAssistantNameChange, onToggleHidden, onToggleShowNames,
+  onLayoutModeChange, onChangePhoto, onSave,
 }: SettingsModalProps) => {
 
-  // Handle tombol back & home Android
   useEffect(() => {
     if (!visible) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -51,13 +40,53 @@ const SettingsModal = memo(({
     return () => sub.remove();
   }, [visible, onClose]);
 
+  const dragY = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_: GestureResponderEvent, gs) => gs.dy > 0,
+    onPanResponderMove: (_: GestureResponderEvent, gs) => {
+      if (gs.dy > 0) dragY.setValue(gs.dy);
+    },
+    onPanResponderRelease: (_: GestureResponderEvent, gs) => {
+      if (gs.dy > 80 || gs.vy > 0.5) {
+        Animated.timing(dragY, {
+          toValue: 500,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          dragY.setValue(0);
+          onClose();
+        });
+      } else {
+        Animated.spring(dragY, {
+          toValue: 0,
+          friction: 8,
+          tension: 100,
+          useNativeDriver: true,
+        }).start();
+      }
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(dragY, {
+        toValue: 0,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: true,
+      }).start();
+    },
+  })).current;
+
   const animStyle = {
     transform: [
       {
-        translateY: scaleAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [300, 0],
-        }),
+        translateY: Animated.add(
+          scaleAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [300, 0],
+          }),
+          dragY,
+        ),
       },
     ],
     opacity: scaleAnim.interpolate({
@@ -74,23 +103,17 @@ const SettingsModal = memo(({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      {/* Tap overlay untuk dismiss */}
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
           style={[styles.sheet, animStyle]}
-          // Cegah tap di dalam sheet menutup modal
           onStartShouldSetResponder={() => true}
         >
-          {/* iOS-style drag handle */}
-          <View style={styles.handleContainer}>
+          {/* Drag handle */}
+          <View style={styles.handleContainer} {...panResponder.panHandlers}>
             <View style={styles.handle} />
           </View>
 
-          {/* Header tanpa tombol silang */}
+          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Settings</Text>
           </View>
@@ -119,7 +142,7 @@ const SettingsModal = memo(({
             />
           </View>
 
-          {/* Layout Mode Selector */}
+          {/* Layout Mode */}
           <View style={styles.section}>
             <Text style={styles.label}>Layout Mode</Text>
             <View style={styles.modeSelector}>
@@ -161,7 +184,7 @@ const SettingsModal = memo(({
             <Text style={styles.photoBtnText}>Change Assistant Photo</Text>
           </TouchableOpacity>
 
-          {/* Save Button */}
+          {/* Save */}
           <TouchableOpacity style={styles.saveBtn} onPress={onSave} activeOpacity={0.7}>
             <Text style={styles.saveBtnText}>Save Changes</Text>
           </TouchableOpacity>
@@ -173,109 +196,27 @@ const SettingsModal = memo(({
 });
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#0d0d0d',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 32,
-    maxHeight: '88%',
-  },
-  handleContainer: {
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#3a3a3a',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a1a1a',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginTop: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#aaa',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: '#fff',
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
-  },
-  modeSelector: {
-    flexDirection: 'row',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 4,
-  },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: '#0d0d0d', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, maxHeight: '88%' },
+  handleContainer: { alignItems: 'center', paddingTop: 12, paddingBottom: 12 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#3a3a3a' },
+  header: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  title: { fontSize: 22, fontWeight: '700', color: '#fff', textAlign: 'center' },
+  section: { paddingHorizontal: 20, marginTop: 20 },
+  label: { fontSize: 14, fontWeight: '600', color: '#aaa', marginBottom: 8 },
+  input: { backgroundColor: '#1a1a1a', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: '#fff', fontSize: 16, borderWidth: 1, borderColor: '#2a2a2a' },
+  modeSelector: { flexDirection: 'row', backgroundColor: '#1a1a1a', borderRadius: 12, padding: 4 },
+  modeBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   modeBtnLeft: { marginRight: 2 },
   modeBtnRight: { marginLeft: 2 },
   modeBtnActive: { backgroundColor: '#27ae60' },
   modeBtnText: { fontSize: 15, fontWeight: '600', color: '#666' },
   modeBtnTextActive: { color: '#fff' },
-  toggleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a1a1a',
-  },
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
   toggleLabel: { fontSize: 16, color: '#fff' },
-  photoBtn: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#27ae60',
-    alignItems: 'center',
-  },
+  photoBtn: { marginHorizontal: 20, marginTop: 20, paddingVertical: 14, borderRadius: 12, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#27ae60', alignItems: 'center' },
   photoBtnText: { fontSize: 16, fontWeight: '600', color: '#27ae60' },
-  saveBtn: {
-    marginHorizontal: 20,
-    marginTop: 12,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#27ae60',
-    alignItems: 'center',
-  },
+  saveBtn: { marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: 12, backgroundColor: '#27ae60', alignItems: 'center' },
   saveBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });
 

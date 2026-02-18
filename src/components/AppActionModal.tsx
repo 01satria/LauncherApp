@@ -1,12 +1,7 @@
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  Animated,
-  StyleSheet,
-  BackHandler,
+  View, Text, Modal, TouchableOpacity, Animated,
+  StyleSheet, BackHandler, PanResponder, GestureResponderEvent,
 } from 'react-native';
 
 interface AppActionModalProps {
@@ -23,16 +18,8 @@ interface AppActionModalProps {
 }
 
 const AppActionModal = memo(({
-  visible,
-  selectedLabel,
-  actionType,
-  isDocked,
-  dockCount,
-  scaleAnim,
-  onClose,
-  onPinToDock,
-  onHideAction,
-  onUninstall,
+  visible, selectedLabel, actionType, isDocked, dockCount,
+  scaleAnim, onClose, onPinToDock, onHideAction, onUninstall,
 }: AppActionModalProps) => {
 
   useEffect(() => {
@@ -44,15 +31,57 @@ const AppActionModal = memo(({
     return () => sub.remove();
   }, [visible, onClose]);
 
+  const dragY = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_: GestureResponderEvent, gs) => gs.dy > 0,
+    onPanResponderMove: (_: GestureResponderEvent, gs) => {
+      if (gs.dy > 0) dragY.setValue(gs.dy);
+    },
+    onPanResponderRelease: (_: GestureResponderEvent, gs) => {
+      if (gs.dy > 80 || gs.vy > 0.5) {
+        // Drag cukup jauh atau cepat → close
+        Animated.timing(dragY, {
+          toValue: 500,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          dragY.setValue(0);
+          onClose();
+        });
+      } else {
+        // Snap kembali ke posisi semula
+        Animated.spring(dragY, {
+          toValue: 0,
+          friction: 8,
+          tension: 100,
+          useNativeDriver: true,
+        }).start();
+      }
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(dragY, {
+        toValue: 0,
+        friction: 8,
+        tension: 100,
+        useNativeDriver: true,
+      }).start();
+    },
+  })).current;
+
   const showPinButton = isDocked || dockCount < 4;
 
   const animStyle = {
     transform: [
       {
-        translateY: scaleAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [300, 0],
-        }),
+        translateY: Animated.add(
+          scaleAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [300, 0],
+          }),
+          dragY,
+        ),
       },
     ],
     opacity: scaleAnim.interpolate({
@@ -69,21 +98,17 @@ const AppActionModal = memo(({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
           style={[styles.sheet, animStyle]}
           onStartShouldSetResponder={() => true}
         >
-          {/* iOS-style drag handle */}
-          <View style={styles.handleContainer}>
+          {/* Drag handle */}
+          <View style={styles.handleContainer} {...panResponder.panHandlers}>
             <View style={styles.handle} />
           </View>
 
-          {/* Header — nama app, tanpa tombol silang */}
+          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>{selectedLabel}</Text>
             <Text style={styles.subtitle}>Select an action for this app</Text>
@@ -102,7 +127,6 @@ const AppActionModal = memo(({
                 </Text>
               </TouchableOpacity>
             )}
-
             <TouchableOpacity
               style={[styles.actionBtn, styles.btnGreen]}
               onPress={onHideAction}
@@ -112,7 +136,6 @@ const AppActionModal = memo(({
                 {actionType === 'unhide' ? '👁️ Unhide' : '🙈 Hide'}
               </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.actionBtn, styles.btnRed]}
               onPress={onUninstall}
@@ -121,7 +144,6 @@ const AppActionModal = memo(({
               <Text style={styles.actionBtnText}>🗑️ Uninstall</Text>
             </TouchableOpacity>
           </View>
-
         </Animated.View>
       </TouchableOpacity>
     </Modal>
@@ -129,72 +151,20 @@ const AppActionModal = memo(({
 });
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#0d0d0d',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 32,
-  },
-  handleContainer: {
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#3a3a3a',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a1a1a',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#555',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  btnGroup: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    gap: 10,
-  },
-  actionBtn: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    backgroundColor: '#131313',
-  },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: '#0d0d0d', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32 },
+  handleContainer: { alignItems: 'center', paddingTop: 12, paddingBottom: 12 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#3a3a3a' },
+  header: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a', alignItems: 'center' },
+  title: { fontSize: 22, fontWeight: '700', color: '#fff', textAlign: 'center' },
+  subtitle: { fontSize: 13, color: '#555', marginTop: 4, textAlign: 'center' },
+  btnGroup: { paddingHorizontal: 20, paddingTop: 20, gap: 10 },
+  actionBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 1, backgroundColor: '#131313' },
   btnGreen: { borderColor: '#11a34e' },
   btnRed: { borderColor: '#c0392b' },
   btnPurple: { borderColor: '#8e44ad' },
   btnOrange: { borderColor: '#e67e22' },
-  actionBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
+  actionBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold', letterSpacing: 0.5 },
 });
 
 export default AppActionModal;
