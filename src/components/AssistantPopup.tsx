@@ -47,7 +47,7 @@ interface ScheduledMsg {
 }
 
 const SCHEDULED_MSGS: ScheduledMsg[] = [
-  { hour: 6,  getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
+  { hour: 5,  getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
   { hour: 12, getText: (n) => `Hey ${n}, it's noon! 🍔 Have you had lunch yet? Don't skip your meals!` },
   { hour: 18, getText: (n) => `Evening, ${n}! 🌆 How's your day been? Time to wind down a bit. ☕` },
   { hour: 21, getText: (n) => `Hey ${n} 🌙 It's getting late — make sure you're taking care of yourself!` },
