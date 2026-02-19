@@ -120,9 +120,11 @@ const App = () => {
         settingsModalAnim.current.stopAnimation();
         modalScaleAnim.current.setValue(0);
         settingsModalAnim.current.setValue(0);
+      } else {
+        // Refresh when returning to foreground to catch any installs/uninstalls
+        // that may have been missed by the install listener (e.g., installs via ADB or external stores)
+        refreshApps();
       }
-      // NOTE: no refreshApps() on 'active' — install listener handles installs,
-      // and re-rendering 100+ app icons on every app switch wastes RAM/CPU.
     });
 
     return () => {

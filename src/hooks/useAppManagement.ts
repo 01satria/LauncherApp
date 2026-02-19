@@ -28,6 +28,7 @@ export const useAppManagement = () => {
         icon: a.icon,
       }));
       setAllApps(apps);
+      setListKey(prev => prev + 1); // Force FlatList re-render after app list changes
     } catch (e) {
       console.error('refreshApps failed:', e);
     }
