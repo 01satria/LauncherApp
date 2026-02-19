@@ -760,7 +760,7 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
 
 const ds = StyleSheet.create({
   overlay:     { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#000' },
-  sheet:       { position:'absolute', left:0, right:0, top:0, bottom:0, marginTop:SNAP_HALF - SHEET_RADIUS, backgroundColor:'#0a0a0a', borderTopLeftRadius:SHEET_RADIUS, borderTopRightRadius:SHEET_RADIUS, borderWidth:1, borderColor:'#1e1e1e', borderBottomWidth:0, elevation:24 },
+  sheet:       { position:'absolute', left:0, right:0, height:SCREEN_H, backgroundColor:'#0a0a0a', borderTopLeftRadius:SHEET_RADIUS, borderTopRightRadius:SHEET_RADIUS, borderWidth:1, borderColor:'#1e1e1e', borderBottomWidth:0, elevation:24 },
   handleArea:  { alignItems:'center', paddingTop:12, paddingBottom:10 },
   pill:        { width:40, height:4, borderRadius:2, backgroundColor:'#3a3a3a' },
   scroll:      { flex:1 },
