@@ -45,7 +45,8 @@ interface ScheduledMsg {
 }
 
 const SCHEDULED_MSGS: ScheduledMsg[] = [
-  { hour: 5,  getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
+  { hour: 5, getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
+  { hour: 11, getText: (n) => `Hey ${n}, it's noon! 🍔 its a beta tester message!` },
   { hour: 12, getText: (n) => `Hey ${n}, it's noon! 🍔 Have you had lunch yet? Don't skip your meals!` },
   { hour: 18, getText: (n) => `Evening, ${n}! 🌆 How's your day been? Time to wind down a bit. ☕` },
   { hour: 21, getText: (n) => `Hey ${n} 🌙 It's getting late — make sure you're taking care of yourself!` },
@@ -119,10 +120,10 @@ const startScheduler = (userName: string) => {
 
   // Check every minute
   _schedulerInterval = setInterval(tick, 60_000);
-  
+
   // Run immediately to catch current hour if needed
   tick();
-  
+
   console.log('[Scheduler] Started successfully');
 };
 
@@ -381,8 +382,8 @@ const typingStyles = StyleSheet.create({
 // ─── Trash Icon ───────────────────────────────────────────────────────────────
 const TrashIcon = memo(() => (
   <View style={trashStyles.wrap}>
-    <View style={trashStyles.lid} />
     <View style={trashStyles.lidHandle} />
+    <View style={trashStyles.lid} />
     <View style={trashStyles.body}>
       <View style={trashStyles.line} />
       <View style={trashStyles.line} />
@@ -393,8 +394,8 @@ const TrashIcon = memo(() => (
 
 const trashStyles = StyleSheet.create({
   wrap: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center' },
-  lid: { width: 16, height: 2.5, backgroundColor: '#aaa', borderRadius: 1.5, marginBottom: 1 },
-  lidHandle: { width: 6, height: 2, backgroundColor: '#aaa', borderRadius: 1, marginBottom: 1 },
+  lid: { width: 16, height: 2, backgroundColor: '#aaa', borderRadius: 1.5, marginBottom: 1 },
+  lidHandle: { width: 6, height: 2, backgroundColor: '#aaa', borderRadius: 1, marginBottom: 1, top: 1 },
   body: { width: 14, height: 14, borderWidth: 2, borderColor: '#aaa', borderRadius: 2, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', paddingTop: 1 },
   line: { width: 1.5, height: 8, backgroundColor: '#aaa', borderRadius: 1 },
 });
