@@ -1,7 +1,8 @@
 import React, { memo, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import DockAppItem from './DockAppItem';
-import AssistantPopup, { hasUnreadMessages, setBadgeListener } from './AssistantPopup';
+import DashboardPopup from './DashboardPopup';
+import { hasUnreadMessages, setBadgeListener } from './AssistantPopup';
 import { AppData } from '../types';
 import { DOCK_ICON_SIZE, DEFAULT_ASSISTANT_AVATAR } from '../constants';
 
@@ -24,32 +25,18 @@ const SimpleDock = memo(({
   assistantName,
   userName,
 }: SimpleDockProps) => {
-  const [showPopup, setShowPopup] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
-    // Initial check
     setHasUnread(hasUnreadMessages());
-
-    // Register listener — dipanggil langsung oleh scheduler saat ada pesan baru
-    setBadgeListener(() => {
-      setHasUnread(true);
-    });
-
-    // Poll setiap 10s sebagai fallback
-    const interval = setInterval(() => {
-      setHasUnread(hasUnreadMessages());
-    }, 10_000);
-
-    return () => {
-      clearInterval(interval);
-      setBadgeListener(null);
-    };
+    setBadgeListener(() => { setHasUnread(true); });
+    const interval = setInterval(() => { setHasUnread(hasUnreadMessages()); }, 10_000);
+    return () => { clearInterval(interval); setBadgeListener(null); };
   }, []);
 
-  const handleOpenPopup = () => {
-    setShowPopup(true);
-    // Hapus badge saat popup dibuka
+  const handleOpenDashboard = () => {
+    setShowDashboard(true);
     setHasUnread(false);
   };
 
@@ -65,12 +52,12 @@ const SimpleDock = memo(({
 
   return (
     <>
-      {showPopup && (
-        <AssistantPopup
-          onClose={() => setShowPopup(false)}
+      {showDashboard && (
+        <DashboardPopup
+          onClose={() => setShowDashboard(false)}
           userName={userName}
           assistantName={assistantName}
-          avatarSource={avatarSource || DEFAULT_ASSISTANT_AVATAR}
+          avatarSource={avatarSource}
         />
       )}
 
@@ -86,7 +73,7 @@ const SimpleDock = memo(({
             {/* Avatar — pakai wrapper luar agar badge tidak terpotong overflow */}
             <TouchableOpacity
               style={styles.avatarWrapper}
-              onPress={handleOpenPopup}
+              onPress={handleOpenDashboard}
               activeOpacity={0.7}
             >
               {/* Lingkaran avatar dengan overflow hidden — hanya untuk gambar */}
