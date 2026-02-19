@@ -2,7 +2,6 @@ import React, { memo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import DockAppItem from './DockAppItem';
 import DashboardPopup from './DashboardPopup';
-import { hasUnreadMessages, setBadgeListener } from './AssistantPopup';
 import { AppData } from '../types';
 import { DOCK_ICON_SIZE, DEFAULT_ASSISTANT_AVATAR } from '../constants';
 
@@ -26,19 +25,9 @@ const SimpleDock = memo(({
   userName,
 }: SimpleDockProps) => {
   const [showDashboard, setShowDashboard] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
-
-  useEffect(() => {
-    setHasUnread(hasUnreadMessages());
-    setBadgeListener(() => { setHasUnread(true); });
-    // Badge listener handles real-time updates; this is just a safety fallback
-    const interval = setInterval(() => { setHasUnread(hasUnreadMessages()); }, 60_000);
-    return () => { clearInterval(interval); setBadgeListener(null); };
-  }, []);
 
   const handleOpenDashboard = () => {
     setShowDashboard(true);
-    setHasUnread(false);
   };
 
   // Calculate dynamic width
@@ -71,14 +60,12 @@ const SimpleDock = memo(({
         >
           <View style={styles.dockContent}>
 
-            {/* Avatar — pakai wrapper luar agar badge tidak terpotong overflow */}
             <TouchableOpacity
               style={styles.avatarWrapper}
               onPress={handleOpenDashboard}
               activeOpacity={0.7}
             >
-              {/* Lingkaran avatar dengan overflow hidden — hanya untuk gambar */}
-              <View style={styles.avatarCircle}>
+                <View style={styles.avatarCircle}>
                 {avatarSource ? (
                   <Image source={{ uri: avatarSource }} style={styles.avatar} />
                 ) : (
@@ -88,10 +75,6 @@ const SimpleDock = memo(({
                 )}
               </View>
 
-              {/* Badge di luar avatarCircle agar tidak terpotong */}
-              {hasUnread && (
-                <View style={styles.unreadBadge} />
-              )}
             </TouchableOpacity>
 
             {appCount > 0 && <View style={styles.separator} />}
@@ -146,14 +129,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Wrapper luar: TANPA overflow hidden, agar badge bisa muncul di luar lingkaran
   avatarWrapper: {
     width: DOCK_ICON_SIZE,
     height: DOCK_ICON_SIZE,
     position: 'relative', // Anchor untuk badge
   },
 
-  // Lingkaran avatar: overflow hidden HANYA untuk memotong gambar
   avatarCircle: {
     width: DOCK_ICON_SIZE,
     height: DOCK_ICON_SIZE,
@@ -167,20 +148,6 @@ const styles = StyleSheet.create({
   avatar: {
     width: '100%',
     height: '100%',
-  },
-
-  // Badge di pojok kanan atas avatarWrapper (bukan avatarCircle)
-  unreadBadge: {
-    position: 'absolute',
-    top: -1,
-    right: -1,
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    backgroundColor: '#ff3b30',
-    borderWidth: 2,
-    borderColor: 'rgba(0, 0, 0, 0.92)',
-    zIndex: 1,
   },
 
   separator: {

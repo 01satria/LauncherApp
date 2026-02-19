@@ -38,82 +38,8 @@ const getTimeStr = () => {
 
 const makeId = () => `${Date.now()}-${Math.random()}`;
 
-// ─── Scheduled message config ─────────────────────────────────────────────────
-interface ScheduledMsg {
-  hour: number;
-  getText: (userName: string) => string;
-}
-
-const SCHEDULED_MSGS: ScheduledMsg[] = [
-  { hour: 5, getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
-  { hour: 12, getText: (n) => `Hey ${n}, it's noon! 🍔 Have you had lunch yet? Don't skip your meals!` },
-  { hour: 13, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test!` },
-  { hour: 14, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 2!` },
-  { hour: 15, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 3!` },
-  { hour: 16, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 4!` },
-  { hour: 18, getText: (n) => `Evening, ${n}! 🌆 How's your day been? Time to wind down a bit. ☕` },
-  { hour: 21, getText: (n) => `Hey ${n} 🌙 It's getting late — make sure you're taking care of yourself!` },
-  { hour: 22, getText: (n) => `Last call, ${n}! 😠 It's 22:00 — put the phone down and get some rest! 💤` },
-];
-
-// ─── Module-level state ───────────────────────────────────────────────────────
+// ─── Module-level chat cache ──────────────────────────────────────────────────
 let _chatCache: Message[] | null = null;
-let _hasUnread = false;
-const _firedKeys = new Set<string>();
-let _popupListener: ((msg: Message) => void) | null = null;
-let _badgeListener: (() => void) | null = null;
-let _schedulerInterval: ReturnType<typeof setInterval> | null = null;
-let _schedulerUserName = '';
-
-const getFiredKey = (hour: number): string => {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}:${hour}`;
-};
-
-const dispatchScheduledMsg = (scheduled: ScheduledMsg, h: number, m: number) => {
-  const key = getFiredKey(h);
-  if (_firedKeys.has(key)) return;
-  _firedKeys.add(key);
-
-  const msg: Message = {
-    id: makeId(),
-    text: scheduled.getText(_schedulerUserName),
-    from: 'assistant',
-    time: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`,
-  };
-
-  if (_chatCache === null) _chatCache = [];
-  _chatCache = [..._chatCache, msg];
-  _hasUnread = true;
-
-  // Notify popup if open
-  if (_popupListener) _popupListener(msg);
-  // Notify badge
-  if (_badgeListener) _badgeListener();
-
-  console.log(`[Scheduler] Fired at ${h}:${m.toString().padStart(2, '0')} → ${msg.text.substring(0, 40)}...`);
-};
-
-const startScheduler = (userName: string) => {
-  _schedulerUserName = userName;
-  if (_schedulerInterval !== null) return;
-
-  const tick = () => {
-    const d = new Date();
-    const h = d.getHours();
-    const m = d.getMinutes();
-    // Allow within first 5 minutes of the hour
-    if (m > 4) return;
-    const scheduled = SCHEDULED_MSGS.find(s => s.hour === h);
-    if (!scheduled) return;
-    dispatchScheduledMsg(scheduled, h, m);
-  };
-
-  // Check every 30s for better reliability (still very light on RAM)
-  _schedulerInterval = setInterval(tick, 60_000);
-  tick(); // immediate check on start
-  console.log('[Scheduler] Started');
-};
 
 const initChat = (): Message[] => {
   if (_chatCache !== null) return _chatCache;
@@ -122,11 +48,6 @@ const initChat = (): Message[] => {
 };
 
 const saveChat = (msgs: Message[]) => { _chatCache = msgs; };
-
-export const markAsRead = () => { _hasUnread = false; };
-export const hasUnreadMessages = () => _hasUnread;
-export const notifyNewMessage = () => { _hasUnread = true; };
-export const setBadgeListener = (listener: (() => void) | null) => { _badgeListener = listener; };
 
 // ─── Fuzzy matching ───────────────────────────────────────────────────────────
 const RE_PUNCT = /[''`.,!?]/g;
@@ -192,7 +113,7 @@ const getReply = (input: string, userName: string, assistantName: string): strin
   if (hasKeyword(t, ['makasih', 'thanks', 'thank you', 'thx', 'tengkyu', 'ty', 'terima kasih', 'thankyou', 'tq']))
     return `You're welcome, ${userName}! 😊`;
   if (hasKeyword(t, ['bisa apa', 'what can you do', 'kamu bisa apa', 'capabilities', 'fitur', 'apa kemampuan']))
-    return `I can chat with you, tell you the time, and send you reminders! 💬`;
+    return `I can chat with you, tell you the time, and help with reminders! 💬`;
   if (hasKeyword(t, [
     'jam berapa', 'what time', 'whats time', 'what is time', 'wht is time',
     'current time', 'waktu sekarang', 'jam sekarang', 'jamber', 'jamberapa',
@@ -336,9 +257,7 @@ const bubbleStyles = StyleSheet.create({
   time: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
 });
 
-// ─── Typing Indicator (fixed: no AppState listener, stable loop) ──────────────
-// TypingIndicator — single component with 3 Animated.Values driven by ONE loop
-// Replaces 3 separate TypingDot instances that each had their own loop + AppState listener
+// ─── Typing Indicator ─────────────────────────────────────────────────────────
 const TypingIndicator = memo(() => {
   const dots = useRef([
     new Animated.Value(0),
@@ -354,7 +273,7 @@ const TypingIndicator = memo(() => {
           Animated.stagger(160, dots.map(d =>
             Animated.sequence([
               Animated.timing(d, { toValue: -5, duration: 280, useNativeDriver: true }),
-              Animated.timing(d, { toValue: 0,  duration: 280, useNativeDriver: true }),
+              Animated.timing(d, { toValue: 0, duration: 280, useNativeDriver: true }),
             ])
           )),
           Animated.delay(300),
@@ -365,7 +284,6 @@ const TypingIndicator = memo(() => {
 
     startLoop();
 
-    // ONE AppState listener instead of three
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active') {
         loopRef.current?.stop();
@@ -393,7 +311,6 @@ const TypingIndicator = memo(() => {
   );
 });
 
-// Stable wrapper — only renders when isTyping is true, so dots mount fresh each time
 const TypingBubble = memo(() => (
   <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
     <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble]}>
@@ -410,8 +327,8 @@ const typingStyles = StyleSheet.create({
 // ─── Trash Icon ───────────────────────────────────────────────────────────────
 const TrashIcon = memo(() => (
   <View style={trashStyles.wrap}>
-    <View style={trashStyles.lid} />
     <View style={trashStyles.lidHandle} />
+    <View style={trashStyles.lid} />
     <View style={trashStyles.body}>
       <View style={trashStyles.line} />
       <View style={trashStyles.line} />
@@ -422,38 +339,20 @@ const TrashIcon = memo(() => (
 
 const trashStyles = StyleSheet.create({
   wrap: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center' },
-  lid: { width: 16, height: 2.5, backgroundColor: '#aaa', borderRadius: 1.5, marginBottom: 1 },
-  lidHandle: { width: 6, height: 2, backgroundColor: '#aaa', borderRadius: 1, marginBottom: 1 },
+  lid: { width: 16, height: 2, backgroundColor: '#aaa', borderRadius: 1.5, marginBottom: 1 },
+  lidHandle: { width: 6, height: 2, backgroundColor: '#aaa', borderRadius: 1, marginBottom: 1, top: 1 },
   body: { width: 14, height: 14, borderWidth: 2, borderColor: '#aaa', borderRadius: 2, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', paddingTop: 1 },
   line: { width: 1.5, height: 8, backgroundColor: '#aaa', borderRadius: 1 },
 });
 
 // ─── AssistantPopup ───────────────────────────────────────────────────────────
 const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }: AssistantPopupProps) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
   const flatRef = useRef<FlatList>(null);
   const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => initChat());
-
-  // Start scheduler & register popup listener
-  useEffect(() => {
-    startScheduler(userName);
-
-    _popupListener = (msg: Message) => {
-      setMessages(prev => {
-        const updated = [...prev, msg];
-        saveChat(updated);
-        return updated;
-      });
-      // Scroll to new scheduled message
-      requestAnimationFrame(() => flatRef.current?.scrollToEnd({ animated: true }));
-    };
-
-    return () => { _popupListener = null; };
-  }, [userName]);
 
   const handleClearChat = useCallback(() => {
     Alert.alert(
@@ -468,17 +367,14 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   }, []);
 
   const handleClose = useCallback(() => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true })
-      .start(() => onClose());
+    onClose();
   }, [onClose]);
 
-  // Hardware back button
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { handleClose(); return true; });
     return () => sub.remove();
   }, [handleClose]);
 
-  // Auto-close on background
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state !== 'active') handleClose();
@@ -486,12 +382,8 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     return () => sub.remove();
   }, [handleClose]);
 
-  // Fade in on mount
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true })
-      .start(() => { markAsRead(); });
     return () => {
-      fadeAnim.stopAnimation();
       if (replyTimer.current) clearTimeout(replyTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -520,7 +412,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
       };
       setIsTyping(false);
       setMessages(prev => { const n = [...prev, reply]; saveChat(n); return n; });
-      // Small extra delay so FlatList renders reply before scrolling
       setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
     }, 600 + Math.random() * 600);
   }, [input, userName, assistantName, scrollToEnd]);
@@ -531,7 +422,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const hasInput = input.trim().length > 0;
 
   return (
-    <Animated.View style={[styles.fullscreen, { opacity: fadeAnim }]}>
+    <View style={styles.fullscreen}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
       {/* Header */}
@@ -542,7 +433,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
               ? <Image source={{ uri: avatarSource }} style={styles.headerAvatar} />
               : <Text style={styles.headerEmoji}>🤖</Text>
             }
-            <View style={styles.onlineBadge} />
           </View>
           <View>
             <Text style={styles.headerName}>{assistantName}</Text>
@@ -604,7 +494,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </Animated.View>
+    </View>
   );
 });
 
@@ -616,7 +506,6 @@ const styles = StyleSheet.create({
   avatarWrap: { position: 'relative' },
   headerAvatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: '#27ae60' },
   headerEmoji: { fontSize: 20 },
-  onlineBadge: { position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#27ae60', borderWidth: 1.5, borderColor: '#111' },
   headerName: { color: '#fff', fontSize: 15, fontWeight: '600' },
   headerSub: { color: '#00d134', fontSize: 12 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },

@@ -42,14 +42,8 @@ const AppActionModal = memo(({
     onPanResponderRelease: (_: GestureResponderEvent, gs) => {
       if (gs.dy > 80 || gs.vy > 0.5) {
         // Drag cukup jauh atau cepat → close
-        Animated.timing(dragY, {
-          toValue: 500,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          dragY.setValue(0);
-          onClose();
-        });
+        dragY.setValue(0);
+        onClose();
       } else {
         // Snap kembali ke posisi semula
         Animated.spring(dragY, {

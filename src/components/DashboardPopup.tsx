@@ -595,11 +595,10 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     const msg = getAssistantMessage(userName, getCurrentTimePeriod());
     _prevMessage = msg; return msg;
   });
-  const [msgChanged, setMsgChanged] = useState(false);
   useEffect(() => {
     const id = setInterval(() => {
       const msg = getAssistantMessage(userName, getCurrentTimePeriod());
-      if (msg !== _prevMessage) { _prevMessage = msg; setAssistantMsg(msg); setMsgChanged(true); }
+      if (msg !== _prevMessage) { _prevMessage = msg; setAssistantMsg(msg); }
     }, 60_000);
     return () => clearInterval(id);
   }, [userName]);
@@ -623,8 +622,9 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   }, []); // eslint-disable-line
 
   const handleClose = useCallback(() => {
-    snapTo(SNAP_CLOSED, () => { setVisible(false); onClose(); });
-  }, [snapTo, onClose]);
+    setVisible(false);
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -714,7 +714,7 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           <View style={ds.headerRow}>
             {/* Avatar — left, vertically centered */}
             <TouchableOpacity style={ds.avatarWrap}
-              onPress={() => { setMsgChanged(false); setShowChat(true); }}
+              onPress={() => setShowChat(true)}
               activeOpacity={0.8}>
               <View style={ds.avatarCircle}>
                 {avatarSource ? (
@@ -723,7 +723,6 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
                   <View style={ds.avatarPlaceholder}><Text style={ds.avatarPlaceholderTxt}>👤</Text></View>
                 )}
               </View>
-              {msgChanged && <View style={ds.badge} />}
             </TouchableOpacity>
 
             {/* Clock + message — right side */}
@@ -790,7 +789,6 @@ const ds = StyleSheet.create({
   avatarWrap:  { position:'relative', flexShrink:0 },
   avatarCircle:{ width:72, height:72, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a', borderWidth:2.5, borderColor:'#27ae60' },
   avatar:      { width:'100%', height:'100%' },
-  badge:       { position:'absolute', top:0, right:0, width:16, height:16, borderRadius:8, backgroundColor:'#ff3b30', borderWidth:2, borderColor:'#0a0a0a', zIndex:1 },
 
   // Right side: clock on top, message below
   headerRight: { flex:1, gap:8 },

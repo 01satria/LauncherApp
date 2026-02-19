@@ -50,14 +50,8 @@ const SettingsModal = memo(({
     },
     onPanResponderRelease: (_: GestureResponderEvent, gs) => {
       if (gs.dy > 80 || gs.vy > 0.5) {
-        Animated.timing(dragY, {
-          toValue: 500,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          dragY.setValue(0);
-          onClose();
-        });
+        dragY.setValue(0);
+        onClose();
       } else {
         Animated.spring(dragY, {
           toValue: 0,
