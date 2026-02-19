@@ -1,7 +1,7 @@
 import React, { memo, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import DockAppItem from './DockAppItem';
-import AssistantPopup, { hasUnreadMessages } from './AssistantPopup';
+import AssistantPopup, { hasUnreadMessages, setBadgeListener } from './AssistantPopup';
 import { AppData } from '../types';
 import { DOCK_ICON_SIZE, DEFAULT_ASSISTANT_AVATAR } from '../constants';
 
@@ -27,7 +27,7 @@ const SimpleDock = memo(({
   const [showPopup, setShowPopup] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
 
-  // Poll for unread messages every 10 seconds
+  // Register badge listener for immediate updates + poll as backup
   useEffect(() => {
     const checkUnread = () => {
       setHasUnread(hasUnreadMessages());
@@ -36,9 +36,18 @@ const SimpleDock = memo(({
     // Initial check
     checkUnread();
     
-    // Poll every 10s
+    // Register listener for immediate updates when scheduler sends message
+    setBadgeListener(() => {
+      setHasUnread(true);
+    });
+    
+    // Poll every 10s as backup (in case listener fails)
     const interval = setInterval(checkUnread, 10_000);
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      setBadgeListener(null); // Unregister on unmount
+    };
   }, []);
 
   const handleOpenPopup = () => {

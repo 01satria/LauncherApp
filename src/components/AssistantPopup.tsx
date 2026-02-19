@@ -46,7 +46,6 @@ interface ScheduledMsg {
 
 const SCHEDULED_MSGS: ScheduledMsg[] = [
   { hour: 5, getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
-  { hour: 11, getText: (n) => `Hey ${n}, it's noon! 🍔 its a beta tester message!` },
   { hour: 12, getText: (n) => `Hey ${n}, it's noon! 🍔 Have you had lunch yet? Don't skip your meals!` },
   { hour: 18, getText: (n) => `Evening, ${n}! 🌆 How's your day been? Time to wind down a bit. ☕` },
   { hour: 21, getText: (n) => `Hey ${n} 🌙 It's getting late — make sure you're taking care of yourself!` },
@@ -62,6 +61,9 @@ const _firedKeys = new Set<string>();
 
 // Listener untuk update UI saat popup terbuka
 let _popupListener: ((msg: Message) => void) | null = null;
+
+// Listener untuk update badge di dock (saat popup tertutup)
+let _badgeListener: (() => void) | null = null;
 
 const getFiredKey = (hour: number): string => {
   const d = new Date();
@@ -115,6 +117,11 @@ const startScheduler = (userName: string) => {
       _popupListener(msg);
     }
 
+    // Update badge immediately (if dock is listening)
+    if (_badgeListener) {
+      _badgeListener();
+    }
+
     console.log(`[Scheduler] Sent message at ${h}:${m.toString().padStart(2, '0')} - ${msg.text.substring(0, 30)}...`);
   };
 
@@ -138,6 +145,7 @@ const saveChat = (msgs: Message[]) => { _chatCache = msgs; };
 export const markAsRead = () => { _hasUnread = false; };
 export const hasUnreadMessages = () => _hasUnread;
 export const notifyNewMessage = () => { _hasUnread = true; };
+export const setBadgeListener = (listener: (() => void) | null) => { _badgeListener = listener; };
 
 // ─── Fuzzy matching ───────────────────────────────────────────────────────────
 const RE_PUNCT = /[''`.,!?]/g;
@@ -455,6 +463,16 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       handleClose();
       return true;
+    });
+    return () => sub.remove();
+  }, [handleClose]);
+
+  // Auto-close when app goes to background
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state !== 'active') {
+        handleClose();
+      }
     });
     return () => sub.remove();
   }, [handleClose]);
