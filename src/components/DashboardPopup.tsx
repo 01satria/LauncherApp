@@ -1,46 +1,54 @@
 import React, {
-  memo, useEffect, useRef, useState, useCallback, useMemo,
+  memo, useEffect, useRef, useState, useCallback,
 } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Animated,
   ScrollView, TextInput, StatusBar, BackHandler,
-  AppState, AppStateStatus, Image, Alert,
+  AppState, AppStateStatus, Image, Alert, Dimensions,
+  PanResponder, GestureResponderEvent, NativeScrollEvent,
+  NativeSyntheticEvent, Modal,
 } from 'react-native';
-import AssistantPopup, { hasUnreadMessages, setBadgeListener } from './AssistantPopup';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import AssistantPopup from './AssistantPopup';
 import { getCurrentTimePeriod } from '../utils/storage';
-import { AppData } from '../types';
 import { DEFAULT_ASSISTANT_AVATAR } from '../constants';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+const { height: SCREEN_H } = Dimensions.get('window');
+const STATUS_BAR_H = StatusBar.currentHeight || 24;
+
+const SNAP_CLOSED  = SCREEN_H;
+const SNAP_HALF    = SCREEN_H * 0.55;
+const SNAP_FULL    = STATUS_BAR_H + 8;
+const SHEET_RADIUS = 24;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface DashboardPopupProps {
   onClose: () => void;
   userName: string;
   assistantName: string;
   avatarSource: string | null;
 }
+type ToolView = null | 'weather' | 'money' | 'todo' | 'countdown';
 
-interface TodoItem {
-  id: string;
-  text: string;
-  done: boolean;
-}
+interface TodoItem { id: string; text: string; done: boolean; }
+interface CountdownItem { id: string; name: string; targetDate: string; }
 
-interface CountdownItem {
-  id: string;
-  name: string;
-  targetDate: string; // ISO string
-}
+// ─── Module-level state (persists across re-renders, lightweight) ─────────────
+let _todos: TodoItem[] = [];
+let _countdowns: CountdownItem[] = [];
+let _prevMessage = '';
 
-type ToolView = null | 'weather' | 'money' | 'todo' | 'countdown' | 'chat';
+// Listeners so ToolCard previews update in real time
+type PreviewListener = () => void;
+let _todoListener: PreviewListener | null = null;
+let _cdListener: PreviewListener | null = null;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
 const getClockStr = () => {
   const d = new Date();
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
 };
-
 const getAssistantMessage = (userName: string, period: string): string => {
   switch (period) {
     case 'morning':    return `Good morning, ${userName}! ☀️ Rise and conquer the day. I'm always cheering for you! 😘`;
@@ -51,463 +59,451 @@ const getAssistantMessage = (userName: string, period: string): string => {
     default:           return `Hey ${userName}! 👋 How's everything going?`;
   }
 };
+const daysLeft = (iso: string) => {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const t   = new Date(iso); t.setHours(0,0,0,0);
+  return Math.ceil((t.getTime() - now.getTime()) / 86400000);
+};
+const formatDate = (d: Date) =>
+  d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
-// ─── Module-level todo & countdown state (RAM-only, lightweight) ──────────────
-let _todos: TodoItem[] = [];
-let _countdowns: CountdownItem[] = [];
-let _lastPeriod = '';
-let _prevMessage = '';
+// ══════════════════════════════════════════════════════════════════════════════
+// WEATHER TOOL
+// ══════════════════════════════════════════════════════════════════════════════
+const weatherDesc = (c: number) => {
+  if (c === 0) return 'Clear sky'; if (c <= 3) return 'Partly cloudy';
+  if (c <= 9) return 'Foggy';     if (c <= 29) return 'Rain';
+  if (c <= 39) return 'Snow';     if (c <= 69) return 'Drizzle / Rain';
+  if (c <= 79) return 'Snow showers'; if (c <= 84) return 'Rain showers';
+  return 'Thunderstorm';
+};
+const weatherIcon = (c: number) => {
+  if (c === 0) return '☀️'; if (c <= 3) return '⛅'; if (c <= 9) return '🌫️';
+  if (c <= 29) return '🌧️'; if (c <= 39) return '❄️'; if (c <= 69) return '🌦️';
+  if (c <= 79) return '🌨️'; if (c <= 84) return '🌩️'; return '⛈️';
+};
 
-// ─── Weather Tool ─────────────────────────────────────────────────────────────
 const WeatherTool = memo(() => {
   const [location, setLocation] = useState('');
-  const [weather, setWeather] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [weather, setWeather]   = useState<any>(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
 
   const fetchWeather = useCallback(async () => {
     if (!location.trim()) return;
     setLoading(true); setError(''); setWeather(null);
     try {
-      const geoRes = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location.trim())}&count=1&language=en&format=json`
-      );
-      const geoData = await geoRes.json();
-      if (!geoData.results?.length) { setError('Location not found.'); setLoading(false); return; }
-      const { latitude, longitude, name, country } = geoData.results[0];
-      const wRes = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&timezone=auto`
-      );
-      const wData = await wRes.json();
-      const code = wData.current.weathercode;
-      const desc = weatherDesc(code);
-      setWeather({
-        city: `${name}, ${country}`,
-        temp: Math.round(wData.current.temperature_2m),
-        desc,
-        wind: Math.round(wData.current.windspeed_10m),
-        humidity: wData.current.relativehumidity_2m,
-        icon: weatherIcon(code),
-      });
+      const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location.trim())}&count=1&language=en&format=json`);
+      const gd  = await geo.json();
+      if (!gd.results?.length) { setError('Location not found.'); setLoading(false); return; }
+      const { latitude, longitude, name, country } = gd.results[0];
+      const wr  = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&timezone=auto`);
+      const wd  = await wr.json();
+      const code = wd.current.weathercode;
+      setWeather({ city:`${name}, ${country}`, temp:Math.round(wd.current.temperature_2m),
+        desc:weatherDesc(code), wind:Math.round(wd.current.windspeed_10m),
+        humidity:wd.current.relativehumidity_2m, icon:weatherIcon(code) });
     } catch { setError('Failed to fetch weather.'); }
     setLoading(false);
   }, [location]);
 
-  const weatherDesc = (c: number) => {
-    if (c === 0) return 'Clear sky';
-    if (c <= 3) return 'Partly cloudy';
-    if (c <= 9) return 'Foggy';
-    if (c <= 19) return 'Drizzle';
-    if (c <= 29) return 'Rain';
-    if (c <= 39) return 'Snow';
-    if (c <= 49) return 'Fog';
-    if (c <= 59) return 'Drizzle';
-    if (c <= 69) return 'Rain';
-    if (c <= 79) return 'Snow';
-    if (c <= 84) return 'Rain showers';
-    if (c <= 94) return 'Thunderstorm';
-    return 'Heavy thunderstorm';
-  };
-
-  const weatherIcon = (c: number) => {
-    if (c === 0) return '☀️';
-    if (c <= 3) return '⛅';
-    if (c <= 9) return '🌫️';
-    if (c <= 29) return '🌧️';
-    if (c <= 39) return '❄️';
-    if (c <= 69) return '🌦️';
-    if (c <= 79) return '🌨️';
-    if (c <= 84) return '🌩️';
-    return '⛈️';
-  };
-
   return (
-    <View style={toolStyles.container}>
-      <Text style={toolStyles.title}>🌤️ Weather</Text>
-      <View style={toolStyles.row}>
-        <TextInput
-          style={toolStyles.input}
-          value={location}
-          onChangeText={setLocation}
-          placeholder="Enter city name..."
-          placeholderTextColor="#555"
-          onSubmitEditing={fetchWeather}
-          returnKeyType="search"
-        />
-        <TouchableOpacity style={toolStyles.btn} onPress={fetchWeather} activeOpacity={0.7}>
-          <Text style={toolStyles.btnText}>Go</Text>
+    <View style={ts.container}>
+      <Text style={ts.title}>🌤️ Weather</Text>
+      <View style={ts.row}>
+        <TextInput style={ts.input} value={location} onChangeText={setLocation}
+          placeholder="Enter city name..." placeholderTextColor="#555"
+          onSubmitEditing={fetchWeather} returnKeyType="search" />
+        <TouchableOpacity style={ts.btn} onPress={fetchWeather} activeOpacity={0.7}>
+          <Text style={ts.btnTxt}>Go</Text>
         </TouchableOpacity>
       </View>
-      {loading && <Text style={toolStyles.info}>Fetching weather...</Text>}
-      {error ? <Text style={toolStyles.error}>{error}</Text> : null}
-      {weather && (
-        <View style={weatherStyles.card}>
-          <Text style={weatherStyles.icon}>{weather.icon}</Text>
-          <Text style={weatherStyles.city}>{weather.city}</Text>
-          <Text style={weatherStyles.temp}>{weather.temp}°C</Text>
-          <Text style={weatherStyles.desc}>{weather.desc}</Text>
-          <View style={weatherStyles.details}>
-            <Text style={weatherStyles.detail}>💨 {weather.wind} km/h</Text>
-            <Text style={weatherStyles.detail}>💧 {weather.humidity}%</Text>
+      {loading && <Text style={ts.info}>Fetching weather...</Text>}
+      {!!error  && <Text style={ts.error}>{error}</Text>}
+      {weather  && (
+        <View style={ws.card}>
+          <Text style={ws.icon}>{weather.icon}</Text>
+          <Text style={ws.city}>{weather.city}</Text>
+          <Text style={ws.temp}>{weather.temp}°C</Text>
+          <Text style={ws.desc}>{weather.desc}</Text>
+          <View style={ws.detailRow}>
+            <Text style={ws.detail}>💨 {weather.wind} km/h</Text>
+            <Text style={ws.detail}>💧 {weather.humidity}%</Text>
           </View>
         </View>
       )}
     </View>
   );
 });
-
-const weatherStyles = StyleSheet.create({
-  card: { alignItems: 'center', backgroundColor: '#0f1923', borderRadius: 16, padding: 20, marginTop: 12 },
-  icon: { fontSize: 52, marginBottom: 4 },
-  city: { color: '#8ab4d4', fontSize: 13, marginBottom: 2 },
-  temp: { color: '#fff', fontSize: 48, fontWeight: '200', letterSpacing: -2 },
-  desc: { color: '#aaa', fontSize: 14, marginTop: 2 },
-  details: { flexDirection: 'row', gap: 24, marginTop: 12 },
-  detail: { color: '#8ab4d4', fontSize: 13 },
+const ws = StyleSheet.create({
+  card:      { alignItems:'center', backgroundColor:'#0f1923', borderRadius:16, padding:20, marginTop:14 },
+  icon:      { fontSize:52, marginBottom:4 },
+  city:      { color:'#8ab4d4', fontSize:13, marginBottom:2 },
+  temp:      { color:'#fff', fontSize:52, fontWeight:'200', letterSpacing:-2 },
+  desc:      { color:'#aaa', fontSize:14, marginTop:2 },
+  detailRow: { flexDirection:'row', gap:24, marginTop:12 },
+  detail:    { color:'#8ab4d4', fontSize:13 },
 });
 
-// ─── Money Exchange Tool ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// MONEY TOOL
+// ══════════════════════════════════════════════════════════════════════════════
 const CURRENCIES = ['USD','EUR','IDR','GBP','JPY','CNY','SGD','AUD','KRW','MYR','THB','INR'];
-
 const MoneyTool = memo(() => {
-  const [from, setFrom] = useState('USD');
-  const [to, setTo] = useState('IDR');
-  const [amount, setAmount] = useState('1');
-  const [result, setResult] = useState<string | null>(null);
-  const [rate, setRate] = useState<string | null>(null);
+  const [from, setFrom]       = useState('USD');
+  const [to, setTo]           = useState('IDR');
+  const [amount, setAmount]   = useState('1');
+  const [result, setResult]   = useState<string|null>(null);
+  const [rate, setRate]       = useState<string|null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError]     = useState('');
 
   const fetchExchange = useCallback(async () => {
     setLoading(true); setError(''); setResult(null); setRate(null);
     try {
-      const res = await fetch(`https://open.er-api.com/v6/latest/${from}`);
+      const res  = await fetch(`https://open.er-api.com/v6/latest/${from}`);
       const data = await res.json();
       if (data.result !== 'success') throw new Error('API error');
-      const r = data.rates[to];
-      if (!r) throw new Error('Currency not found');
+      const r   = data.rates[to];
       const val = parseFloat(amount || '1') * r;
-      setRate(r.toLocaleString('en-US', { maximumFractionDigits: 4 }));
-      setResult(val.toLocaleString('en-US', { maximumFractionDigits: 2 }));
-    } catch { setError('Failed to fetch exchange rate.'); }
+      setRate(r.toLocaleString('en-US', { maximumFractionDigits:4 }));
+      setResult(val.toLocaleString('en-US', { maximumFractionDigits:2 }));
+    } catch { setError('Failed to fetch rate.'); }
     setLoading(false);
   }, [from, to, amount]);
 
-  const CurrencyPicker = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={moneyStyles.pickerRow}>
+  const CurrencyPicker = ({ value, onChange }: { value:string; onChange:(v:string)=>void }) => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:4 }}>
       {CURRENCIES.map(c => (
-        <TouchableOpacity
-          key={c}
-          style={[moneyStyles.chip, value === c && moneyStyles.chipActive]}
-          onPress={() => onChange(c)}
-          activeOpacity={0.7}
-        >
-          <Text style={[moneyStyles.chipText, value === c && moneyStyles.chipTextActive]}>{c}</Text>
+        <TouchableOpacity key={c} style={[ms.chip, value===c && ms.chipActive]}
+          onPress={()=>onChange(c)} activeOpacity={0.7}>
+          <Text style={[ms.chipTxt, value===c && ms.chipTxtActive]}>{c}</Text>
         </TouchableOpacity>
       ))}
     </ScrollView>
   );
 
   return (
-    <View style={toolStyles.container}>
-      <Text style={toolStyles.title}>💱 Money Exchange</Text>
-      <Text style={toolStyles.label}>From</Text>
+    <View style={ts.container}>
+      <Text style={ts.title}>💱 Money Exchange</Text>
+      <Text style={ts.label}>From</Text>
       <CurrencyPicker value={from} onChange={setFrom} />
-      <Text style={toolStyles.label}>To</Text>
+      <Text style={ts.label}>To</Text>
       <CurrencyPicker value={to} onChange={setTo} />
-      <View style={[toolStyles.row, { marginTop: 12 }]}>
-        <TextInput
-          style={[toolStyles.input, { flex: 1 }]}
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-          placeholder="Amount"
-          placeholderTextColor="#555"
-        />
-        <TouchableOpacity style={toolStyles.btn} onPress={fetchExchange} activeOpacity={0.7}>
-          <Text style={toolStyles.btnText}>See Exchange</Text>
+      <View style={[ts.row, { marginTop:12 }]}>
+        <TextInput style={[ts.input,{flex:1}]} value={amount} onChangeText={setAmount}
+          keyboardType="decimal-pad" placeholder="Amount" placeholderTextColor="#555" />
+        <TouchableOpacity style={ts.btn} onPress={fetchExchange} activeOpacity={0.7}>
+          <Text style={ts.btnTxt}>See Exchange</Text>
         </TouchableOpacity>
       </View>
-      {loading && <Text style={toolStyles.info}>Loading...</Text>}
-      {error ? <Text style={toolStyles.error}>{error}</Text> : null}
-      {result && (
-        <View style={moneyStyles.resultCard}>
-          <Text style={moneyStyles.resultMain}>{amount} {from} = <Text style={moneyStyles.resultValue}>{result} {to}</Text></Text>
-          <Text style={moneyStyles.rateLine}>1 {from} = {rate} {to}</Text>
+      {loading && <Text style={ts.info}>Loading...</Text>}
+      {!!error  && <Text style={ts.error}>{error}</Text>}
+      {result   && (
+        <View style={ms.resultCard}>
+          <Text style={ms.resultMain}>{amount} {from} = <Text style={ms.resultVal}>{result} {to}</Text></Text>
+          <Text style={ms.rateLine}>1 {from} = {rate} {to}</Text>
         </View>
       )}
     </View>
   );
 });
-
-const moneyStyles = StyleSheet.create({
-  pickerRow: { flexDirection: 'row', marginBottom: 4 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#1e1e1e', marginRight: 6, borderWidth: 1, borderColor: '#333' },
-  chipActive: { backgroundColor: '#1a3a2a', borderColor: '#27ae60' },
-  chipText: { color: '#aaa', fontSize: 12, fontWeight: '600' },
-  chipTextActive: { color: '#27ae60' },
-  resultCard: { backgroundColor: '#0f1a14', borderRadius: 14, padding: 16, marginTop: 12, borderWidth: 1, borderColor: '#1c3a26' },
-  resultMain: { color: '#ccc', fontSize: 15 },
-  resultValue: { color: '#27ae60', fontWeight: '700' },
-  rateLine: { color: '#555', fontSize: 12, marginTop: 6 },
+const ms = StyleSheet.create({
+  chip:       { paddingHorizontal:12, paddingVertical:6, borderRadius:20, backgroundColor:'#1e1e1e', marginRight:6, borderWidth:1, borderColor:'#333' },
+  chipActive: { backgroundColor:'#1a3a2a', borderColor:'#27ae60' },
+  chipTxt:    { color:'#aaa', fontSize:12, fontWeight:'600' },
+  chipTxtActive: { color:'#27ae60' },
+  resultCard: { backgroundColor:'#0f1a14', borderRadius:14, padding:16, marginTop:12, borderWidth:1, borderColor:'#1c3a26' },
+  resultMain: { color:'#ccc', fontSize:15 },
+  resultVal:  { color:'#27ae60', fontWeight:'700' },
+  rateLine:   { color:'#555', fontSize:12, marginTop:6 },
 });
 
-// ─── Todo Tool ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// TODO TOOL  — notifies parent on change via _todoListener
+// ══════════════════════════════════════════════════════════════════════════════
 const TodoTool = memo(() => {
   const [todos, setTodos] = useState<TodoItem[]>(() => [..._todos]);
   const [input, setInput] = useState('');
 
+  const sync = (next: TodoItem[]) => {
+    _todos = next;
+    setTodos(next);
+    _todoListener?.();   // notify grid to refresh preview
+  };
+
   const addTodo = useCallback(() => {
     const text = input.trim();
     if (!text) return;
-    const next = [...todos, { id: makeId(), text, done: false }];
-    setTodos(next); _todos = next; setInput('');
+    sync([...todos, { id:makeId(), text, done:false }]);
+    setInput('');
   }, [input, todos]);
 
-  const toggle = useCallback((id: string) => {
-    const next = todos.map(t => t.id === id ? { ...t, done: !t.done } : t);
-    setTodos(next); _todos = next;
+  const toggle = useCallback((id:string) => {
+    sync(todos.map(t => t.id===id ? {...t, done:!t.done} : t));
   }, [todos]);
 
-  const remove = useCallback((id: string) => {
-    const next = todos.filter(t => t.id !== id);
-    setTodos(next); _todos = next;
+  const remove = useCallback((id:string) => {
+    sync(todos.filter(t => t.id!==id));
   }, [todos]);
 
   return (
-    <View style={toolStyles.container}>
-      <Text style={toolStyles.title}>📝 To Do</Text>
-      <View style={toolStyles.row}>
-        <TextInput
-          style={toolStyles.input}
-          value={input}
-          onChangeText={setInput}
-          placeholder="Add a task..."
-          placeholderTextColor="#555"
-          onSubmitEditing={addTodo}
-          returnKeyType="done"
-        />
-        <TouchableOpacity style={toolStyles.btn} onPress={addTodo} activeOpacity={0.7}>
-          <Text style={toolStyles.btnText}>+</Text>
+    <View style={ts.container}>
+      <Text style={ts.title}>📝 To Do</Text>
+      <View style={ts.row}>
+        <TextInput style={ts.input} value={input} onChangeText={setInput}
+          placeholder="Add a task..." placeholderTextColor="#555"
+          onSubmitEditing={addTodo} returnKeyType="done" />
+        <TouchableOpacity style={ts.btn} onPress={addTodo} activeOpacity={0.7}>
+          <Text style={ts.btnTxt}>+</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView style={todoStyles.list} showsVerticalScrollIndicator={false}>
-        {todos.length === 0 && <Text style={toolStyles.info}>No tasks yet. Add one!</Text>}
-        {todos.map(t => (
-          <View key={t.id} style={todoStyles.item}>
-            <TouchableOpacity onPress={() => toggle(t.id)} style={todoStyles.checkWrap} activeOpacity={0.7}>
-              <View style={[todoStyles.check, t.done && todoStyles.checkDone]}>
-                {t.done && <Text style={todoStyles.checkMark}>✓</Text>}
-              </View>
-            </TouchableOpacity>
-            <Text style={[todoStyles.text, t.done && todoStyles.textDone]} numberOfLines={2}>{t.text}</Text>
-            <TouchableOpacity onPress={() => remove(t.id)} activeOpacity={0.7}>
-              <Text style={todoStyles.del}>✕</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-      </ScrollView>
+      {todos.length===0 && <Text style={ts.info}>No tasks yet. Add one!</Text>}
+      {todos.map(t => (
+        <View key={t.id} style={todo.item}>
+          <TouchableOpacity onPress={()=>toggle(t.id)} style={todo.checkWrap} activeOpacity={0.7}>
+            <View style={[todo.check, t.done && todo.checkDone]}>
+              {t.done && <Text style={todo.checkMark}>✓</Text>}
+            </View>
+          </TouchableOpacity>
+          <Text style={[todo.text, t.done && todo.textDone]} numberOfLines={2}>{t.text}</Text>
+          <TouchableOpacity onPress={()=>remove(t.id)} activeOpacity={0.7}>
+            <Text style={todo.del}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
     </View>
   );
 });
-
-const todoStyles = StyleSheet.create({
-  list: { maxHeight: 260, marginTop: 8 },
-  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1a1a1a', gap: 10 },
-  checkWrap: { padding: 2 },
-  check: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#27ae60', justifyContent: 'center', alignItems: 'center' },
-  checkDone: { backgroundColor: '#27ae60', borderColor: '#27ae60' },
-  checkMark: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  text: { flex: 1, color: '#ddd', fontSize: 14 },
-  textDone: { color: '#555', textDecorationLine: 'line-through' },
-  del: { color: '#555', fontSize: 16, paddingHorizontal: 4 },
+const todo = StyleSheet.create({
+  item:     { flexDirection:'row', alignItems:'center', paddingVertical:12, borderBottomWidth:1, borderBottomColor:'#1a1a1a', gap:10 },
+  checkWrap:{ padding:2 },
+  check:    { width:22, height:22, borderRadius:11, borderWidth:2, borderColor:'#27ae60', justifyContent:'center', alignItems:'center' },
+  checkDone:{ backgroundColor:'#27ae60' },
+  checkMark:{ color:'#fff', fontSize:12, fontWeight:'700' },
+  text:     { flex:1, color:'#ddd', fontSize:14 },
+  textDone: { color:'#555', textDecorationLine:'line-through' },
+  del:      { color:'#555', fontSize:16, paddingHorizontal:4 },
 });
 
-// ─── Countdown Tool ───────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// COUNTDOWN TOOL  — native Android date picker, notifies parent on change
+// ══════════════════════════════════════════════════════════════════════════════
 const CountdownTool = memo(() => {
   const [countdowns, setCountdowns] = useState<CountdownItem[]>(() => [..._countdowns]);
-  const [name, setName] = useState('');
-  const [date, setDate] = useState('');
-  const [tick, setTick] = useState(0);
+  const [name, setName]             = useState('');
+  const [pickedDate, setPickedDate] = useState<Date|null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [, setTick]                 = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60_000);
     return () => clearInterval(id);
   }, []);
 
-  const getDaysLeft = useCallback((iso: string) => {
-    const now = new Date(); now.setHours(0,0,0,0);
-    const target = new Date(iso); target.setHours(0,0,0,0);
-    return Math.ceil((target.getTime() - now.getTime()) / 86400000);
+  const syncCd = (next: CountdownItem[]) => {
+    _countdowns = next;
+    setCountdowns(next);
+    _cdListener?.();
+  };
+
+  const onDateChange = useCallback((_: DateTimePickerEvent, selected?: Date) => {
+    setShowPicker(false);
+    if (selected) setPickedDate(selected);
   }, []);
 
-  const addCountdown = useCallback(() => {
-    if (!name.trim() || !date.trim()) return;
-    const parsed = new Date(date);
-    if (isNaN(parsed.getTime())) { Alert.alert('Invalid date', 'Please enter a valid date (YYYY-MM-DD)'); return; }
-    const next = [...countdowns, { id: makeId(), name: name.trim(), targetDate: parsed.toISOString() }];
-    setCountdowns(next); _countdowns = next;
-    setName(''); setDate('');
-  }, [name, date, countdowns]);
+  const add = useCallback(() => {
+    if (!name.trim()) { Alert.alert('Missing name', 'Please enter an event name.'); return; }
+    if (!pickedDate)  { Alert.alert('Missing date', 'Please pick a date first.'); return; }
+    syncCd([...countdowns, { id: makeId(), name: name.trim(), targetDate: pickedDate.toISOString() }]);
+    setName(''); setPickedDate(null);
+  }, [name, pickedDate, countdowns]);
 
   const remove = useCallback((id: string) => {
-    const next = countdowns.filter(c => c.id !== id);
-    setCountdowns(next); _countdowns = next;
+    syncCd(countdowns.filter(c => c.id !== id));
   }, [countdowns]);
 
   return (
-    <View style={toolStyles.container}>
-      <Text style={toolStyles.title}>⏳ Countdown</Text>
-      <TextInput
-        style={[toolStyles.input, { marginBottom: 8 }]}
-        value={name}
-        onChangeText={setName}
-        placeholder="Event name..."
-        placeholderTextColor="#555"
-      />
-      <View style={toolStyles.row}>
-        <TextInput
-          style={toolStyles.input}
-          value={date}
-          onChangeText={setDate}
-          placeholder="Date (YYYY-MM-DD)"
-          placeholderTextColor="#555"
-          keyboardType="numbers-and-punctuation"
+    <View style={ts.container}>
+      <Text style={ts.title}>⏳ Countdown</Text>
+
+      <TextInput style={[ts.input, { marginBottom: 10 }]} value={name} onChangeText={setName}
+        placeholder="Event name..." placeholderTextColor="#555" />
+
+      {/* Date picker trigger button */}
+      <TouchableOpacity style={cdst.dateBtn} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
+        <Text style={cdst.dateBtnIcon}>📅</Text>
+        <Text style={[cdst.dateBtnTxt, !pickedDate && { color: '#555' }]}>
+          {pickedDate ? formatDate(pickedDate) : 'Pick a date'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Native Android date picker — renders inline when visible */}
+      {showPicker && (
+        <DateTimePicker
+          value={pickedDate || new Date()}
+          mode="date"
+          display="calendar"
+          minimumDate={new Date()}
+          onChange={onDateChange}
         />
-        <TouchableOpacity style={toolStyles.btn} onPress={addCountdown} activeOpacity={0.7}>
-          <Text style={toolStyles.btnText}>Start</Text>
-        </TouchableOpacity>
-      </View>
-      <ScrollView style={cdStyles.list} showsVerticalScrollIndicator={false}>
-        {countdowns.length === 0 && <Text style={toolStyles.info}>No countdowns yet.</Text>}
-        {countdowns.map(c => {
-          const days = getDaysLeft(c.targetDate);
-          const past = days < 0;
-          return (
-            <View key={c.id} style={cdStyles.item}>
-              <View style={cdStyles.info}>
-                <Text style={cdStyles.eventName}>{c.name}</Text>
-                <Text style={cdStyles.targetDate}>{new Date(c.targetDate).toDateString()}</Text>
-              </View>
-              <View style={cdStyles.daysWrap}>
-                <Text style={[cdStyles.days, past && cdStyles.daysPast]}>
-                  {past ? `${Math.abs(days)}d ago` : days === 0 ? 'Today!' : `${days}d`}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => remove(c.id)} activeOpacity={0.7}>
-                <Text style={todoStyles.del}>✕</Text>
-              </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={[ts.btn, { marginTop: 10, alignSelf: 'stretch', alignItems: 'center' }]}
+        onPress={add} activeOpacity={0.7}>
+        <Text style={ts.btnTxt}>Start Countdown</Text>
+      </TouchableOpacity>
+
+      {countdowns.length === 0 && <Text style={ts.info}>No countdowns yet.</Text>}
+
+      {countdowns.map(c => {
+        const days = daysLeft(c.targetDate);
+        const past = days < 0;
+        return (
+          <View key={c.id} style={cdst.item}>
+            <View style={{ flex: 1 }}>
+              <Text style={cdst.name}>{c.name}</Text>
+              <Text style={cdst.dateStr}>{new Date(c.targetDate).toDateString()}</Text>
             </View>
-          );
-        })}
-      </ScrollView>
+            <View style={[cdst.pill, past && cdst.pillPast]}>
+              <Text style={[cdst.days, past && cdst.daysPast]}>
+                {past ? `${Math.abs(days)}d ago` : days === 0 ? 'Today!' : `${days}d`}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => remove(c.id)} activeOpacity={0.7}>
+              <Text style={todo.del}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      })}
     </View>
   );
 });
-
-const cdStyles = StyleSheet.create({
-  list: { maxHeight: 240, marginTop: 8 },
-  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1a1a1a', gap: 10 },
-  info: { flex: 1 },
-  eventName: { color: '#ddd', fontSize: 14, fontWeight: '600' },
-  targetDate: { color: '#555', fontSize: 11, marginTop: 2 },
-  daysWrap: { backgroundColor: '#1a3a2a', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
-  days: { color: '#27ae60', fontSize: 14, fontWeight: '700' },
-  daysPast: { color: '#e05' },
+const cdst = StyleSheet.create({
+  dateBtn:    { flexDirection:'row', alignItems:'center', backgroundColor:'#1a1a1a', borderRadius:12, paddingHorizontal:14, paddingVertical:12, borderWidth:1, borderColor:'#2a2a2a', gap:8 },
+  dateBtnIcon:{ fontSize:18 },
+  dateBtnTxt: { color:'#fff', fontSize:14 },
+  item:       { flexDirection:'row', alignItems:'center', paddingVertical:12, borderBottomWidth:1, borderBottomColor:'#1a1a1a', gap:10, marginTop:4 },
+  name:       { color:'#ddd', fontSize:14, fontWeight:'600' },
+  dateStr:    { color:'#555', fontSize:11, marginTop:2 },
+  pill:       { backgroundColor:'#1a3a2a', borderRadius:10, paddingHorizontal:10, paddingVertical:4 },
+  pillPast:   { backgroundColor:'#2a0a0a' },
+  days:       { color:'#27ae60', fontSize:13, fontWeight:'700' },
+  daysPast:   { color:'#e05' },
 });
 
-// ─── Tool button shared styles ─────────────────────────────────────────────────
-const toolStyles = StyleSheet.create({
-  container: { flex: 1, padding: 4 },
-  title: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 14 },
-  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  input: { flex: 1, height: 40, backgroundColor: '#1a1a1a', borderRadius: 12, paddingHorizontal: 14, color: '#fff', fontSize: 14, borderWidth: 1, borderColor: '#2a2a2a' },
-  btn: { backgroundColor: '#27ae60', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  btnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  label: { color: '#666', fontSize: 11, fontWeight: '600', marginBottom: 6, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  info: { color: '#555', fontSize: 13, textAlign: 'center', marginTop: 20 },
-  error: { color: '#e05', fontSize: 13, marginTop: 10, textAlign: 'center' },
+// ─── Shared tool styles ───────────────────────────────────────────────────────
+const ts = StyleSheet.create({
+  container: { paddingBottom:20 },
+  title:  { color:'#fff', fontSize:17, fontWeight:'700', marginBottom:14 },
+  row:    { flexDirection:'row', gap:8, alignItems:'center' },
+  input:  { flex:1, height:42, backgroundColor:'#1a1a1a', borderRadius:12, paddingHorizontal:14, color:'#fff', fontSize:14, borderWidth:1, borderColor:'#2a2a2a' },
+  btn:    { backgroundColor:'#27ae60', borderRadius:12, paddingHorizontal:16, paddingVertical:11 },
+  btnTxt: { color:'#fff', fontSize:13, fontWeight:'700' },
+  label:  { color:'#666', fontSize:11, fontWeight:'600', marginBottom:6, marginTop:10, textTransform:'uppercase', letterSpacing:0.5 },
+  info:   { color:'#555', fontSize:13, textAlign:'center', marginTop:20 },
+  error:  { color:'#e05', fontSize:13, marginTop:10, textAlign:'center' },
+});
+
+// ─── Clock ─────────────────────────────────────────────────────────────────────
+const Clock = memo(() => {
+  const [time, setTime] = useState(getClockStr());
+  useEffect(() => { const id = setInterval(()=>setTime(getClockStr()), 10_000); return ()=>clearInterval(id); }, []);
+  return <Text style={ds.clockText}>{time}</Text>;
 });
 
 // ─── Tool card ─────────────────────────────────────────────────────────────────
-interface ToolCardProps {
-  icon: string;
-  label: string;
-  onPress: () => void;
-  preview?: string;
-}
-
-const ToolCard = memo(({ icon, label, onPress, preview }: ToolCardProps) => (
-  <TouchableOpacity style={cardStyles.card} onPress={onPress} activeOpacity={0.7}>
-    <Text style={cardStyles.icon}>{icon}</Text>
-    <Text style={cardStyles.label}>{label}</Text>
-    {preview ? <Text style={cardStyles.preview} numberOfLines={2}>{preview}</Text> : null}
+const ToolCard = memo(({ icon, label, onPress, preview }: {
+  icon:string; label:string; onPress:()=>void; preview?:string;
+}) => (
+  <TouchableOpacity style={card.wrap} onPress={onPress} activeOpacity={0.7}>
+    <Text style={card.icon}>{icon}</Text>
+    <Text style={card.label}>{label}</Text>
+    {preview ? <Text style={card.preview} numberOfLines={2}>{preview}</Text> : null}
   </TouchableOpacity>
 ));
-
-const cardStyles = StyleSheet.create({
-  card: { flex: 1, backgroundColor: '#111', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#222', minHeight: 90, justifyContent: 'center' },
-  icon: { fontSize: 26, marginBottom: 4 },
-  label: { color: '#ddd', fontSize: 12, fontWeight: '700' },
-  preview: { color: '#555', fontSize: 10, marginTop: 4, lineHeight: 14 },
+const card = StyleSheet.create({
+  wrap:    { flex:1, backgroundColor:'#111', borderRadius:16, padding:14, borderWidth:1, borderColor:'#222', minHeight:92, justifyContent:'center' },
+  icon:    { fontSize:26, marginBottom:4 },
+  label:   { color:'#ddd', fontSize:12, fontWeight:'700' },
+  preview: { color:'#555', fontSize:10, marginTop:4, lineHeight:14 },
 });
 
-// ─── Clock ────────────────────────────────────────────────────────────────────
-const Clock = memo(() => {
-  const [time, setTime] = useState(getClockStr());
-  useEffect(() => {
-    const id = setInterval(() => setTime(getClockStr()), 10_000);
-    return () => clearInterval(id);
-  }, []);
-  return <Text style={dashStyles.clockText}>{time}</Text>;
-});
-
-// ─── DashboardPopup ───────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// DASHBOARD POPUP — draggable bottom sheet
+// ══════════════════════════════════════════════════════════════════════════════
 const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }: DashboardPopupProps) => {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(40)).current;
+  const translateY     = useRef(new Animated.Value(SNAP_CLOSED)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const snapTarget     = useRef(SNAP_HALF);
+  const scrollRef      = useRef<ScrollView>(null);
+  const scrollAtTop    = useRef(true);
+
   const [activeTool, setActiveTool] = useState<ToolView>(null);
-  const [showChat, setShowChat] = useState(false);
-  const [period, setPeriod] = useState(() => getCurrentTimePeriod());
+  const [showChat,   setShowChat]   = useState(false);
+  const [visible,    setVisible]    = useState(true);
+
+  // Live preview state — updated via listeners when tools mutate data
+  const [todoPrev, setTodoPrev]   = useState<string|undefined>(() => {
+    const p = _todos.filter(t=>!t.done).length;
+    return p ? `${p} task${p>1?'s':''} pending` : undefined;
+  });
+  const [cdPrev, setCdPrev]       = useState<string|undefined>(() => {
+    if (!_countdowns.length) return undefined;
+    const c = _countdowns[0];
+    const d = daysLeft(c.targetDate);
+    return `${c.name}: ${d>=0?`${d}d left`:`${Math.abs(d)}d ago`}`;
+  });
+
+  // Register listeners so todo/countdown tools can ping us on change
+  useEffect(() => {
+    _todoListener = () => {
+      const p = _todos.filter(t=>!t.done).length;
+      setTodoPrev(p ? `${p} task${p>1?'s':''} pending` : undefined);
+    };
+    _cdListener = () => {
+      if (!_countdowns.length) { setCdPrev(undefined); return; }
+      const c = _countdowns[0];
+      const d = daysLeft(c.targetDate);
+      setCdPrev(`${c.name}: ${d>=0?`${d}d left`:`${Math.abs(d)}d ago`}`);
+    };
+    return () => { _todoListener = null; _cdListener = null; };
+  }, []);
+
   const [assistantMsg, setAssistantMsg] = useState(() => {
-    const p = getCurrentTimePeriod();
-    const msg = getAssistantMessage(userName, p);
-    _prevMessage = msg; _lastPeriod = p;
-    return msg;
+    const msg = getAssistantMessage(userName, getCurrentTimePeriod());
+    _prevMessage = msg; return msg;
   });
   const [msgChanged, setMsgChanged] = useState(false);
-
-  // Update period & message every minute
   useEffect(() => {
     const id = setInterval(() => {
-      const p = getCurrentTimePeriod();
-      const msg = getAssistantMessage(userName, p);
-      if (msg !== _prevMessage) {
-        _prevMessage = msg; _lastPeriod = p;
-        setAssistantMsg(msg);
-        setMsgChanged(true);
-      }
+      const msg = getAssistantMessage(userName, getCurrentTimePeriod());
+      if (msg !== _prevMessage) { _prevMessage = msg; setAssistantMsg(msg); setMsgChanged(true); }
     }, 60_000);
     return () => clearInterval(id);
   }, [userName]);
 
-  // Fade + slide in
-  useEffect(() => {
+  // ── Snap ──────────────────────────────────────────────────────────────────
+  const snapTo = useCallback((toValue: number, cb?: ()=>void) => {
+    snapTarget.current = toValue;
+    const opacity = toValue===SNAP_CLOSED ? 0 : toValue===SNAP_HALF ? 0.55 : 0.75;
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
-      Animated.spring(slideAnim, { toValue: 0, friction: 8, tension: 90, useNativeDriver: true }),
-    ]).start();
-    return () => { fadeAnim.stopAnimation(); slideAnim.stopAnimation(); };
+      Animated.spring(translateY, { toValue, friction:22, tension:200, useNativeDriver:true }),
+      Animated.timing(overlayOpacity, { toValue:opacity, duration:200, useNativeDriver:true }),
+    ]).start(({ finished }) => { if (finished && cb) cb(); });
   }, []);
 
-  const handleClose = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 30, duration: 150, useNativeDriver: true }),
-    ]).start(() => onClose());
-  }, [onClose]);
+  useEffect(() => {
+    translateY.setValue(SNAP_CLOSED);
+    overlayOpacity.setValue(0);
+    snapTo(SNAP_HALF);
+  }, []); // eslint-disable-line
 
-  // Hardware back
+  const handleClose = useCallback(() => {
+    snapTo(SNAP_CLOSED, () => { setVisible(false); onClose(); });
+  }, [snapTo, onClose]);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (activeTool) { setActiveTool(null); return true; }
@@ -516,132 +512,148 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     return () => sub.remove();
   }, [handleClose, activeTool]);
 
-  // Auto-close on background
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state !== 'active') handleClose();
-    });
+    const sub = AppState.addEventListener('change', (s: AppStateStatus) => { if (s!=='active') handleClose(); });
     return () => sub.remove();
   }, [handleClose]);
 
-  const openTool = useCallback((tool: ToolView) => {
-    if (tool === 'chat') { setShowChat(true); return; }
-    setActiveTool(tool);
-  }, []);
+  // ── PanResponder ──────────────────────────────────────────────────────────
+  const panResponder = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_: GestureResponderEvent, gs) => {
+      if (snapTarget.current === SNAP_FULL)
+        return gs.dy > 0 && scrollAtTop.current && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5;
+      return Math.abs(gs.dy) > Math.abs(gs.dx) * 1.2 && Math.abs(gs.dy) > 6;
+    },
+    onStartShouldSetPanResponder: () => false,
+    onPanResponderGrant: () => {
+      translateY.stopAnimation(); overlayOpacity.stopAnimation();
+    },
+    onPanResponderMove: (_: GestureResponderEvent, gs) => {
+      let next = snapTarget.current + gs.dy;
+      if (next < SNAP_FULL) next = SNAP_FULL + (next - SNAP_FULL) * 0.2;
+      translateY.setValue(next);
+      const ratio = 1 - (next - SNAP_FULL) / (SNAP_CLOSED - SNAP_FULL);
+      overlayOpacity.setValue(Math.min(0.75, Math.max(0, ratio * 0.75)));
+    },
+    onPanResponderRelease: (_: GestureResponderEvent, gs) => {
+      if (gs.vy > 0.8 && gs.dy > 30) { handleClose(); return; }
+      if (gs.vy < -0.5) { snapTo(SNAP_FULL); return; }
+      translateY.stopAnimation(val => {
+        const mid = (SNAP_FULL + SNAP_HALF) / 2;
+        if (val < mid) snapTo(SNAP_FULL);
+        else if (val > SCREEN_H * 0.75) handleClose();
+        else snapTo(SNAP_HALF);
+      });
+    },
+    onPanResponderTerminate: () => snapTo(snapTarget.current),
+  })).current;
 
-  const backToHome = useCallback(() => setActiveTool(null), []);
-
-  // Countdown preview
-  const countdownPreview = useMemo(() => {
-    if (_countdowns.length === 0) return undefined;
-    const c = _countdowns[0];
-    const now = new Date(); now.setHours(0,0,0,0);
-    const target = new Date(c.targetDate); target.setHours(0,0,0,0);
-    const days = Math.ceil((target.getTime() - now.getTime()) / 86400000);
-    return `${c.name}: ${days >= 0 ? `${days}d left` : `${Math.abs(days)}d ago`}`;
-  }, []);
-
-  // Todo preview
-  const todoPreview = useMemo(() => {
-    const pending = _todos.filter(t => !t.done);
-    if (pending.length === 0) return undefined;
-    return `${pending.length} task${pending.length > 1 ? 's' : ''} pending`;
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollAtTop.current = e.nativeEvent.contentOffset.y <= 2;
   }, []);
 
   if (showChat) {
-    return (
-      <AssistantPopup
-        onClose={() => setShowChat(false)}
-        userName={userName}
-        assistantName={assistantName}
-        avatarSource={avatarSource || DEFAULT_ASSISTANT_AVATAR}
-      />
-    );
+    return <AssistantPopup onClose={()=>setShowChat(false)}
+      userName={userName} assistantName={assistantName}
+      avatarSource={avatarSource||DEFAULT_ASSISTANT_AVATAR} />;
   }
+  if (!visible) return null;
 
   return (
-    <Animated.View style={[dashStyles.overlay, { opacity: fadeAnim }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+    <Modal transparent visible animationType="none" onRequestClose={handleClose} statusBarTranslucent>
+      {/* Dim overlay */}
+      <Animated.View style={[ds.overlay, { opacity:overlayOpacity }]} pointerEvents="box-none">
+        <TouchableOpacity style={{flex:1}} activeOpacity={1} onPress={handleClose} />
+      </Animated.View>
 
-      {/* Close strip at top */}
-      <TouchableOpacity style={dashStyles.closeStrip} onPress={handleClose} activeOpacity={1} />
+      {/* Sheet */}
+      <Animated.View style={[ds.sheet, { transform:[{translateY}] }]}>
 
-      <Animated.View style={[dashStyles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-        {/* Header row */}
-        <View style={dashStyles.header}>
-          {/* Avatar */}
-          <TouchableOpacity
-            style={dashStyles.avatarWrap}
-            onPress={() => { setMsgChanged(false); openTool('chat'); }}
-            activeOpacity={0.8}
-          >
-            <View style={dashStyles.avatarCircle}>
-              <Image
-                source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }}
-                style={dashStyles.avatar}
-              />
-            </View>
-            {msgChanged && <View style={dashStyles.badge} />}
-          </TouchableOpacity>
-
-          {/* Right side: clock + message */}
-          <View style={dashStyles.headerRight}>
-            <View style={dashStyles.clockBox}>
-              <Clock />
-            </View>
-            <View style={dashStyles.msgBox}>
-              <Text style={dashStyles.msgText} numberOfLines={2}>{assistantMsg}</Text>
-            </View>
-          </View>
+        {/* Pill handle */}
+        <View style={ds.handleArea} {...panResponder.panHandlers}>
+          <View style={ds.pill} />
         </View>
 
-        {/* Tool content or grid */}
-        {activeTool ? (
-          <View style={dashStyles.toolArea}>
-            <TouchableOpacity style={dashStyles.backBtn} onPress={backToHome} activeOpacity={0.7}>
-              <Text style={dashStyles.backTxt}>← Back</Text>
+        <ScrollView ref={scrollRef} style={ds.scroll} contentContainerStyle={ds.scrollContent}
+          showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={onScroll}
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={snapTarget.current === SNAP_FULL}>
+
+          {/* ── HEADER: clock top, avatar middle, message bottom ── */}
+          <View style={ds.headerCol}>
+            {/* Clock box — top */}
+            <View style={ds.clockBox}>
+              <Clock />
+            </View>
+
+            {/* Avatar — middle, centered */}
+            <TouchableOpacity style={ds.avatarWrap}
+              onPress={() => { setMsgChanged(false); setShowChat(true); }}
+              activeOpacity={0.8}>
+              <View style={ds.avatarCircle}>
+                <Image source={{ uri: avatarSource||DEFAULT_ASSISTANT_AVATAR }} style={ds.avatar} />
+              </View>
+              {msgChanged && <View style={ds.badge} />}
             </TouchableOpacity>
-            {activeTool === 'weather' && <WeatherTool />}
-            {activeTool === 'money' && <MoneyTool />}
-            {activeTool === 'todo' && <TodoTool />}
-            {activeTool === 'countdown' && <CountdownTool />}
-          </View>
-        ) : (
-          <View style={dashStyles.toolGrid}>
-            <View style={dashStyles.toolRow}>
-              <ToolCard icon="🌤️" label="Weather" onPress={() => openTool('weather')} />
-              <ToolCard icon="💱" label="Money Exchange" onPress={() => openTool('money')} />
-            </View>
-            <View style={dashStyles.toolRow}>
-              <ToolCard icon="📝" label="To Do" onPress={() => openTool('todo')} preview={todoPreview} />
-              <ToolCard icon="⏳" label="Countdown" onPress={() => openTool('countdown')} preview={countdownPreview} />
+
+            {/* Message box — bottom */}
+            <View style={ds.msgBox}>
+              <Text style={ds.msgText} numberOfLines={3}>{assistantMsg}</Text>
             </View>
           </View>
-        )}
+
+          {/* ── TOOLS ── */}
+          {activeTool ? (
+            <View>
+              <TouchableOpacity style={ds.backBtn} onPress={()=>setActiveTool(null)} activeOpacity={0.7}>
+                <Text style={ds.backTxt}>← Back</Text>
+              </TouchableOpacity>
+              {activeTool==='weather'   && <WeatherTool />}
+              {activeTool==='money'     && <MoneyTool />}
+              {activeTool==='todo'      && <TodoTool />}
+              {activeTool==='countdown' && <CountdownTool />}
+            </View>
+          ) : (
+            <View style={ds.grid}>
+              <View style={ds.gridRow}>
+                <ToolCard icon="🌤️" label="Weather"       onPress={()=>{ setActiveTool('weather');   snapTo(SNAP_FULL); }} />
+                <ToolCard icon="💱" label="Money Exchange" onPress={()=>{ setActiveTool('money');     snapTo(SNAP_FULL); }} />
+              </View>
+              <View style={ds.gridRow}>
+                <ToolCard icon="📝" label="To Do"       onPress={()=>{ setActiveTool('todo');      snapTo(SNAP_FULL); }} preview={todoPrev} />
+                <ToolCard icon="⏳" label="Countdown"   onPress={()=>{ setActiveTool('countdown'); snapTo(SNAP_FULL); }} preview={cdPrev} />
+              </View>
+            </View>
+          )}
+        </ScrollView>
       </Animated.View>
-    </Animated.View>
+    </Modal>
   );
 });
 
-const dashStyles = StyleSheet.create({
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 900, justifyContent: 'flex-end' },
-  closeStrip: { flex: 1 },
-  sheet: { backgroundColor: '#0a0a0a', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 34, minHeight: 420, borderWidth: 1, borderColor: '#1a1a1a', borderBottomWidth: 0 },
-  header: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  avatarWrap: { position: 'relative', alignSelf: 'flex-start' },
-  avatarCircle: { width: 64, height: 64, borderRadius: 32, overflow: 'hidden', backgroundColor: '#1a1a1a', borderWidth: 2, borderColor: '#27ae60' },
-  avatar: { width: '100%', height: '100%' },
-  badge: { position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: 7, backgroundColor: '#ff3b30', borderWidth: 2, borderColor: '#0a0a0a', zIndex: 1 },
-  headerRight: { flex: 1, gap: 8 },
-  clockBox: { backgroundColor: '#0e1a2e', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#1a3a6a' },
-  clockText: { color: '#5ba3f5', fontSize: 22, fontWeight: '300', letterSpacing: 2, fontVariant: ['tabular-nums'] },
-  msgBox: { backgroundColor: '#0e2a1e', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: '#1a4a2e' },
-  msgText: { color: '#7dd4a8', fontSize: 12, lineHeight: 18 },
-  toolGrid: { gap: 10 },
-  toolRow: { flexDirection: 'row', gap: 10 },
-  toolArea: { flex: 1 },
-  backBtn: { marginBottom: 12 },
-  backTxt: { color: '#27ae60', fontSize: 14, fontWeight: '600' },
+const ds = StyleSheet.create({
+  overlay:     { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#000' },
+  sheet:       { position:'absolute', left:0, right:0, top:0, bottom:0, marginTop:SNAP_HALF-SHEET_RADIUS, backgroundColor:'#0a0a0a', borderTopLeftRadius:SHEET_RADIUS, borderTopRightRadius:SHEET_RADIUS, borderWidth:1, borderColor:'#1e1e1e', borderBottomWidth:0, elevation:24 },
+  handleArea:  { alignItems:'center', paddingTop:12, paddingBottom:10 },
+  pill:        { width:40, height:4, borderRadius:2, backgroundColor:'#3a3a3a' },
+  scroll:      { flex:1 },
+  scrollContent:{ paddingHorizontal:20, paddingBottom:40 },
+
+  // Header: vertical stack — clock, avatar (center), message
+  headerCol:   { alignItems:'center', gap:10, marginBottom:20 },
+  clockBox:    { width:'100%', backgroundColor:'#0e1a2e', borderRadius:12, paddingHorizontal:14, paddingVertical:10, borderWidth:1, borderColor:'#1a3a6a', alignItems:'center' },
+  clockText:   { color:'#5ba3f5', fontSize:26, fontWeight:'300', letterSpacing:3, fontVariant:['tabular-nums'] as any },
+  avatarWrap:  { position:'relative' },
+  avatarCircle:{ width:72, height:72, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a', borderWidth:2.5, borderColor:'#27ae60' },
+  avatar:      { width:'100%', height:'100%' },
+  badge:       { position:'absolute', top:0, right:0, width:16, height:16, borderRadius:8, backgroundColor:'#ff3b30', borderWidth:2, borderColor:'#0a0a0a', zIndex:1 },
+  msgBox:      { width:'100%', backgroundColor:'#0e2a1e', borderRadius:12, paddingHorizontal:14, paddingVertical:10, borderWidth:1, borderColor:'#1a4a2e' },
+  msgText:     { color:'#7dd4a8', fontSize:12, lineHeight:18, textAlign:'center' },
+
+  grid:        { gap:10 },
+  gridRow:     { flexDirection:'row', gap:10 },
+  backBtn:     { marginBottom:14 },
+  backTxt:     { color:'#27ae60', fontSize:14, fontWeight:'600' },
 });
 
 export default DashboardPopup;
