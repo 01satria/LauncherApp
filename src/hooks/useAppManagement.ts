@@ -22,13 +22,21 @@ export const useAppManagement = () => {
   const refreshApps = useCallback(async () => {
     try {
       const result = await InstalledApps.getSortedApps();
-      const apps = result.map((a: any) => ({
+      const newApps: AppData[] = result.map((a: any) => ({
         label: a.label || 'App',
         packageName: a.packageName,
         icon: a.icon,
       }));
-      setAllApps(apps);
-      setListKey(prev => prev + 1); // Force FlatList re-render after app list changes
+
+      // Smart diff: only update state if the package list actually changed.
+      // This prevents FlatList from re-rendering on every foreground switch
+      // when no app was installed or uninstalled.
+      setAllApps(prev => {
+        const prevPkgs = prev.map(a => a.packageName).join(',');
+        const newPkgs = newApps.map(a => a.packageName).join(',');
+        if (prevPkgs === newPkgs) return prev; // no change → no re-render
+        return newApps;
+      });
     } catch (e) {
       console.error('refreshApps failed:', e);
     }

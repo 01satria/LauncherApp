@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -53,6 +53,7 @@ const App = () => {
   // Animations
   const modalScaleAnim = useRef(new Animated.Value(0));
   const settingsModalAnim = useRef(new Animated.Value(0));
+  const lastRefreshRef = useRef<number>(0);
 
   const {
     allApps,
@@ -102,11 +103,26 @@ const App = () => {
       setLoading(false);
     };
 
+    const REFRESH_THROTTLE_MS = 5000; // minimum 5 seconds between foreground refreshes
+
+    const throttledRefresh = () => {
+      const now = Date.now();
+      if (now - lastRefreshRef.current >= REFRESH_THROTTLE_MS) {
+        lastRefreshRef.current = now;
+        refreshApps();
+      }
+    };
+
     init();
     refreshApps();
+    lastRefreshRef.current = Date.now();
 
+    // Install listener: fires when a new app is installed.
+    // refreshApps uses smart diff internally, so it won't cause a re-render
+    // unless the package list actually changed.
     const installSub = InstalledApps.startListeningForAppInstallations(() => {
       if (AppState.currentState === 'active') {
+        lastRefreshRef.current = Date.now();
         refreshApps();
       }
     });
@@ -121,9 +137,9 @@ const App = () => {
         modalScaleAnim.current.setValue(0);
         settingsModalAnim.current.setValue(0);
       } else {
-        // Refresh when returning to foreground to catch any installs/uninstalls
-        // that may have been missed by the install listener (e.g., installs via ADB or external stores)
-        refreshApps();
+        // Throttled refresh on foreground — catches installs missed by the listener
+        // (e.g., ADB, sideload). Will no-op if list hasn't changed (smart diff).
+        throttledRefresh();
       }
     });
 
@@ -292,7 +308,7 @@ const App = () => {
         }
       >
         <FlatList
-          key={`${listKey}-${layoutMode}`}
+          key={layoutMode}
           data={filteredApps}
           numColumns={layoutMode === 'grid' ? 4 : 1}
           keyExtractor={item => item.packageName}
