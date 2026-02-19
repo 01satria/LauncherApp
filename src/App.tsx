@@ -112,18 +112,17 @@ const App = () => {
     });
 
     const appStateSub = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active') {
-        setTimeout(() => refreshApps(), 500);
-      } else {
+      if (nextAppState !== 'active') {
         // Auto-close all modals when app goes to background
         setSettingsVisible(false);
         setActionModalVisible(false);
-        
         modalScaleAnim.current.stopAnimation();
         settingsModalAnim.current.stopAnimation();
         modalScaleAnim.current.setValue(0);
         settingsModalAnim.current.setValue(0);
       }
+      // NOTE: no refreshApps() on 'active' — install listener handles installs,
+      // and re-rendering 100+ app icons on every app switch wastes RAM/CPU.
     });
 
     return () => {

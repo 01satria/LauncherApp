@@ -426,7 +426,8 @@ const CountdownTool = memo(() => {
   const [, setTick] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t+1), 60_000);
+    // Only runs while CountdownTool is mounted (inside active dashboard)
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
     return () => clearInterval(id);
   }, []);
 
@@ -528,7 +529,7 @@ const ts = StyleSheet.create({
 // ─── Clock ─────────────────────────────────────────────────────────────────────
 const Clock = memo(() => {
   const [time, setTime] = useState(getClockStr());
-  useEffect(() => { const id = setInterval(() => setTime(getClockStr()), 10_000); return () => clearInterval(id); }, []);
+  useEffect(() => { const id = setInterval(() => setTime(getClockStr()), 30_000); return () => clearInterval(id); }, []);
   return <Text style={ds.clockText}>{time}</Text>;
 });
 
@@ -556,12 +557,14 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const translateY     = useRef(new Animated.Value(SNAP_CLOSED)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const snapTarget     = useRef(SNAP_HALF);
+  const currentY       = useRef(SNAP_CLOSED); // tracked manually, no stopAnimation needed
   const scrollRef      = useRef<ScrollView>(null);
   const scrollAtTop    = useRef(true);
 
-  const [activeTool, setActiveTool] = useState<ToolView>(null);
-  const [showChat,   setShowChat]   = useState(false);
-  const [visible,    setVisible]    = useState(true);
+  const [activeTool,     setActiveTool]     = useState<ToolView>(null);
+  const [showChat,       setShowChat]       = useState(false);
+  const [visible,        setVisible]        = useState(true);
+  const [scrollEnabled,  setScrollEnabled]  = useState(false); // false at SNAP_HALF, true at SNAP_FULL
 
   const [todoPrev, setTodoPrev] = useState<string|undefined>(() => {
     const p = _todos.filter(t => !t.done).length;
@@ -604,6 +607,8 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   // ── Snap ──────────────────────────────────────────────────────────────────
   const snapTo = useCallback((toValue: number, cb?: () => void) => {
     snapTarget.current = toValue;
+    currentY.current = toValue;
+    setScrollEnabled(toValue === SNAP_FULL);
     const opacity = toValue===SNAP_CLOSED ? 0 : toValue===SNAP_HALF ? 0.55 : 0.75;
     Animated.parallel([
       Animated.spring(translateY, { toValue, friction:22, tension:200, useNativeDriver:true }),
@@ -651,19 +656,22 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     onPanResponderMove: (_: GestureResponderEvent, gs) => {
       let next = snapTarget.current + gs.dy;
       if (next < SNAP_FULL) next = SNAP_FULL + (next - SNAP_FULL) * 0.2;
+      currentY.current = next; // track live position
       translateY.setValue(next);
       const ratio = 1 - (next - SNAP_FULL) / (SNAP_CLOSED - SNAP_FULL);
       overlayOpacity.setValue(Math.min(0.75, Math.max(0, ratio * 0.75)));
     },
     onPanResponderRelease: (_: GestureResponderEvent, gs) => {
-      if (gs.vy > 0.8 && gs.dy > 30) { handleClose(); return; }
+      // Fast flick down → close immediately, no delay
+      if (gs.vy > 0.5 || (gs.dy > 80 && gs.vy >= 0)) { handleClose(); return; }
+      // Fast flick up → expand to full
       if (gs.vy < -0.5) { snapTo(SNAP_FULL); return; }
-      translateY.stopAnimation(val => {
-        const mid = (SNAP_FULL + SNAP_HALF) / 2;
-        if (val < mid) snapTo(SNAP_FULL);
-        else if (val > SCREEN_H * 0.75) handleClose();
-        else snapTo(SNAP_HALF);
-      });
+      // Use currentY.current — already has the exact position, no stopAnimation needed
+      const val = currentY.current;
+      const mid = (SNAP_FULL + SNAP_HALF) / 2;
+      if (val < mid) snapTo(SNAP_FULL);
+      else if (val > SCREEN_H * 0.75) handleClose();
+      else snapTo(SNAP_HALF);
     },
     onPanResponderTerminate: () => snapTo(snapTarget.current),
   })).current;
@@ -709,7 +717,11 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
               onPress={() => { setMsgChanged(false); setShowChat(true); }}
               activeOpacity={0.8}>
               <View style={ds.avatarCircle}>
-                <Image source={{uri: avatarSource || DEFAULT_ASSISTANT_AVATAR}} style={ds.avatar} />
+                {avatarSource ? (
+                  <Image source={{uri: avatarSource}} style={ds.avatar} />
+                ) : (
+                  <View style={ds.avatarPlaceholder}><Text style={ds.avatarPlaceholderTxt}>👤</Text></View>
+                )}
               </View>
               {msgChanged && <View style={ds.badge} />}
             </TouchableOpacity>
@@ -732,7 +744,7 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           scrollEventThrottle={16}
           onScroll={onScroll}
           keyboardShouldPersistTaps="handled"
-          scrollEnabled={snapTarget.current === SNAP_FULL}
+          scrollEnabled={scrollEnabled}
         >
 
           {/* Tool grid or active tool */}
@@ -792,7 +804,9 @@ const ds = StyleSheet.create({
   grid:        { gap:10 },
   gridRow:     { flexDirection:'row', gap:10 },
   backBtn:     { marginBottom:14 },
-  backTxt:     { color:'#27ae60', fontSize:14, fontWeight:'600' },
+  backTxt:           { color:'#27ae60', fontSize:14, fontWeight:'600' },
+  avatarPlaceholder:  { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#1a1a1a' },
+  avatarPlaceholderTxt:{ fontSize:28 },
 });
 
 export default DashboardPopup;

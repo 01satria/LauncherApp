@@ -104,9 +104,8 @@ export const useAppManagement = () => {
       }
     }, 420);
 
-    setTimeout(() => refreshApps(), 1800);
-    setTimeout(() => refreshApps(), 4500);
-    setTimeout(() => refreshApps(), 8000);
+    // Single refresh after uninstall dialog — one is enough
+    setTimeout(() => refreshApps(), 2500);
   }, [refreshApps]);
 
   return {

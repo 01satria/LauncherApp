@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect } from 'react';
-import { View, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import DockAppItem from './DockAppItem';
 import DashboardPopup from './DashboardPopup';
 import { hasUnreadMessages, setBadgeListener } from './AssistantPopup';
@@ -31,7 +31,8 @@ const SimpleDock = memo(({
   useEffect(() => {
     setHasUnread(hasUnreadMessages());
     setBadgeListener(() => { setHasUnread(true); });
-    const interval = setInterval(() => { setHasUnread(hasUnreadMessages()); }, 10_000);
+    // Badge listener handles real-time updates; this is just a safety fallback
+    const interval = setInterval(() => { setHasUnread(hasUnreadMessages()); }, 60_000);
     return () => { clearInterval(interval); setBadgeListener(null); };
   }, []);
 
@@ -78,10 +79,13 @@ const SimpleDock = memo(({
             >
               {/* Lingkaran avatar dengan overflow hidden — hanya untuk gambar */}
               <View style={styles.avatarCircle}>
-                <Image 
-                  source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
-                  style={styles.avatar} 
-                />
+                {avatarSource ? (
+                  <Image source={{ uri: avatarSource }} style={styles.avatar} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarPlaceholderTxt}>👤</Text>
+                  </View>
+                )}
               </View>
 
               {/* Badge di luar avatarCircle agar tidak terpotong */}
@@ -190,6 +194,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  avatarPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+  },
+  avatarPlaceholderTxt: { fontSize: 22 },
 });
 
 export default SimpleDock;

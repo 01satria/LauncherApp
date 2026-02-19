@@ -21,10 +21,11 @@ export const CUSTOM_NOTIF_DISMISSED_PATH = `${CUSTOM_AVATAR_DIR}/notif_dismissed
 export const CUSTOM_LAYOUT_MODE_PATH = `${CUSTOM_AVATAR_DIR}/layout_mode.txt`;
 
 // Default values
-export const DEFAULT_ASSISTANT_AVATAR = "https://cdn-icons-png.flaticon.com/512/4140/4140048.png";
+// Empty fallback — app uses local avatar if set, shows blank circle otherwise (no network fetch)
+export const DEFAULT_ASSISTANT_AVATAR = "";
 
-// FlatList optimization
-export const INITIAL_NUM_TO_RENDER = 20;
-export const MAX_TO_RENDER_PER_BATCH = 10;
-export const WINDOW_SIZE = 5;
-export const UPDATE_CELLS_BATCHING_PERIOD = 50;
+// FlatList optimization — tuned for lower RAM usage
+export const INITIAL_NUM_TO_RENDER = 12;       // render 1 screen worth on mount
+export const MAX_TO_RENDER_PER_BATCH = 5;       // smaller batches = less JS pressure
+export const WINDOW_SIZE = 3;                   // 1 visible + 1 above + 1 below viewport
+export const UPDATE_CELLS_BATCHING_PERIOD = 100; // batch more aggressively

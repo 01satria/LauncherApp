@@ -110,7 +110,7 @@ const startScheduler = (userName: string) => {
   };
 
   // Check every 30s for better reliability (still very light on RAM)
-  _schedulerInterval = setInterval(tick, 30_000);
+  _schedulerInterval = setInterval(tick, 60_000);
   tick(); // immediate check on start
   console.log('[Scheduler] Started');
 };
@@ -337,54 +337,67 @@ const bubbleStyles = StyleSheet.create({
 });
 
 // ─── Typing Indicator (fixed: no AppState listener, stable loop) ──────────────
-const TypingDot = memo(({ delay }: { delay: number }) => {
-  const anim = useRef(new Animated.Value(0)).current;
+// TypingIndicator — single component with 3 Animated.Values driven by ONE loop
+// Replaces 3 separate TypingDot instances that each had their own loop + AppState listener
+const TypingIndicator = memo(() => {
+  const dots = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     const startLoop = () => {
       loopRef.current = Animated.loop(
         Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(anim, { toValue: -5, duration: 280, useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 0, duration: 280, useNativeDriver: true }),
-          Animated.delay(400),
-        ]),
+          Animated.stagger(160, dots.map(d =>
+            Animated.sequence([
+              Animated.timing(d, { toValue: -5, duration: 280, useNativeDriver: true }),
+              Animated.timing(d, { toValue: 0,  duration: 280, useNativeDriver: true }),
+            ])
+          )),
+          Animated.delay(300),
+        ])
       );
       loopRef.current.start();
     };
 
     startLoop();
 
+    // ONE AppState listener instead of three
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active') {
         loopRef.current?.stop();
-        anim.setValue(0);
+        dots.forEach(d => d.setValue(0));
         startLoop();
       } else {
         loopRef.current?.stop();
-        anim.setValue(0);
+        dots.forEach(d => d.setValue(0));
       }
     });
 
     return () => {
       loopRef.current?.stop();
-      anim.stopAnimation();
+      dots.forEach(d => d.stopAnimation());
       sub.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <Animated.View style={[typingStyles.dot, { transform: [{ translateY: anim }] }]} />;
+  return (
+    <View style={typingStyles.row}>
+      {dots.map((anim, i) => (
+        <Animated.View key={i} style={[typingStyles.dot, { transform: [{ translateY: anim }] }]} />
+      ))}
+    </View>
+  );
 });
 
 // Stable wrapper — only renders when isTyping is true, so dots mount fresh each time
 const TypingBubble = memo(() => (
   <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
-    <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble, typingStyles.row]}>
-      <TypingDot delay={0} />
-      <TypingDot delay={160} />
-      <TypingDot delay={320} />
+    <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble]}>
+      <TypingIndicator />
     </View>
   </View>
 ));
@@ -555,9 +568,10 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
         style={styles.msgList}
         contentContainerStyle={styles.msgContent}
         showsVerticalScrollIndicator={false}
-        initialNumToRender={20}
-        maxToRenderPerBatch={10}
-        windowSize={5}
+        initialNumToRender={15}
+        maxToRenderPerBatch={5}
+        windowSize={3}
+        removeClippedSubviews={true}
         decelerationRate="normal"
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"

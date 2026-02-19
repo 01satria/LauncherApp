@@ -1,4 +1,4 @@
-import React, { memo, useRef, useCallback, useEffect } from 'react';
+import React, { memo, useRef, useCallback } from 'react';
 import { TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import SafeAppIcon from './SafeAppIcon';
 import { AppData } from '../types';
@@ -10,49 +10,28 @@ interface DockAppItemProps {
   onLongPress: (pkg: string, label: string) => void;
 }
 
+const SPRING_IN  = { toValue: 0.8, friction: 5, tension: 100, useNativeDriver: true };
+const SPRING_OUT = { toValue: 1,   friction: 5, tension: 100, useNativeDriver: true };
+
 const DockAppItem = memo(({ app, onPress, onLongPress }: DockAppItemProps) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = useCallback(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.8,
-      friction: 5,
-      tension: 100,
-      useNativeDriver: true,
-    }).start();
-  }, [scaleAnim]);
-
-  const handlePressOut = useCallback(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 5,
-      tension: 100,
-      useNativeDriver: true,
-    }).start();
-  }, [scaleAnim]);
+  const handlePressIn  = useCallback(() => Animated.spring(scaleAnim, SPRING_IN).start(),  []);
+  const handlePressOut = useCallback(() => Animated.spring(scaleAnim, SPRING_OUT).start(), []);
 
   const handlePress = useCallback(() => {
-    // Force reset scale before launching app
     scaleAnim.setValue(1);
     onPress(app.packageName);
-  }, [scaleAnim, onPress, app.packageName]);
+  }, [onPress, app.packageName]);
 
   const handleLongPress = useCallback(() => {
-    // Force reset scale when opening modal
     scaleAnim.setValue(1);
     onLongPress(app.packageName, app.label);
-  }, [scaleAnim, onLongPress, app.packageName, app.label]);
-
-  useEffect(() => {
-    return () => {
-      scaleAnim.stopAnimation();
-      scaleAnim.setValue(1);
-    };
-  }, [scaleAnim]);
+  }, [onLongPress, app.packageName, app.label]);
 
   return (
     <TouchableOpacity
-      style={styles.dockAppItem}
+      style={styles.wrap}
       onPress={handlePress}
       onLongPress={handleLongPress}
       onPressIn={handlePressIn}
@@ -68,12 +47,7 @@ const DockAppItem = memo(({ app, onPress, onLongPress }: DockAppItemProps) => {
 }, (prev, next) => prev.app.packageName === next.app.packageName);
 
 const styles = StyleSheet.create({
-  dockAppItem: {
-    width: DOCK_ICON_SIZE,
-    height: DOCK_ICON_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  wrap: { width: DOCK_ICON_SIZE, height: DOCK_ICON_SIZE, justifyContent: 'center', alignItems: 'center' },
 });
 
 export default DockAppItem;
