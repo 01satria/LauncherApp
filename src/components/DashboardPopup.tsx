@@ -638,12 +638,13 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
 
   // ── PanResponder ──────────────────────────────────────────────────────────
   const panResponder = useRef(PanResponder.create({
+    // Capture vertical moves on the drag zone
+    onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => false,
     onMoveShouldSetPanResponder: (_: GestureResponderEvent, gs) => {
-      if (snapTarget.current === SNAP_FULL)
-        return gs.dy > 0 && scrollAtTop.current && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5;
-      return Math.abs(gs.dy) > Math.abs(gs.dx) * 1.2 && Math.abs(gs.dy) > 6;
+      return Math.abs(gs.dy) > Math.abs(gs.dx) * 1.2 && Math.abs(gs.dy) > 4;
     },
-    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponderCapture: () => false,
     onPanResponderGrant: () => {
       translateY.stopAnimation(); overlayOpacity.stopAnimation();
     },
@@ -694,9 +695,33 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
       {/* Sheet */}
       <Animated.View style={[ds.sheet, {transform:[{translateY}]}]}>
 
-        {/* Pill handle */}
-        <View style={ds.handleArea} {...panResponder.panHandlers}>
-          <View style={ds.pill} />
+        {/* Drag zone: pill + header. This whole block handles pan gestures. */}
+        <View {...panResponder.panHandlers} style={ds.dragZone}>
+          {/* Pill */}
+          <View style={ds.pillWrap}>
+            <View style={ds.pill} />
+          </View>
+
+          {/* Header row: avatar LEFT (centered), clock+msg RIGHT */}
+          <View style={ds.headerRow}>
+            {/* Avatar — left, vertically centered */}
+            <TouchableOpacity style={ds.avatarWrap}
+              onPress={() => { setMsgChanged(false); setShowChat(true); }}
+              activeOpacity={0.8}>
+              <View style={ds.avatarCircle}>
+                <Image source={{uri: avatarSource || DEFAULT_ASSISTANT_AVATAR}} style={ds.avatar} />
+              </View>
+              {msgChanged && <View style={ds.badge} />}
+            </TouchableOpacity>
+
+            {/* Clock + message — right side */}
+            <View style={ds.headerRight}>
+              <View style={ds.clockBox}><Clock /></View>
+              <View style={ds.msgBox}>
+                <Text style={ds.msgText} numberOfLines={3}>{assistantMsg}</Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         <ScrollView
@@ -709,25 +734,6 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           keyboardShouldPersistTaps="handled"
           scrollEnabled={snapTarget.current === SNAP_FULL}
         >
-          {/* Header: clock → avatar → message */}
-          <View style={ds.headerCol}>
-            <View style={ds.clockBox}>
-              <Clock />
-            </View>
-
-            <TouchableOpacity style={ds.avatarWrap}
-              onPress={() => { setMsgChanged(false); setShowChat(true); }}
-              activeOpacity={0.8}>
-              <View style={ds.avatarCircle}>
-                <Image source={{uri: avatarSource || DEFAULT_ASSISTANT_AVATAR}} style={ds.avatar} />
-              </View>
-              {msgChanged && <View style={ds.badge} />}
-            </TouchableOpacity>
-
-            <View style={ds.msgBox}>
-              <Text style={ds.msgText} numberOfLines={3}>{assistantMsg}</Text>
-            </View>
-          </View>
 
           {/* Tool grid or active tool */}
           {activeTool ? (
@@ -761,19 +767,28 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
 const ds = StyleSheet.create({
   overlay:     { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#000' },
   sheet:       { position:'absolute', left:0, right:0, height:SCREEN_H, backgroundColor:'#0a0a0a', borderTopLeftRadius:SHEET_RADIUS, borderTopRightRadius:SHEET_RADIUS, borderWidth:1, borderColor:'#1e1e1e', borderBottomWidth:0, elevation:24 },
-  handleArea:  { alignItems:'center', paddingTop:12, paddingBottom:10 },
+
+  // dragZone wraps pill + header and is the PanResponder target
+  dragZone:    { paddingHorizontal:20, paddingBottom:16 },
+  pillWrap:    { alignItems:'center', paddingTop:12, paddingBottom:14 },
   pill:        { width:40, height:4, borderRadius:2, backgroundColor:'#3a3a3a' },
-  scroll:      { flex:1 },
-  scrollContent:{ paddingHorizontal:20, paddingBottom:40 },
-  headerCol:   { alignItems:'center', gap:12, marginBottom:20 },
-  clockBox:    { width:'100%', backgroundColor:'#0e1a2e', borderRadius:12, paddingHorizontal:14, paddingVertical:10, borderWidth:1, borderColor:'#1a3a6a', alignItems:'center' },
-  clockText:   { color:'#5ba3f5', fontSize:26, fontWeight:'300', letterSpacing:3, fontVariant:['tabular-nums'] as any },
-  avatarWrap:  { position:'relative' },
+
+  // Header: avatar left, clock+msg right
+  headerRow:   { flexDirection:'row', alignItems:'center', gap:14 },
+  avatarWrap:  { position:'relative', flexShrink:0 },
   avatarCircle:{ width:72, height:72, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a', borderWidth:2.5, borderColor:'#27ae60' },
   avatar:      { width:'100%', height:'100%' },
   badge:       { position:'absolute', top:0, right:0, width:16, height:16, borderRadius:8, backgroundColor:'#ff3b30', borderWidth:2, borderColor:'#0a0a0a', zIndex:1 },
-  msgBox:      { width:'100%', backgroundColor:'#0e2a1e', borderRadius:12, paddingHorizontal:14, paddingVertical:10, borderWidth:1, borderColor:'#1a4a2e' },
-  msgText:     { color:'#7dd4a8', fontSize:12, lineHeight:18, textAlign:'center' },
+
+  // Right side: clock on top, message below
+  headerRight: { flex:1, gap:8 },
+  clockBox:    { backgroundColor:'#0e1a2e', borderRadius:12, paddingHorizontal:14, paddingVertical:8, borderWidth:1, borderColor:'#1a3a6a', alignItems:'center' },
+  clockText:   { color:'#5ba3f5', fontSize:22, fontWeight:'300', letterSpacing:3, fontVariant:['tabular-nums'] as any },
+  msgBox:      { backgroundColor:'#0e2a1e', borderRadius:12, paddingHorizontal:14, paddingVertical:8, borderWidth:1, borderColor:'#1a4a2e' },
+  msgText:     { color:'#7dd4a8', fontSize:12, lineHeight:18 },
+
+  scroll:      { flex:1 },
+  scrollContent:{ paddingHorizontal:20, paddingBottom:40 },
   grid:        { gap:10 },
   gridRow:     { flexDirection:'row', gap:10 },
   backBtn:     { marginBottom:14 },
