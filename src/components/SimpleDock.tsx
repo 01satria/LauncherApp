@@ -141,8 +141,6 @@ const styles = StyleSheet.create({
     borderRadius: DOCK_ICON_SIZE / 2,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
 
   avatar: {

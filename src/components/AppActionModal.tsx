@@ -117,7 +117,7 @@ const AppActionModal = memo(({
                 activeOpacity={0.8}
               >
                 <Text style={styles.actionBtnText}>
-                  {isDocked ? '📌 Unpin from Dock' : '📌 Pin to Dock'}
+                  {isDocked ? 'Unpin from Dock' : 'Pin to Dock'}
                 </Text>
               </TouchableOpacity>
             )}
@@ -127,7 +127,7 @@ const AppActionModal = memo(({
               activeOpacity={0.8}
             >
               <Text style={styles.actionBtnText}>
-                {actionType === 'unhide' ? '👁️ Unhide' : '🙈 Hide'}
+                {actionType === 'unhide' ? 'Unhide' : 'Hide'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -135,7 +135,7 @@ const AppActionModal = memo(({
               onPress={onUninstall}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionBtnText}>🗑️ Uninstall</Text>
+              <Text style={styles.actionBtnText}>Uninstall</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

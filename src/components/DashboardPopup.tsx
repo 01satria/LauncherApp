@@ -787,7 +787,7 @@ const ds = StyleSheet.create({
   // Header: avatar left, clock+msg right
   headerRow:   { flexDirection:'row', alignItems:'center', gap:14 },
   avatarWrap:  { position:'relative', flexShrink:0 },
-  avatarCircle:{ width:72, height:72, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a', borderWidth:2.5, borderColor:'#27ae60' },
+  avatarCircle:{ width:74, height:74, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a' },
   avatar:      { width:'100%', height:'100%' },
 
   // Right side: clock on top, message below
