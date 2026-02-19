@@ -47,6 +47,8 @@ interface ScheduledMsg {
 const SCHEDULED_MSGS: ScheduledMsg[] = [
   { hour: 5, getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
   { hour: 12, getText: (n) => `Hey ${n}, it's noon! 🍔 Have you had lunch yet? Don't skip your meals!` },
+  { hour: 13, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test! ` },
+  { hour: 14, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 2! ` },
   { hour: 18, getText: (n) => `Evening, ${n}! 🌆 How's your day been? Time to wind down a bit. ☕` },
   { hour: 21, getText: (n) => `Hey ${n} 🌙 It's getting late — make sure you're taking care of yourself!` },
   { hour: 22, getText: (n) => `Last call, ${n}! 😠 It's 22:00 — put the phone down and get some rest! Your health comes first. 💤` },
@@ -89,8 +91,9 @@ const startScheduler = (userName: string) => {
     const scheduled = SCHEDULED_MSGS.find(s => s.hour === h);
     if (!scheduled) return;
 
-    // Only send at minute 00 or 01 (tolerance for timing)
-    if (m > 1) return;
+    // Send within first 5 minutes of the hour (00-04)
+    // This gives wider tolerance window to catch the message
+    if (m > 4) return;
 
     // Check if already sent (includes date in key, so naturally resets daily)
     const key = getFiredKey(h);
@@ -390,8 +393,8 @@ const typingStyles = StyleSheet.create({
 // ─── Trash Icon ───────────────────────────────────────────────────────────────
 const TrashIcon = memo(() => (
   <View style={trashStyles.wrap}>
-    <View style={trashStyles.lidHandle} />
     <View style={trashStyles.lid} />
+    <View style={trashStyles.lidHandle} />
     <View style={trashStyles.body}>
       <View style={trashStyles.line} />
       <View style={trashStyles.line} />
@@ -402,8 +405,8 @@ const TrashIcon = memo(() => (
 
 const trashStyles = StyleSheet.create({
   wrap: { width: 25, height: 25, alignItems: 'center', justifyContent: 'center' },
-  lid: { width: 16, height: 2, backgroundColor: '#aaa', borderRadius: 1.5, marginBottom: 1 },
-  lidHandle: { width: 6, height: 2, backgroundColor: '#aaa', borderRadius: 1, marginBottom: 1, top: 1 },
+  lid: { width: 16, height: 2.5, backgroundColor: '#aaa', borderRadius: 1.5, marginBottom: 1 },
+  lidHandle: { width: 6, height: 2, backgroundColor: '#aaa', borderRadius: 1, marginBottom: 1 },
   body: { width: 14, height: 14, borderWidth: 2, borderColor: '#aaa', borderRadius: 2, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', paddingTop: 1 },
   line: { width: 1.5, height: 8, backgroundColor: '#aaa', borderRadius: 1 },
 });
