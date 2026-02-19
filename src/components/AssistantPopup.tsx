@@ -31,7 +31,7 @@ interface ToggleProps {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const now = () => {
+const getTimeStr = () => {
   const d = new Date();
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 };
@@ -47,94 +47,74 @@ interface ScheduledMsg {
 const SCHEDULED_MSGS: ScheduledMsg[] = [
   { hour: 5, getText: (n) => `Good morning, ${n}! ☀️ Rise and shine — hope today treats you well! 😊` },
   { hour: 12, getText: (n) => `Hey ${n}, it's noon! 🍔 Have you had lunch yet? Don't skip your meals!` },
-  { hour: 13, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test! ` },
-  { hour: 14, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 2! ` },
+  { hour: 13, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test!` },
+  { hour: 14, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 2!` },
+  { hour: 15, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 3!` },
+  { hour: 16, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 4!` },
+
+
   { hour: 18, getText: (n) => `Evening, ${n}! 🌆 How's your day been? Time to wind down a bit. ☕` },
   { hour: 21, getText: (n) => `Hey ${n} 🌙 It's getting late — make sure you're taking care of yourself!` },
-  { hour: 22, getText: (n) => `Last call, ${n}! 😠 It's 22:00 — put the phone down and get some rest! Your health comes first. 💤` },
+  { hour: 22, getText: (n) => `Last call, ${n}! 😠 It's 22:00 — put the phone down and get some rest! 💤` },
 ];
 
-// ─── Module-level cache & scheduler ──────────────────────────────────────────
+// ─── Module-level state ───────────────────────────────────────────────────────
 let _chatCache: Message[] | null = null;
 let _hasUnread = false;
-
-// Track messages sent: key format "YYYY-MM-DD:HH"
 const _firedKeys = new Set<string>();
-
-// Listener untuk update UI saat popup terbuka
 let _popupListener: ((msg: Message) => void) | null = null;
-
-// Listener untuk update badge di dock (saat popup tertutup)
 let _badgeListener: (() => void) | null = null;
+let _schedulerInterval: ReturnType<typeof setInterval> | null = null;
+let _schedulerUserName = '';
 
 const getFiredKey = (hour: number): string => {
   const d = new Date();
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}:${hour}`;
 };
 
-// Scheduler global - berjalan 1x sepanjang app lifetime
-let _schedulerInterval: ReturnType<typeof setInterval> | null = null;
-let _schedulerUserName = '';
+const dispatchScheduledMsg = (scheduled: ScheduledMsg, h: number, m: number) => {
+  const key = getFiredKey(h);
+  if (_firedKeys.has(key)) return;
+  _firedKeys.add(key);
+
+  const msg: Message = {
+    id: makeId(),
+    text: scheduled.getText(_schedulerUserName),
+    from: 'assistant',
+    time: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`,
+  };
+
+  if (_chatCache === null) _chatCache = [];
+  _chatCache = [..._chatCache, msg];
+  _hasUnread = true;
+
+  // Notify popup if open
+  if (_popupListener) _popupListener(msg);
+  // Notify badge
+  if (_badgeListener) _badgeListener();
+
+  console.log(`[Scheduler] Fired at ${h}:${m.toString().padStart(2, '0')} → ${msg.text.substring(0, 40)}...`);
+};
 
 const startScheduler = (userName: string) => {
   _schedulerUserName = userName;
-
-  // Already running
   if (_schedulerInterval !== null) return;
 
   const tick = () => {
-    const now = new Date();
-    const h = now.getHours();
-    const m = now.getMinutes();
-
-    // Only check scheduled hours
+    const d = new Date();
+    const h = d.getHours();
+    const m = d.getMinutes();
+    // Allow within first 5 minutes of the hour
+    if (m > 4) return;
     const scheduled = SCHEDULED_MSGS.find(s => s.hour === h);
     if (!scheduled) return;
-
-    // Send within first 5 minutes of the hour (00-04)
-    // This gives wider tolerance window to catch the message
-    if (m > 4) return;
-
-    // Check if already sent (includes date in key, so naturally resets daily)
-    const key = getFiredKey(h);
-    if (_firedKeys.has(key)) return;
-    _firedKeys.add(key);
-
-    // Create message
-    const msg: Message = {
-      id: makeId(),
-      text: scheduled.getText(_schedulerUserName),
-      from: 'assistant',
-      time: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`,
-    };
-
-    // Save to cache
-    if (_chatCache === null) _chatCache = [];
-    _chatCache = [..._chatCache, msg];
-
-    // Mark as unread (red dot on dock)
-    _hasUnread = true;
-
-    // Update UI if popup is open
-    if (_popupListener) {
-      _popupListener(msg);
-    }
-
-    // Update badge immediately (if dock is listening)
-    if (_badgeListener) {
-      _badgeListener();
-    }
-
-    console.log(`[Scheduler] Sent message at ${h}:${m.toString().padStart(2, '0')} - ${msg.text.substring(0, 30)}...`);
+    dispatchScheduledMsg(scheduled, h, m);
   };
 
-  // Check every minute
-  _schedulerInterval = setInterval(tick, 60_000);
-
-  // Run immediately to catch current hour if needed
-  tick();
-
-  console.log('[Scheduler] Started successfully');
+  // Check every 30s for better reliability (still very light on RAM)
+  _schedulerInterval = setInterval(tick, 30_000);
+  tick(); // immediate check on start
+  console.log('[Scheduler] Started');
 };
 
 const initChat = (): Message[] => {
@@ -176,7 +156,7 @@ const lev = (a: string, b: string): number => {
   return dp[m * (n + 1) + n];
 };
 
-const sim = (a: string, b: string): number => {
+const simScore = (a: string, b: string): number => {
   const na = norm(a), nb = norm(b);
   const maxLen = Math.max(na.length, nb.length);
   if (maxLen === 0) return 1;
@@ -190,14 +170,14 @@ const hasKeyword = (input: string, keywords: string[], threshold = 0.78): boolea
     const kwNorm = norm(kw);
     if (normInput.includes(kwNorm)) return true;
     if (!kwNorm.includes(' ')) {
-      for (const w of words) if (sim(w, kwNorm) >= threshold) return true;
+      for (const w of words) if (simScore(w, kwNorm) >= threshold) return true;
     } else {
       const kwWords = kwNorm.split(' ');
       for (let i = 0; i <= words.length - kwWords.length; i++) {
         const chunk = words.slice(i, i + kwWords.length).join(' ');
-        if (sim(chunk, kwNorm) >= threshold) return true;
+        if (simScore(chunk, kwNorm) >= threshold) return true;
       }
-      if (sim(normInput, kwNorm) >= threshold) return true;
+      if (simScore(normInput, kwNorm) >= threshold) return true;
     }
   }
   return false;
@@ -220,7 +200,7 @@ const getReply = (input: string, userName: string, assistantName: string): strin
     'current time', 'waktu sekarang', 'jam sekarang', 'jamber', 'jamberapa',
     'time now', 'pukul berapa', 'skrg jam', 'sekarang jam',
   ], 0.72))
-    return `It's ${now()} right now, ${userName}! ⏰`;
+    return `It's ${getTimeStr()} right now, ${userName}! ⏰`;
   if (hasKeyword(t, ['bored', 'bosan', 'gabut', 'nothing to do', 'iseng', 'boring']))
     return `Try opening your favorite app! 📱 Or just keep chatting with me 😄`;
   if (hasKeyword(t, ['capek', 'lelah', 'tired', 'exhausted', 'ngantuk', 'sleepy', 'kecapekan']))
@@ -302,10 +282,7 @@ export const AnimatedToggle = memo(({ value, onValueChange, activeColor = '#27ae
       bgAnim.setValue((next - 2) / MAX_X);
     },
     onPanResponderRelease: (_: GestureResponderEvent, gs) => {
-      if (Math.abs(gs.dx) < 5 && Math.abs(gs.dy) < 5) {
-        onValueChange(!valueRef.current);
-        return;
-      }
+      if (Math.abs(gs.dx) < 5 && Math.abs(gs.dy) < 5) { onValueChange(!valueRef.current); return; }
       const shouldOn = gs.vx > 0.3 ? true : gs.vx < -0.3 ? false
         : ((valueRef.current ? MAX_X : 2) + gs.dx) > MAX_X / 2 + 2;
       if (shouldOn !== valueRef.current) onValueChange(shouldOn);
@@ -361,33 +338,62 @@ const bubbleStyles = StyleSheet.create({
   time: { color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
 });
 
-// ─── Typing Indicator ─────────────────────────────────────────────────────────
+// ─── Typing Indicator (fixed: no AppState listener, stable loop) ──────────────
 const TypingDot = memo(({ delay }: { delay: number }) => {
   const anim = useRef(new Animated.Value(0)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
-    loopRef.current = Animated.loop(Animated.sequence([
-      Animated.delay(delay),
-      Animated.timing(anim, { toValue: -4, duration: 300, useNativeDriver: true }),
-      Animated.timing(anim, { toValue: 0, duration: 300, useNativeDriver: true }),
-      Animated.delay(300),
-    ]));
-    loopRef.current.start();
+    const startLoop = () => {
+      loopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: -5, duration: 280, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 280, useNativeDriver: true }),
+          Animated.delay(400),
+        ]),
+      );
+      loopRef.current.start();
+    };
+
+    startLoop();
 
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state !== 'active') { loopRef.current?.stop(); anim.setValue(0); }
-      else loopRef.current?.start();
+      if (state === 'active') {
+        loopRef.current?.stop();
+        anim.setValue(0);
+        startLoop();
+      } else {
+        loopRef.current?.stop();
+        anim.setValue(0);
+      }
     });
 
-    return () => { loopRef.current?.stop(); anim.stopAnimation(); sub.remove(); };
+    return () => {
+      loopRef.current?.stop();
+      anim.stopAnimation();
+      sub.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <Animated.View style={[typingStyles.dot, { transform: [{ translateY: anim }] }]} />;
 });
 
+// Stable wrapper — only renders when isTyping is true, so dots mount fresh each time
+const TypingBubble = memo(() => (
+  <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
+    <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble, typingStyles.row]}>
+      <TypingDot delay={0} />
+      <TypingDot delay={160} />
+      <TypingDot delay={320} />
+    </View>
+  </View>
+));
+
 const typingStyles = StyleSheet.create({
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#666', marginHorizontal: 2 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#888', marginHorizontal: 3 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
 });
 
 // ─── Trash Icon ───────────────────────────────────────────────────────────────
@@ -421,7 +427,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => initChat());
 
-  // Start scheduler and register listener
+  // Start scheduler & register popup listener
   useEffect(() => {
     startScheduler(userName);
 
@@ -431,11 +437,11 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
         saveChat(updated);
         return updated;
       });
+      // Scroll to new scheduled message
+      requestAnimationFrame(() => flatRef.current?.scrollToEnd({ animated: true }));
     };
 
-    return () => {
-      _popupListener = null;
-    };
+    return () => { _popupListener = null; };
   }, [userName]);
 
   const handleClearChat = useCallback(() => {
@@ -444,14 +450,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
       'Are you sure you want to delete all messages? This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => {
-            _chatCache = [];
-            setMessages([]);
-          },
-        },
+        { text: 'Clear', style: 'destructive', onPress: () => { _chatCache = []; setMessages([]); } },
       ],
       { cancelable: true },
     );
@@ -462,32 +461,29 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
       .start(() => onClose());
   }, [onClose]);
 
+  // Hardware back button
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      handleClose();
-      return true;
-    });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { handleClose(); return true; });
     return () => sub.remove();
   }, [handleClose]);
 
-  // Auto-close when app goes to background
+  // Auto-close on background
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state !== 'active') {
-        handleClose();
-      }
+      if (state !== 'active') handleClose();
     });
     return () => sub.remove();
   }, [handleClose]);
 
+  // Fade in on mount
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true })
       .start(() => { markAsRead(); });
-
     return () => {
       fadeAnim.stopAnimation();
       if (replyTimer.current) clearTimeout(replyTimer.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const scrollToEnd = useCallback(() => {
@@ -498,7 +494,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     const text = input.trim();
     if (!text) return;
 
-    const userMsg: Message = { id: makeId(), text, from: 'user', time: now() };
+    const userMsg: Message = { id: makeId(), text, from: 'user', time: getTimeStr() };
     setMessages(prev => { const n = [...prev, userMsg]; saveChat(n); return n; });
     setInput('');
     scrollToEnd();
@@ -509,18 +505,17 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
         id: makeId(),
         text: getReply(text, userName, assistantName),
         from: 'assistant',
-        time: now(),
+        time: getTimeStr(),
       };
       setIsTyping(false);
       setMessages(prev => { const n = [...prev, reply]; saveChat(n); return n; });
-      scrollToEnd();
+      // Small extra delay so FlatList renders reply before scrolling
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
     }, 600 + Math.random() * 600);
   }, [input, userName, assistantName, scrollToEnd]);
 
   const keyExtractor = useCallback((m: Message) => m.id, []);
-  const renderItem = useCallback(({ item }: { item: Message }) => (
-    <Bubble msg={item} />
-  ), []);
+  const renderItem = useCallback(({ item }: { item: Message }) => <Bubble msg={item} />, []);
 
   const hasInput = input.trim().length > 0;
 
@@ -569,15 +564,8 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         onLayout={scrollToEnd}
-        ListFooterComponent={isTyping ? (
-          <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
-            <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble, { flexDirection: 'row', gap: 4 }]}>
-              <TypingDot delay={0} />
-              <TypingDot delay={150} />
-              <TypingDot delay={300} />
-            </View>
-          </View>
-        ) : null}
+        ListFooterComponent={isTyping ? <TypingBubble /> : null}
+        onContentSizeChange={scrollToEnd}
       />
 
       {/* Input */}

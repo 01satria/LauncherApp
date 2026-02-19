@@ -27,49 +27,44 @@ const SimpleDock = memo(({
   const [showPopup, setShowPopup] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
 
-  // Register badge listener for immediate updates + poll as backup
   useEffect(() => {
-    const checkUnread = () => {
-      setHasUnread(hasUnreadMessages());
-    };
-    
     // Initial check
-    checkUnread();
-    
-    // Register listener for immediate updates when scheduler sends message
+    setHasUnread(hasUnreadMessages());
+
+    // Register listener — dipanggil langsung oleh scheduler saat ada pesan baru
     setBadgeListener(() => {
       setHasUnread(true);
     });
-    
-    // Poll every 10s as backup (in case listener fails)
-    const interval = setInterval(checkUnread, 10_000);
-    
+
+    // Poll setiap 10s sebagai fallback
+    const interval = setInterval(() => {
+      setHasUnread(hasUnreadMessages());
+    }, 10_000);
+
     return () => {
       clearInterval(interval);
-      setBadgeListener(null); // Unregister on unmount
+      setBadgeListener(null);
     };
   }, []);
 
   const handleOpenPopup = () => {
     setShowPopup(true);
-    // Badge will be cleared when popup opens (via markAsRead in AssistantPopup)
-    setTimeout(() => setHasUnread(false), 300);
+    // Hapus badge saat popup dibuka
+    setHasUnread(false);
   };
 
   // Calculate dynamic width
   const appCount = dockApps.length;
-  const avatarWidth = DOCK_ICON_SIZE + 16; // Avatar + padding
-  const separatorWidth = appCount > 0 ? 20 : 0; // Separator only if there are apps
-  const iconWidth = DOCK_ICON_SIZE + 8; // Icon + spacing
+  const avatarWidth = DOCK_ICON_SIZE + 16;
+  const separatorWidth = appCount > 0 ? 20 : 0;
+  const iconWidth = DOCK_ICON_SIZE + 8;
   const appsWidth = appCount > 0 ? (iconWidth * appCount) + 12 : 0;
   const totalWidth = avatarWidth + separatorWidth + appsWidth;
-  const minWidth = avatarWidth + 32; // Avatar + padding
-
+  const minWidth = avatarWidth + 32;
   const calculatedWidth = Math.max(totalWidth, minWidth);
 
   return (
     <>
-      {/* Assistant Popup */}
       {showPopup && (
         <AssistantPopup
           onClose={() => setShowPopup(false)}
@@ -79,7 +74,6 @@ const SimpleDock = memo(({
         />
       )}
 
-      {/* Dock Container */}
       <View style={styles.simpleDockContainer}>
         <TouchableOpacity
           style={[styles.simpleDockCard, { width: calculatedWidth }]}
@@ -88,28 +82,29 @@ const SimpleDock = memo(({
           delayLongPress={500}
         >
           <View style={styles.dockContent}>
-            {/* Avatar Assistant (Always on Left) */}
+
+            {/* Avatar — pakai wrapper luar agar badge tidak terpotong overflow */}
             <TouchableOpacity
-              style={styles.avatarContainer}
+              style={styles.avatarWrapper}
               onPress={handleOpenPopup}
               activeOpacity={0.7}
             >
-              <Image 
-                source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
-                style={styles.avatar} 
-              />
-              {/* Unread Badge */}
+              {/* Lingkaran avatar dengan overflow hidden — hanya untuk gambar */}
+              <View style={styles.avatarCircle}>
+                <Image 
+                  source={{ uri: avatarSource || DEFAULT_ASSISTANT_AVATAR }} 
+                  style={styles.avatar} 
+                />
+              </View>
+
+              {/* Badge di luar avatarCircle agar tidak terpotong */}
               {hasUnread && (
                 <View style={styles.unreadBadge} />
               )}
             </TouchableOpacity>
 
-            {/* Separator (Only if there are dock apps) */}
-            {appCount > 0 && (
-              <View style={styles.separator} />
-            )}
+            {appCount > 0 && <View style={styles.separator} />}
 
-            {/* Dock Apps (Right side) */}
             {appCount > 0 && (
               <View style={styles.dockAppsRow}>
                 {dockApps.slice(0, 4).map((app: AppData) => (
@@ -122,6 +117,7 @@ const SimpleDock = memo(({
                 ))}
               </View>
             )}
+
           </View>
         </TouchableOpacity>
       </View>
@@ -136,7 +132,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 10, // Higher than fade overlay
+    zIndex: 10,
   },
   simpleDockCard: {
     minHeight: 68,
@@ -155,10 +151,19 @@ const styles = StyleSheet.create({
   dockContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center', // Center semua elemen
+    justifyContent: 'center',
     flex: 1,
   },
-  avatarContainer: {
+
+  // Wrapper luar: TANPA overflow hidden, agar badge bisa muncul di luar lingkaran
+  avatarWrapper: {
+    width: DOCK_ICON_SIZE,
+    height: DOCK_ICON_SIZE,
+    position: 'relative', // Anchor untuk badge
+  },
+
+  // Lingkaran avatar: overflow hidden HANYA untuk memotong gambar
+  avatarCircle: {
     width: DOCK_ICON_SIZE,
     height: DOCK_ICON_SIZE,
     borderRadius: DOCK_ICON_SIZE / 2,
@@ -166,23 +171,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.12)',
-    position: 'relative', // For badge positioning
   },
+
   avatar: {
     width: '100%',
     height: '100%',
   },
+
+  // Badge di pojok kanan atas avatarWrapper (bukan avatarCircle)
   unreadBadge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#ff3b30', // iOS red
+    top: -1,
+    right: -1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: '#ff3b30',
     borderWidth: 2,
-    borderColor: 'rgba(0, 0, 0, 0.92)', // Match dock bg
+    borderColor: 'rgba(0, 0, 0, 0.92)',
+    zIndex: 1,
   },
+
   separator: {
     width: 1,
     height: 40,
