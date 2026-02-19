@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   modeBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   modeBtnLeft: { marginRight: 2 },
   modeBtnRight: { marginLeft: 2 },
-  modeBtnActive: { backgroundColor: '#1a1a1a', margin: 12, borderColor: '#2ed373', borderWidth: 1, borderStyle: 'solid' },
+  modeBtnActive: { backgroundColor: '#1a1a1a', margin: 1, borderColor: '#2ed373', borderWidth: 1, borderStyle: 'solid' },
   modeBtnText: { fontSize: 15, fontWeight: '600', color: '#666' },
   modeBtnTextActive: { color: '#fff' },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },

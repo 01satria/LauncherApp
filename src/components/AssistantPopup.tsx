@@ -51,8 +51,6 @@ const SCHEDULED_MSGS: ScheduledMsg[] = [
   { hour: 14, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 2!` },
   { hour: 15, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 3!` },
   { hour: 16, getText: (n) => `Hey ${n}, it's noon! 🍔 beta test number 4!` },
-
-
   { hour: 18, getText: (n) => `Evening, ${n}! 🌆 How's your day been? Time to wind down a bit. ☕` },
   { hour: 21, getText: (n) => `Hey ${n} 🌙 It's getting late — make sure you're taking care of yourself!` },
   { hour: 22, getText: (n) => `Last call, ${n}! 😠 It's 22:00 — put the phone down and get some rest! 💤` },
