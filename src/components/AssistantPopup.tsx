@@ -39,8 +39,6 @@ const now = () => {
 const makeId = () => `${Date.now()}-${Math.random()}`;
 
 // ─── Scheduled message config ─────────────────────────────────────────────────
-// Tiap entry = { hour: jam tepat, text: pesan yang dikirim }
-// Hanya trigger SEKALI per hari di jam tersebut — meski popup buka/tutup.
 interface ScheduledMsg {
   hour: number;
   getText: (userName: string) => string;
@@ -58,11 +56,10 @@ const SCHEDULED_MSGS: ScheduledMsg[] = [
 let _chatCache: Message[] | null = null;
 let _hasUnread = false;
 
-// Set jam yang sudah dikirim hari ini — key: "YYYY-MM-DD:HH"
+// Track messages sent: key format "YYYY-MM-DD:HH"
 const _firedKeys = new Set<string>();
 
-// Listener yang dipanggil scheduler saat popup sedang terbuka,
-// agar setMessages bisa di-trigger dari luar komponen.
+// Listener untuk update UI saat popup terbuka
 let _popupListener: ((msg: Message) => void) | null = null;
 
 const getFiredKey = (hour: number): string => {
@@ -70,49 +67,63 @@ const getFiredKey = (hour: number): string => {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}:${hour}`;
 };
 
-// Scheduler — dijalankan sekali, hidup sepanjang app berjalan.
-// Interval 30 detik untuk presisi cukup tanpa boros CPU.
-let _schedulerStarted = false;
+// Scheduler global - berjalan 1x sepanjang app lifetime
+let _schedulerInterval: ReturnType<typeof setInterval> | null = null;
 let _schedulerUserName = '';
 
 const startScheduler = (userName: string) => {
-  _schedulerUserName = userName; // update nama terbaru
+  _schedulerUserName = userName;
 
-  if (_schedulerStarted) return; // sudah berjalan, skip
-  _schedulerStarted = true;
+  // Already running
+  if (_schedulerInterval !== null) return;
 
   const tick = () => {
-    const h = new Date().getHours();
-    const m = new Date().getMinutes();
-    // Hanya trigger di menit 00 (toleransi: menit 0 saja)
-    if (m !== 0) return;
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
 
+    // Only check scheduled hours
     const scheduled = SCHEDULED_MSGS.find(s => s.hour === h);
     if (!scheduled) return;
 
+    // Only send at minute 00 or 01 (tolerance for timing)
+    if (m > 1) return;
+
+    // Check if already sent (includes date in key, so naturally resets daily)
     const key = getFiredKey(h);
-    if (_firedKeys.has(key)) return; // sudah kirim hari ini
+    if (_firedKeys.has(key)) return;
     _firedKeys.add(key);
 
+    // Create message
     const msg: Message = {
       id: makeId(),
       text: scheduled.getText(_schedulerUserName),
       from: 'assistant',
-      time: now(),
+      time: `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`,
     };
 
-    // Append ke cache (berlaku meski popup tertutup)
+    // Save to cache
     if (_chatCache === null) _chatCache = [];
     _chatCache = [..._chatCache, msg];
 
-    // Tandai unread → dot merah di dock
+    // Mark as unread (red dot on dock)
     _hasUnread = true;
 
-    // Jika popup sedang terbuka, update state langsung
-    if (_popupListener) _popupListener(msg);
+    // Update UI if popup is open
+    if (_popupListener) {
+      _popupListener(msg);
+    }
+
+    console.log(`[Scheduler] Sent message at ${h}:${m.toString().padStart(2, '0')} - ${msg.text.substring(0, 30)}...`);
   };
 
-  setInterval(tick, 30_000);
+  // Check every minute
+  _schedulerInterval = setInterval(tick, 60_000);
+  
+  // Run immediately to catch current hour if needed
+  tick();
+  
+  console.log('[Scheduler] Started successfully');
 };
 
 const initChat = (): Message[] => {
@@ -398,8 +409,7 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>(() => initChat());
 
-  // Mulai scheduler (idempoten — hanya berjalan sekali meski komponen mount ulang)
-  // dan daftarkan listener agar pesan terjadwal bisa masuk ke state saat popup terbuka.
+  // Start scheduler and register listener
   useEffect(() => {
     startScheduler(userName);
 
@@ -412,7 +422,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     };
 
     return () => {
-      // Hapus listener saat popup tertutup — scheduler tetap hidup di background
       _popupListener = null;
     };
   }, [userName]);
@@ -449,8 +458,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     return () => sub.remove();
   }, [handleClose]);
 
-  // Fade-in: markAsRead dipanggil setelah animasi selesai agar dot merah
-  // sempat terlihat sebelum di-reset.
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true })
       .start(() => { markAsRead(); });
@@ -540,7 +547,6 @@ const AssistantPopup = memo(({ onClose, userName, assistantName, avatarSource }:
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         onLayout={scrollToEnd}
-        onContentSizeChange={scrollToEnd}
         ListFooterComponent={isTyping ? (
           <View style={[bubbleStyles.row, bubbleStyles.rowLeft]}>
             <View style={[bubbleStyles.bubble, bubbleStyles.aiBubble, { flexDirection: 'row', gap: 4 }]}>

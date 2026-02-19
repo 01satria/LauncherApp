@@ -209,15 +209,15 @@ const styles = StyleSheet.create({
   modeBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   modeBtnLeft: { marginRight: 2 },
   modeBtnRight: { marginLeft: 2 },
-  modeBtnActive: { backgroundColor: '#27ae60' },
+  modeBtnActive: { backgroundColor: '#138342' },
   modeBtnText: { fontSize: 15, fontWeight: '600', color: '#666' },
   modeBtnTextActive: { color: '#fff' },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
   toggleLabel: { fontSize: 16, color: '#fff' },
-  photoBtn: { marginHorizontal: 20, marginTop: 20, paddingVertical: 14, borderRadius: 12, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#27ae60', alignItems: 'center' },
-  photoBtnText: { fontSize: 16, fontWeight: '600', color: '#27ae60' },
-  saveBtn: { marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: 12, backgroundColor: '#27ae60', alignItems: 'center' },
-  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  photoBtn: { marginHorizontal: 20, marginTop: 20, paddingVertical: 14, borderRadius: 12, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2ed373', borderStyle: 'dashed', alignItems: 'center' },
+  photoBtnText: { fontSize: 16, fontWeight: '600', color: '#2ed373' },
+  saveBtn: { marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: 12, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2ed373', borderStyle: 'solid', alignItems: 'center' },
+  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#2ed373' },
 });
 
 export default SettingsModal;
