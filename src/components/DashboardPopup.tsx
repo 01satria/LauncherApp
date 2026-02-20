@@ -359,14 +359,14 @@ const WeatherTool = memo(() => {
           {/* Save button */}
           {canSave && (
             <TouchableOpacity style={ws.saveBtn} onPress={() => addCurrentLocation(weather.rawQuery)} activeOpacity={0.7}>
-              <Text style={ws.saveBtnTxt}>+ Simpan Lokasi</Text>
+              <Text style={ws.saveBtnTxt}>+ Save Location</Text>
             </TouchableOpacity>
           )}
           {alreadySaved && (
-            <Text style={ws.savedBadge}>✓ Tersimpan</Text>
+            <Text style={ws.savedBadge}>✓ Saved</Text>
           )}
           {!canSave && !alreadySaved && savedLocations.length >= MAX_WEATHER_LOCATIONS && (
-            <Text style={ws.savedBadge}>⚠ Maks. {MAX_WEATHER_LOCATIONS} lokasi</Text>
+            <Text style={ws.savedBadge}>⚠ Max {MAX_WEATHER_LOCATIONS} locations</Text>
           )}
         </View>
       )}
