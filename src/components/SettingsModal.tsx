@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, TextInput,
   Animated, StyleSheet, BackHandler, PanResponder,
@@ -40,7 +40,19 @@ const SettingsModal = memo(({
     return () => sub.remove();
   }, [visible, onClose]);
 
-  const dragY = useRef(new Animated.Value(0)).current;
+  const dragY    = useRef(new Animated.Value(0)).current;
+  const slideAnim    = useRef(new Animated.Value(layoutMode === 'grid' ? 0 : 1)).current;
+  const [selectorHalf, setSelectorHalf] = useState(160);
+
+  const switchMode = (mode: 'grid' | 'list') => {
+    Animated.spring(slideAnim, {
+      toValue: mode === 'grid' ? 0 : 1,
+      friction: 7,
+      tension: 120,
+      useNativeDriver: true,
+    }).start();
+    onLayoutModeChange(mode);
+  };
 
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -139,20 +151,34 @@ const SettingsModal = memo(({
           {/* Layout Mode */}
           <View style={styles.section}>
             <Text style={styles.label}>Layout Mode</Text>
-            <View style={styles.modeSelector}>
+            <View
+              style={styles.modeSelector}
+              onLayout={e => setSelectorHalf((e.nativeEvent.layout.width - 6) / 2)}
+            >
+              {/* Sliding indicator */}
+              <Animated.View
+                style={[styles.modeIndicator, {
+                  transform: [{
+                    translateX: slideAnim.interpolate({
+                      inputRange:  [0, 1],
+                      outputRange: [0, selectorHalf],
+                    }),
+                  }],
+                }]}
+              />
               <TouchableOpacity
-                style={[styles.modeBtn, styles.modeBtnLeft, layoutMode === 'grid' && styles.modeBtnActive]}
-                onPress={() => onLayoutModeChange('grid')}
-                activeOpacity={0.7}
+                style={[styles.modeBtn, styles.modeBtnLeft]}
+                onPress={() => switchMode('grid')}
+                activeOpacity={0.85}
               >
                 <Text style={[styles.modeBtnText, layoutMode === 'grid' && styles.modeBtnTextActive]}>
                   ⊞  Grid
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modeBtn, styles.modeBtnRight, layoutMode === 'list' && styles.modeBtnActive]}
-                onPress={() => onLayoutModeChange('list')}
-                activeOpacity={0.7}
+                style={[styles.modeBtn, styles.modeBtnRight]}
+                onPress={() => switchMode('list')}
+                activeOpacity={0.85}
               >
                 <Text style={[styles.modeBtnText, layoutMode === 'list' && styles.modeBtnTextActive]}>
                   ☰  List
@@ -190,28 +216,29 @@ const SettingsModal = memo(({
 });
 
 const styles = StyleSheet.create({
-  overlay:          { flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'flex-end' },
-  sheet:            { backgroundColor:'#1c1c1e', borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:34, maxHeight:'88%' },
-  handleContainer:  { alignItems:'center', paddingTop:10, paddingBottom:8 },
-  handle:           { width:36, height:4, borderRadius:2, backgroundColor:'#3a3a3c' },
-  header:           { paddingHorizontal:20, paddingTop:6, paddingBottom:14, borderBottomWidth:1, borderBottomColor:'#2c2c2e' },
-  title:            { fontSize:17, fontWeight:'600', color:'#fff', textAlign:'center' },
-  section:          { paddingHorizontal:16, marginTop:20 },
-  label:            { fontSize:12, fontWeight:'500', color:'#8e8e93', marginBottom:8, textTransform:'uppercase', letterSpacing:0.4 },
-  input:            { backgroundColor:'#2c2c2e', borderRadius:10, paddingHorizontal:16, paddingVertical:13, color:'#fff', fontSize:16 },
-  modeSelector:     { flexDirection:'row', backgroundColor:'#2c2c2e', borderRadius:10, padding:3 },
-  modeBtn:          { flex:1, paddingVertical:10, borderRadius:8, alignItems:'center', justifyContent:'center' },
-  modeBtnLeft:      { marginRight:2 },
-  modeBtnRight:     { marginLeft:2 },
-  modeBtnActive:    { backgroundColor:'#3a3a3c' },
-  modeBtnText:      { fontSize:14, fontWeight:'500', color:'#8e8e93' },
-  modeBtnTextActive:{ color:'#fff', fontWeight:'600' },
-  toggleRow:        { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingVertical:15, borderBottomWidth:1, borderBottomColor:'#2c2c2e' },
-  toggleLabel:      { fontSize:16, color:'#fff', fontWeight:'400' },
-  photoBtn:         { marginHorizontal:16, marginTop:20, paddingVertical:14, borderRadius:12, backgroundColor:'#2c2c2e', alignItems:'center' },
-  photoBtnText:     { fontSize:15, fontWeight:'500', color:'#fff' },
-  saveBtn:          { marginHorizontal:16, marginTop:10, paddingVertical:14, borderRadius:12, backgroundColor:'#3a3a3c', alignItems:'center' },
-  saveBtnText:      { fontSize:15, fontWeight:'600', color:'#fff' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: '#0d0d0d', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, maxHeight: '88%' },
+  handleContainer: { alignItems: 'center', paddingTop: 12, paddingBottom: 12 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#3a3a3a' },
+  header: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  title: { fontSize: 22, fontWeight: '700', color: '#fff', textAlign: 'center' },
+  section: { paddingHorizontal: 20, marginTop: 20 },
+  label: { fontSize: 14, fontWeight: '600', color: '#aaa', marginBottom: 8 },
+  input: { backgroundColor: '#1a1a1a', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: '#fff', fontSize: 16, borderWidth: 1, borderColor: '#2a2a2a' },
+  modeSelector:        { flexDirection:'row', backgroundColor:'#2c2c2e', borderRadius:10, padding:3, position:'relative' },
+  modeIndicator:       { position:'absolute', top:3, bottom:3, width:'49%', backgroundColor:'#3a3a3c', borderRadius:8 },
+  modeBtn:             { flex:1, paddingVertical:10, borderRadius:8, alignItems:'center', justifyContent:'center', zIndex:1 },
+  modeBtnLeft:         { marginRight:2 },
+  modeBtnRight:        { marginLeft:2 },
+  modeBtnActive:       {},
+  modeBtnText:         { fontSize:14, fontWeight:'500', color:'#8e8e93' },
+  modeBtnTextActive:   { color:'#fff', fontWeight:'600' },
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  toggleLabel: { fontSize: 16, color: '#fff' },
+  photoBtn: { marginHorizontal: 20, marginTop: 20, paddingVertical: 14, borderRadius: 12, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2ed373', borderStyle: 'dashed', alignItems: 'center' },
+  photoBtnText: { fontSize: 16, fontWeight: '600', color: '#ffffff' },
+  saveBtn: { marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: 12, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2ed373', borderStyle: 'solid', alignItems: 'center' },
+  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#ffffff' },
 });
 
 export default SettingsModal;
