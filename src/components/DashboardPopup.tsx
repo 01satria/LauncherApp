@@ -8,6 +8,7 @@ import {
   PanResponder, GestureResponderEvent, NativeScrollEvent,
   NativeSyntheticEvent, Modal,
 } from 'react-native';
+import RNFS from 'react-native-fs';
 import AssistantPopup from './AssistantPopup';
 import { getCurrentTimePeriod } from '../utils/storage';
 import { DEFAULT_ASSISTANT_AVATAR } from '../constants';
@@ -214,44 +215,113 @@ const weatherIcon = (c: number) => {
   if (c <= 79) return '🌨️'; if (c <= 84) return '🌩️'; return '⛈️';
 };
 
-const WeatherTool = memo(() => {
-  const [location, setLocation] = useState('');
-  const [weather,  setWeather]  = useState<any>(null);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
+const WEATHER_LOCATIONS_PATH = `${RNFS.DocumentDirectoryPath}/satrialauncher/weather_locations.json`;
+const MAX_WEATHER_LOCATIONS = 8;
 
-  const fetchWeather = useCallback(async () => {
-    if (!location.trim()) return;
-    setLoading(true); setError(''); setWeather(null);
+const WeatherTool = memo(() => {
+  const [location,       setLocation]       = useState('');
+  const [weather,        setWeather]        = useState<any>(null);
+  const [loading,        setLoading]        = useState(false);
+  const [error,          setError]          = useState('');
+  const [savedLocations, setSavedLocations] = useState<string[]>([]);
+  const [showSaved,      setShowSaved]      = useState(false);
+
+  // Load saved locations on mount
+  useEffect(() => {
+    RNFS.exists(WEATHER_LOCATIONS_PATH).then(exists => {
+      if (exists) RNFS.readFile(WEATHER_LOCATIONS_PATH, 'utf8').then(data => {
+        try { setSavedLocations(JSON.parse(data)); } catch {}
+      });
+    });
+  }, []);
+
+  const saveLocations = useCallback((locs: string[]) => {
+    RNFS.writeFile(WEATHER_LOCATIONS_PATH, JSON.stringify(locs), 'utf8').catch(() => {});
+    setSavedLocations(locs);
+  }, []);
+
+  const addCurrentLocation = useCallback((cityName: string) => {
+    setSavedLocations(prev => {
+      if (prev.includes(cityName)) return prev;
+      const next = prev.length >= MAX_WEATHER_LOCATIONS ? prev : [...prev, cityName];
+      RNFS.writeFile(WEATHER_LOCATIONS_PATH, JSON.stringify(next), 'utf8').catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const removeLocation = useCallback((loc: string) => {
+    setSavedLocations(prev => {
+      const next = prev.filter(l => l !== loc);
+      RNFS.writeFile(WEATHER_LOCATIONS_PATH, JSON.stringify(next), 'utf8').catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const fetchWeather = useCallback(async (queryOverride?: string) => {
+    const query = (queryOverride ?? location).trim();
+    if (!query) return;
+    setLoading(true); setError(''); setWeather(null); setShowSaved(false);
     try {
-      const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location.trim())}&count=1&language=en&format=json`);
+      const geo = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
       const gd  = await geo.json();
       if (!gd.results?.length) { setError('Location not found.'); setLoading(false); return; }
       const { latitude, longitude, name, country } = gd.results[0];
       const wr  = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&timezone=auto`);
       const wd  = await wr.json();
       const code = wd.current.weathercode;
-      setWeather({ city:`${name}, ${country}`, temp:Math.round(wd.current.temperature_2m),
-        desc:weatherDesc(code), wind:Math.round(wd.current.windspeed_10m),
-        humidity:wd.current.relativehumidity_2m, icon:weatherIcon(code) });
+      const cityLabel = `${name}, ${country}`;
+      setWeather({ city: cityLabel, temp: Math.round(wd.current.temperature_2m),
+        desc: weatherDesc(code), wind: Math.round(wd.current.windspeed_10m),
+        humidity: wd.current.relativehumidity_2m, icon: weatherIcon(code), rawQuery: query });
     } catch { setError('Failed to fetch weather.'); }
     setLoading(false);
   }, [location]);
 
+  const canSave = weather && savedLocations.length < MAX_WEATHER_LOCATIONS && !savedLocations.includes(weather.rawQuery);
+  const alreadySaved = weather && savedLocations.includes(weather.rawQuery);
+
   return (
     <View style={ts.container}>
       <Text style={ts.title}>🌤️ Weather</Text>
+
+      {/* Search row */}
       <View style={ts.row}>
         <TextInput style={ts.input} value={location} onChangeText={setLocation}
           placeholder="Enter city name..." placeholderTextColor="#555"
-          onSubmitEditing={fetchWeather} returnKeyType="search" />
-        <TouchableOpacity style={ts.btn} onPress={fetchWeather} activeOpacity={0.7}>
+          onSubmitEditing={() => fetchWeather()} returnKeyType="search" />
+        <TouchableOpacity style={ts.btn} onPress={() => fetchWeather()} activeOpacity={0.7}>
           <Text style={ts.btnTxt}>Go</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Saved locations toggle */}
+      {savedLocations.length > 0 && (
+        <TouchableOpacity style={ws.savedToggle} onPress={() => setShowSaved(v => !v)} activeOpacity={0.7}>
+          <Text style={ws.savedToggleTxt}>📌 Saved ({savedLocations.length}/{MAX_WEATHER_LOCATIONS})</Text>
+          <Text style={ws.savedToggleArrow}>{showSaved ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Saved locations list */}
+      {showSaved && (
+        <View style={ws.savedList}>
+          {savedLocations.map(loc => (
+            <View key={loc} style={ws.savedItem}>
+              <TouchableOpacity style={ws.savedItemBtn} onPress={() => fetchWeather(loc)} activeOpacity={0.7}>
+                <Text style={ws.savedItemTxt} numberOfLines={1}>📍 {loc}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => removeLocation(loc)} activeOpacity={0.7} style={ws.savedDeleteBtn}>
+                <Text style={ws.savedDeleteTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
       {loading && <Text style={ts.info}>Fetching weather...</Text>}
       {!!error  && <Text style={ts.error}>{error}</Text>}
-      {weather  && (
+
+      {weather && (
         <View style={ws.card}>
           <Text style={ws.icon}>{weather.icon}</Text>
           <Text style={ws.city}>{weather.city}</Text>
@@ -261,19 +331,44 @@ const WeatherTool = memo(() => {
             <Text style={ws.detail}>💨 {weather.wind} km/h</Text>
             <Text style={ws.detail}>💧 {weather.humidity}%</Text>
           </View>
+          {/* Save button */}
+          {canSave && (
+            <TouchableOpacity style={ws.saveBtn} onPress={() => addCurrentLocation(weather.rawQuery)} activeOpacity={0.7}>
+              <Text style={ws.saveBtnTxt}>+ Simpan Lokasi</Text>
+            </TouchableOpacity>
+          )}
+          {alreadySaved && (
+            <Text style={ws.savedBadge}>✓ Tersimpan</Text>
+          )}
+          {!canSave && !alreadySaved && savedLocations.length >= MAX_WEATHER_LOCATIONS && (
+            <Text style={ws.savedBadge}>⚠ Maks. {MAX_WEATHER_LOCATIONS} lokasi</Text>
+          )}
         </View>
       )}
     </View>
   );
 });
 const ws = StyleSheet.create({
-  card:      { alignItems:'center', backgroundColor:'#0f1923', borderRadius:16, padding:20, marginTop:14 },
-  icon:      { fontSize:52, marginBottom:4 },
-  city:      { color:'#8ab4d4', fontSize:13, marginBottom:2 },
-  temp:      { color:'#fff', fontSize:52, fontWeight:'200', letterSpacing:-2 },
-  desc:      { color:'#aaa', fontSize:14, marginTop:2 },
-  detailRow: { flexDirection:'row', gap:24, marginTop:12 },
-  detail:    { color:'#8ab4d4', fontSize:13 },
+  card:           { alignItems:'center', backgroundColor:'#0f1923', borderRadius:16, padding:20, marginTop:14 },
+  icon:           { fontSize:52, marginBottom:4 },
+  city:           { color:'#8ab4d4', fontSize:13, marginBottom:2 },
+  temp:           { color:'#fff', fontSize:52, fontWeight:'200', letterSpacing:-2 },
+  desc:           { color:'#aaa', fontSize:14, marginTop:2 },
+  detailRow:      { flexDirection:'row', gap:24, marginTop:12 },
+  detail:         { color:'#8ab4d4', fontSize:13 },
+  saveBtn:        { marginTop:14, backgroundColor:'#1a3a4a', borderRadius:10, paddingVertical:7, paddingHorizontal:20 },
+  saveBtnTxt:     { color:'#5bc8f5', fontSize:13, fontWeight:'600' },
+  savedBadge:     { marginTop:12, color:'#5bc8f5', fontSize:12 },
+  savedToggle:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                    backgroundColor:'#0f1923', borderRadius:10, paddingVertical:9, paddingHorizontal:14, marginTop:10 },
+  savedToggleTxt: { color:'#8ab4d4', fontSize:13, fontWeight:'600' },
+  savedToggleArrow:{ color:'#8ab4d4', fontSize:11 },
+  savedList:      { backgroundColor:'#0a1520', borderRadius:10, marginTop:4, overflow:'hidden' },
+  savedItem:      { flexDirection:'row', alignItems:'center', borderBottomWidth:1, borderBottomColor:'#1a2a35' },
+  savedItemBtn:   { flex:1, paddingVertical:10, paddingHorizontal:14 },
+  savedItemTxt:   { color:'#cde', fontSize:13 },
+  savedDeleteBtn: { paddingVertical:10, paddingHorizontal:14 },
+  savedDeleteTxt: { color:'#c55', fontSize:13, fontWeight:'700' },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
