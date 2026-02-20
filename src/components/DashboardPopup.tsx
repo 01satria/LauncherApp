@@ -2,24 +2,17 @@ import React, {
   memo, useEffect, useRef, useState, useCallback,
 } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Animated,
+  View, Text, TouchableOpacity, StyleSheet,
   ScrollView, TextInput, StatusBar, BackHandler,
-  AppState, AppStateStatus, Image, Alert, Dimensions,
-  PanResponder, GestureResponderEvent, NativeScrollEvent,
-  NativeSyntheticEvent, Modal,
+  AppState, AppStateStatus, Image, Alert,
+  Modal,
 } from 'react-native';
 import RNFS from 'react-native-fs';
 import AssistantPopup from './AssistantPopup';
 import { getCurrentTimePeriod } from '../utils/storage';
 import { DEFAULT_ASSISTANT_AVATAR } from '../constants';
 
-const { height: SCREEN_H } = Dimensions.get('window');
 const STATUS_BAR_H = StatusBar.currentHeight || 24;
-
-const SNAP_CLOSED  = SCREEN_H;
-const SNAP_HALF    = STATUS_BAR_H + 8;
-const SNAP_FULL    = STATUS_BAR_H + 8;
-const SHEET_RADIUS = 24;
 
 interface DashboardPopupProps {
   onClose: () => void;
@@ -81,8 +74,7 @@ const DatePickerModal = memo(({ visible, initialDate, onConfirm, onCancel }: Dat
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const safeDay = Math.min(day, daysInMonth);
 
-  // Build calendar grid
-  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const firstDow = new Date(year, month, 1).getDay();
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -98,36 +90,26 @@ const DatePickerModal = memo(({ visible, initialDate, onConfirm, onCancel }: Dat
   const isToday = (d: number) =>
     d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
   const isPast = (d: number) => new Date(year, month, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
   const handleConfirm = () => onConfirm(new Date(year, month, safeDay));
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} statusBarTranslucent>
       <TouchableOpacity style={dp.overlay} activeOpacity={1} onPress={onCancel}>
         <TouchableOpacity activeOpacity={1} style={dp.card} onPress={() => {}}>
-          {/* Month / Year nav */}
           <View style={dp.nav}>
-            <TouchableOpacity onPress={prevMonth} style={dp.navBtn}>
-              <Text style={dp.navArrow}>‹</Text>
-            </TouchableOpacity>
+            <TouchableOpacity onPress={prevMonth} style={dp.navBtn}><Text style={dp.navArrow}>‹</Text></TouchableOpacity>
             <Text style={dp.navTitle}>{MONTHS[month]} {year}</Text>
-            <TouchableOpacity onPress={nextMonth} style={dp.navBtn}>
-              <Text style={dp.navArrow}>›</Text>
-            </TouchableOpacity>
+            <TouchableOpacity onPress={nextMonth} style={dp.navBtn}><Text style={dp.navArrow}>›</Text></TouchableOpacity>
           </View>
-
-          {/* Day-of-week header */}
           <View style={dp.dowRow}>
             {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
               <Text key={d} style={dp.dowLabel}>{d}</Text>
             ))}
           </View>
-
-          {/* Calendar grid */}
           <View style={dp.grid}>
             {cells.map((d, i) => {
               if (d === null) return <View key={`e${i}`} style={dp.cell} />;
-              const past     = isPast(d);
+              const past = isPast(d);
               const selected = d === safeDay;
               const todayMark = isToday(d);
               return (
@@ -143,20 +125,12 @@ const DatePickerModal = memo(({ visible, initialDate, onConfirm, onCancel }: Dat
               );
             })}
           </View>
-
-          {/* Year scroller */}
           <View style={dp.yearRow}>
             <Text style={dp.yearLabel}>Year:</Text>
-            <TouchableOpacity onPress={() => setYear(y => y - 1)} style={dp.yearBtn}>
-              <Text style={dp.yearArrow}>−</Text>
-            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setYear(y => y - 1)} style={dp.yearBtn}><Text style={dp.yearArrow}>−</Text></TouchableOpacity>
             <Text style={dp.yearNum}>{year}</Text>
-            <TouchableOpacity onPress={() => setYear(y => y + 1)} style={dp.yearBtn}>
-              <Text style={dp.yearArrow}>+</Text>
-            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setYear(y => y + 1)} style={dp.yearBtn}><Text style={dp.yearArrow}>+</Text></TouchableOpacity>
           </View>
-
-          {/* Buttons */}
           <View style={dp.btnRow}>
             <TouchableOpacity style={dp.btnCancel} onPress={onCancel} activeOpacity={0.7}>
               <Text style={dp.btnCancelTxt}>Cancel</Text>
@@ -172,31 +146,31 @@ const DatePickerModal = memo(({ visible, initialDate, onConfirm, onCancel }: Dat
 });
 
 const dp = StyleSheet.create({
-  overlay:    { flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' },
-  card:       { backgroundColor:'#141414', borderRadius:20, padding:20, width:320, borderWidth:1, borderColor:'#2a2a2a' },
-  nav:        { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 },
-  navBtn:     { width:36, height:36, justifyContent:'center', alignItems:'center', backgroundColor:'#1e1e1e', borderRadius:18 },
-  navArrow:   { color:'#fff', fontSize:22, lineHeight:26 },
-  navTitle:   { color:'#fff', fontSize:16, fontWeight:'700' },
-  dowRow:     { flexDirection:'row', marginBottom:6 },
-  dowLabel:   { flex:1, textAlign:'center', color:'#555', fontSize:12, fontWeight:'600' },
-  grid:       { flexDirection:'row', flexWrap:'wrap' },
-  cell:       { width:`${100/7}%` as any, aspectRatio:1, justifyContent:'center', alignItems:'center', marginVertical:2 },
+  overlay:     { flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' },
+  card:        { backgroundColor:'#141414', borderRadius:20, padding:20, width:320 },
+  nav:         { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 },
+  navBtn:      { width:36, height:36, justifyContent:'center', alignItems:'center', backgroundColor:'#1e1e1e', borderRadius:18 },
+  navArrow:    { color:'#fff', fontSize:22, lineHeight:26 },
+  navTitle:    { color:'#fff', fontSize:16, fontWeight:'700' },
+  dowRow:      { flexDirection:'row', marginBottom:6 },
+  dowLabel:    { flex:1, textAlign:'center', color:'#555', fontSize:12, fontWeight:'600' },
+  grid:        { flexDirection:'row', flexWrap:'wrap' },
+  cell:        { width:`${100/7}%` as any, aspectRatio:1, justifyContent:'center', alignItems:'center', marginVertical:2 },
   cellSelected:{ backgroundColor:'#27ae60', borderRadius:20 },
-  cellToday:  { borderWidth:1, borderColor:'#27ae60', borderRadius:20 },
-  cellTxt:    { color:'#ddd', fontSize:14 },
-  cellTxtSel: { color:'#fff', fontWeight:'700' },
-  cellPast:   { color:'#333' },
-  yearRow:    { flexDirection:'row', alignItems:'center', justifyContent:'center', marginTop:14, gap:12 },
-  yearLabel:  { color:'#777', fontSize:13 },
-  yearBtn:    { width:32, height:32, backgroundColor:'#1e1e1e', borderRadius:16, justifyContent:'center', alignItems:'center' },
-  yearArrow:  { color:'#fff', fontSize:18, lineHeight:22 },
-  yearNum:    { color:'#fff', fontSize:16, fontWeight:'700', minWidth:44, textAlign:'center' },
-  btnRow:     { flexDirection:'row', gap:10, marginTop:18 },
-  btnCancel:  { flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'#1e1e1e', alignItems:'center' },
+  cellToday:   { borderWidth:1, borderColor:'#27ae60', borderRadius:20 },
+  cellTxt:     { color:'#ddd', fontSize:14 },
+  cellTxtSel:  { color:'#fff', fontWeight:'700' },
+  cellPast:    { color:'#333' },
+  yearRow:     { flexDirection:'row', alignItems:'center', justifyContent:'center', marginTop:14, gap:12 },
+  yearLabel:   { color:'#777', fontSize:13 },
+  yearBtn:     { width:32, height:32, backgroundColor:'#1e1e1e', borderRadius:16, justifyContent:'center', alignItems:'center' },
+  yearArrow:   { color:'#fff', fontSize:18, lineHeight:22 },
+  yearNum:     { color:'#fff', fontSize:16, fontWeight:'700', minWidth:44, textAlign:'center' },
+  btnRow:      { flexDirection:'row', gap:10, marginTop:18 },
+  btnCancel:   { flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'#1e1e1e', alignItems:'center' },
   btnCancelTxt:{ color:'#aaa', fontSize:14, fontWeight:'600' },
-  btnOk:      { flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'#27ae60', alignItems:'center' },
-  btnOkTxt:   { color:'#fff', fontSize:14, fontWeight:'700' },
+  btnOk:       { flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'#27ae60', alignItems:'center' },
+  btnOkTxt:    { color:'#fff', fontSize:14, fontWeight:'700' },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -226,7 +200,6 @@ const WeatherTool = memo(() => {
   const [savedLocations, setSavedLocations] = useState<string[]>([]);
   const [showSaved,      setShowSaved]      = useState(false);
 
-  // Load saved locations on mount
   useEffect(() => {
     RNFS.exists(WEATHER_LOCATIONS_PATH).then(exists => {
       if (exists) RNFS.readFile(WEATHER_LOCATIONS_PATH, 'utf8').then(data => {
@@ -271,14 +244,13 @@ const WeatherTool = memo(() => {
       const code = wd.current.weathercode;
       const cityLabel = `${name}, ${country}`;
 
-      // Build full-day hourly forecast for today (00:00 – 23:00)
       const times: string[]  = wd.hourly.time;
       const temps: number[]  = wd.hourly.temperature_2m;
       const codes: number[]  = wd.hourly.weathercode;
       const pops:  number[]  = wd.hourly.precipitation_probability;
 
       const nowDate = new Date();
-      const todayStr = nowDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+      const todayStr = nowDate.toISOString().slice(0, 10);
       const currentHour = nowDate.getHours();
 
       const forecast = times.reduce((acc: any[], t, idx) => {
@@ -311,8 +283,6 @@ const WeatherTool = memo(() => {
   return (
     <View style={ts.container}>
       <Text style={ts.title}>🌤️ Weather</Text>
-
-      {/* Search row */}
       <View style={ts.row}>
         <TextInput style={ts.input} value={location} onChangeText={setLocation}
           placeholder="Enter city name..." placeholderTextColor="#555"
@@ -322,7 +292,6 @@ const WeatherTool = memo(() => {
         </TouchableOpacity>
       </View>
 
-      {/* Saved locations toggle */}
       {savedLocations.length > 0 && (
         <TouchableOpacity style={ws.savedToggle} onPress={() => setShowSaved(v => !v)} activeOpacity={0.7}>
           <Text style={ws.savedToggleTxt}>📌 Saved ({savedLocations.length}/{MAX_WEATHER_LOCATIONS})</Text>
@@ -330,7 +299,6 @@ const WeatherTool = memo(() => {
         </TouchableOpacity>
       )}
 
-      {/* Saved locations list */}
       {showSaved && (
         <View style={ws.savedList}>
           {savedLocations.map(loc => (
@@ -359,22 +327,18 @@ const WeatherTool = memo(() => {
             <Text style={ws.detail}>💨 {weather.wind} km/h</Text>
             <Text style={ws.detail}>💧 {weather.humidity}%</Text>
           </View>
-          {/* Save button */}
           {canSave && (
             <TouchableOpacity style={ws.saveBtn} onPress={() => addCurrentLocation(weather.rawQuery)} activeOpacity={0.7}>
-              <Text style={ws.saveBtnTxt}>+ Save location</Text>
+              <Text style={ws.saveBtnTxt}>+ Save Location</Text>
             </TouchableOpacity>
           )}
-          {alreadySaved && (
-            <Text style={ws.savedBadge}>✓ Saved</Text>
-          )}
+          {alreadySaved && <Text style={ws.savedBadge}>✓ Saved</Text>}
           {!canSave && !alreadySaved && savedLocations.length >= MAX_WEATHER_LOCATIONS && (
-            <Text style={ws.savedBadge}>⚠ Max. {MAX_WEATHER_LOCATIONS} locations</Text>
+            <Text style={ws.savedBadge}>⚠ Max {MAX_WEATHER_LOCATIONS} locations</Text>
           )}
         </View>
       )}
 
-      {/* Full-day hourly forecast */}
       {weather?.forecast?.filter((f: any) => !f.isPast).length > 0 && (
         <View style={ws.forecastWrap}>
           <Text style={ws.forecastTitle}>Today's Forecast</Text>
@@ -394,38 +358,36 @@ const WeatherTool = memo(() => {
   );
 });
 const ws = StyleSheet.create({
-  card:           { alignItems:'center', backgroundColor:'#0f1923', borderRadius:16, padding:20, marginTop:14 },
-  icon:           { fontSize:52, marginBottom:4 },
-  city:           { color:'#8ab4d4', fontSize:13, marginBottom:2 },
-  temp:           { color:'#fff', fontSize:52, fontWeight:'200', letterSpacing:-2 },
-  desc:           { color:'#aaa', fontSize:14, marginTop:2 },
-  detailRow:      { flexDirection:'row', gap:24, marginTop:12 },
-  detail:         { color:'#8ab4d4', fontSize:13 },
-  saveBtn:        { marginTop:14, backgroundColor:'#2a2a2a', borderRadius:10, paddingVertical:9, paddingHorizontal:20 },
-  saveBtnTxt:     { color:'#fff', fontSize:14, fontWeight:'500' },
-  savedBadge:     { marginTop:12, color:'#888', fontSize:12 },
-  savedToggle:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                    backgroundColor:'#1c1c1c', borderRadius:10, paddingVertical:10, paddingHorizontal:14, marginTop:10 },
-  savedToggleTxt: { color:'#ccc', fontSize:14, fontWeight:'500' },
+  card:            { alignItems:'center', backgroundColor:'#141414', borderRadius:16, padding:20, marginTop:14 },
+  icon:            { fontSize:52, marginBottom:4 },
+  city:            { color:'#8e8e93', fontSize:13, marginBottom:2 },
+  temp:            { color:'#fff', fontSize:52, fontWeight:'200', letterSpacing:-2 },
+  desc:            { color:'#8e8e93', fontSize:14, marginTop:2 },
+  detailRow:       { flexDirection:'row', gap:24, marginTop:12 },
+  detail:          { color:'#8e8e93', fontSize:13 },
+  saveBtn:         { marginTop:14, backgroundColor:'#2c2c2e', borderRadius:10, paddingVertical:9, paddingHorizontal:20 },
+  saveBtnTxt:      { color:'#fff', fontSize:14, fontWeight:'500' },
+  savedBadge:      { marginTop:12, color:'#8e8e93', fontSize:12 },
+  savedToggle:     { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1c1c1e', borderRadius:10, paddingVertical:10, paddingHorizontal:14, marginTop:10 },
+  savedToggleTxt:  { color:'#ccc', fontSize:14, fontWeight:'500' },
   savedToggleArrow:{ color:'#666', fontSize:11 },
-  savedList:      { backgroundColor:'#1c1c1c', borderRadius:10, marginTop:4, overflow:'hidden' },
-  savedItem:      { flexDirection:'row', alignItems:'center', borderBottomWidth:1, borderBottomColor:'#2a2a2a' },
-  savedItemBtn:   { flex:1, paddingVertical:11, paddingHorizontal:14 },
-  savedItemTxt:   { color:'#ddd', fontSize:14 },
-  savedDeleteBtn: { paddingVertical:11, paddingHorizontal:14 },
-  savedDeleteTxt: { color:'#ff453a', fontSize:14, fontWeight:'500' },
-  // Full-day hourly forecast
+  savedList:       { backgroundColor:'#1c1c1e', borderRadius:10, marginTop:4, overflow:'hidden' },
+  savedItem:       { flexDirection:'row', alignItems:'center', borderBottomWidth:1, borderBottomColor:'#2c2c2e' },
+  savedItemBtn:    { flex:1, paddingVertical:11, paddingHorizontal:14 },
+  savedItemTxt:    { color:'#ddd', fontSize:14 },
+  savedDeleteBtn:  { paddingVertical:11, paddingHorizontal:14 },
+  savedDeleteTxt:  { color:'#ff453a', fontSize:14, fontWeight:'500' },
   forecastWrap:    { marginTop:14, backgroundColor:'#141414', borderRadius:16, paddingTop:12, paddingBottom:10 },
-  forecastTitle:   { color:'#888', fontSize:11, fontWeight:'600', letterSpacing:0.5, paddingHorizontal:14, marginBottom:10, textTransform:'uppercase' },
+  forecastTitle:   { color:'#8e8e93', fontSize:11, fontWeight:'600', letterSpacing:0.5, paddingHorizontal:14, marginBottom:10, textTransform:'uppercase' },
   forecastScroll:  { paddingHorizontal:10, gap:6 },
-  forecastItem:    { alignItems:'center', backgroundColor:'#1c1c1c', borderRadius:12, paddingVertical:10, paddingHorizontal:8, width:60 },
-  forecastItemNow: { backgroundColor:'#2a2a2a', borderWidth:1, borderColor:'#444' },
+  forecastItem:    { alignItems:'center', backgroundColor:'#1c1c1e', borderRadius:12, paddingVertical:10, paddingHorizontal:8, width:60 },
+  forecastItemNow: { backgroundColor:'#2c2c2e', borderWidth:1, borderColor:'#444' },
   forecastTime:    { color:'#666', fontSize:10, marginBottom:5 },
   forecastTimeNow: { color:'#fff', fontWeight:'700' },
   forecastIcon:    { fontSize:20, marginBottom:4 },
   forecastTemp:    { color:'#ccc', fontSize:14, fontWeight:'400' },
   forecastTempNow: { color:'#fff', fontWeight:'700' },
-  forecastPopTxt:  { color:'#888', fontSize:9, marginTop:3 },
+  forecastPopTxt:  { color:'#8e8e93', fontSize:9, marginTop:3 },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -492,11 +454,11 @@ const MoneyTool = memo(() => {
   );
 });
 const ms = StyleSheet.create({
-  chip:         { paddingHorizontal:13, paddingVertical:7, borderRadius:8, backgroundColor:'#1c1c1c', marginRight:6 },
-  chipActive:   { backgroundColor:'#3a3a3a' },
-  chipTxt:      { color:'#888', fontSize:13, fontWeight:'500' },
+  chip:         { paddingHorizontal:13, paddingVertical:7, borderRadius:8, backgroundColor:'#1c1c1e', marginRight:6 },
+  chipActive:   { backgroundColor:'#3a3a3c' },
+  chipTxt:      { color:'#8e8e93', fontSize:13, fontWeight:'500' },
   chipTxtActive:{ color:'#fff' },
-  resultCard:   { backgroundColor:'#1c1c1c', borderRadius:12, padding:16, marginTop:12 },
+  resultCard:   { backgroundColor:'#1c1c1e', borderRadius:12, padding:16, marginTop:12 },
   resultMain:   { color:'#ccc', fontSize:15 },
   resultVal:    { color:'#fff', fontWeight:'600' },
   rateLine:     { color:'#555', fontSize:12, marginTop:6 },
@@ -578,7 +540,6 @@ const CountdownTool = memo(() => {
   const [, setTick] = useState(0);
 
   useEffect(() => {
-    // Only runs while CountdownTool is mounted (inside active dashboard)
     const id = setInterval(() => setTick(t => t + 1), 60_000);
     return () => clearInterval(id);
   }, []);
@@ -605,22 +566,17 @@ const CountdownTool = memo(() => {
   return (
     <View style={ts.container}>
       <Text style={ts.title}>⏳ Countdown</Text>
-
       <TextInput style={[ts.input, {marginBottom:10}]} value={name} onChangeText={setName}
         placeholder="Event name..." placeholderTextColor="#555" />
-
       <TouchableOpacity style={cdst.dateBtn} onPress={() => setPickerOpen(true)} activeOpacity={0.7}>
         <Text style={cdst.dateBtnIcon}>📅</Text>
         <Text style={[cdst.dateBtnTxt, !pickedDate && {color:'#555'}]}>{dateLabel}</Text>
       </TouchableOpacity>
-
       <TouchableOpacity style={[ts.btn, {marginTop:10, alignSelf:'stretch', alignItems:'center'}]}
         onPress={add} activeOpacity={0.7}>
         <Text style={ts.btnTxt}>Start Countdown</Text>
       </TouchableOpacity>
-
       {countdowns.length===0 && <Text style={ts.info}>No countdowns yet.</Text>}
-
       {countdowns.map(c => {
         const days = daysLeft(c.targetDate);
         const past = days < 0;
@@ -641,8 +597,6 @@ const CountdownTool = memo(() => {
           </View>
         );
       })}
-
-      {/* Custom date picker modal — zero external deps */}
       <DatePickerModal
         visible={pickerOpen}
         initialDate={pickedDate || new Date()}
@@ -653,13 +607,13 @@ const CountdownTool = memo(() => {
   );
 });
 const cdst = StyleSheet.create({
-  dateBtn:    { flexDirection:'row', alignItems:'center', backgroundColor:'#1c1c1c', borderRadius:10, paddingHorizontal:14, paddingVertical:12, gap:8 },
+  dateBtn:    { flexDirection:'row', alignItems:'center', backgroundColor:'#1c1c1e', borderRadius:10, paddingHorizontal:14, paddingVertical:12, gap:8 },
   dateBtnIcon:{ fontSize:18 },
   dateBtnTxt: { color:'#fff', fontSize:15 },
   item:       { flexDirection:'row', alignItems:'center', paddingVertical:12, borderBottomWidth:1, borderBottomColor:'#222', gap:10, marginTop:4 },
   name:       { color:'#ddd', fontSize:15, fontWeight:'500' },
   dateStr:    { color:'#555', fontSize:11, marginTop:2 },
-  pill:       { backgroundColor:'#2a2a2a', borderRadius:8, paddingHorizontal:10, paddingVertical:4 },
+  pill:       { backgroundColor:'#2c2c2e', borderRadius:8, paddingHorizontal:10, paddingVertical:4 },
   pillPast:   { backgroundColor:'#2a1a1a' },
   days:       { color:'#fff', fontSize:13, fontWeight:'600' },
   daysPast:   { color:'#ff453a' },
@@ -670,10 +624,10 @@ const ts = StyleSheet.create({
   container:{ paddingBottom:20 },
   title:    { color:'#fff', fontSize:17, fontWeight:'600', marginBottom:14 },
   row:      { flexDirection:'row', gap:8, alignItems:'center' },
-  input:    { flex:1, height:44, backgroundColor:'#1c1c1c', borderRadius:10, paddingHorizontal:14, color:'#fff', fontSize:15 },
-  btn:      { backgroundColor:'#2a2a2a', borderRadius:10, paddingHorizontal:16, paddingVertical:12 },
+  input:    { flex:1, height:44, backgroundColor:'#1c1c1e', borderRadius:10, paddingHorizontal:14, color:'#fff', fontSize:15 },
+  btn:      { backgroundColor:'#2c2c2e', borderRadius:10, paddingHorizontal:16, paddingVertical:12 },
   btnTxt:   { color:'#fff', fontSize:15, fontWeight:'500' },
-  label:    { color:'#666', fontSize:12, fontWeight:'500', marginBottom:6, marginTop:10, textTransform:'uppercase', letterSpacing:0.4 },
+  label:    { color:'#8e8e93', fontSize:12, fontWeight:'500', marginBottom:6, marginTop:10, textTransform:'uppercase', letterSpacing:0.4 },
   info:     { color:'#555', fontSize:13, textAlign:'center', marginTop:20 },
   error:    { color:'#ff453a', fontSize:13, marginTop:10, textAlign:'center' },
 });
@@ -696,27 +650,18 @@ const ToolCard = memo(({ icon, label, onPress, preview }: {
   </TouchableOpacity>
 ));
 const card = StyleSheet.create({
-  wrap:   { flex:1, backgroundColor:'#1c1c1c', borderRadius:14, padding:14, minHeight:88, justifyContent:'center' },
+  wrap:   { flex:1, backgroundColor:'#1c1c1e', borderRadius:14, padding:14, minHeight:88, justifyContent:'center' },
   icon:   { fontSize:24, marginBottom:6 },
   label:  { color:'#ddd', fontSize:13, fontWeight:'500' },
   preview:{ color:'#555', fontSize:10, marginTop:4, lineHeight:14 },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// DASHBOARD POPUP — draggable bottom sheet
+// DASHBOARD POPUP — fullscreen, no Modal, no Animated, no PanResponder
 // ══════════════════════════════════════════════════════════════════════════════
 const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }: DashboardPopupProps) => {
-  const translateY     = useRef(new Animated.Value(SNAP_CLOSED)).current;
-  const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const snapTarget     = useRef(SNAP_HALF);
-  const currentY       = useRef(SNAP_CLOSED); // tracked manually, no stopAnimation needed
-  const scrollRef      = useRef<ScrollView>(null);
-  const scrollAtTop    = useRef(true);
-
-  const [activeTool,     setActiveTool]     = useState<ToolView>(null);
-  const [showChat,       setShowChat]       = useState(false);
-  const [visible,        setVisible]        = useState(true);
-  const [scrollEnabled,  setScrollEnabled]  = useState(true);
+  const [activeTool, setActiveTool] = useState<ToolView>(null);
+  const [showChat,   setShowChat]   = useState(false);
 
   const [todoPrev, setTodoPrev] = useState<string|undefined>(() => {
     const p = _todos.filter(t => !t.done).length;
@@ -755,74 +700,20 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     return () => clearInterval(id);
   }, [userName]);
 
-  // ── Snap ──────────────────────────────────────────────────────────────────
-  const snapTo = useCallback((toValue: number, cb?: () => void) => {
-    snapTarget.current = toValue;
-    currentY.current = toValue;
-    setScrollEnabled(true);
-    const opacity = toValue===SNAP_CLOSED ? 0 : 0.75;
-    Animated.parallel([
-      Animated.spring(translateY, { toValue, friction:22, tension:200, useNativeDriver:true }),
-      Animated.timing(overlayOpacity, { toValue:opacity, duration:200, useNativeDriver:true }),
-    ]).start(({ finished }) => { if (finished && cb) cb(); });
-  }, []);
-
-  useEffect(() => {
-    translateY.setValue(SNAP_CLOSED);
-    overlayOpacity.setValue(0);
-    snapTo(SNAP_HALF);
-  }, []); // eslint-disable-line
-
-  const handleClose = useCallback(() => {
-    setVisible(false);
-    onClose();
-  }, [onClose]);
-
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (activeTool) { setActiveTool(null); return true; }
-      handleClose(); return true;
+      onClose(); return true;
     });
     return () => sub.remove();
-  }, [handleClose, activeTool]);
+  }, [activeTool, onClose]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s: AppStateStatus) => {
-      if (s !== 'active') handleClose();
+      if (s !== 'active') onClose();
     });
     return () => sub.remove();
-  }, [handleClose]);
-
-  // ── PanResponder ──────────────────────────────────────────────────────────
-  const panResponder = useRef(PanResponder.create({
-    // Capture vertical moves on the drag zone
-    onStartShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponderCapture: () => false,
-    onMoveShouldSetPanResponder: (_: GestureResponderEvent, gs) => {
-      return Math.abs(gs.dy) > Math.abs(gs.dx) * 1.2 && Math.abs(gs.dy) > 4;
-    },
-    onMoveShouldSetPanResponderCapture: () => false,
-    onPanResponderGrant: () => {
-      translateY.stopAnimation(); overlayOpacity.stopAnimation();
-    },
-    onPanResponderMove: (_: GestureResponderEvent, gs) => {
-      let next = snapTarget.current + gs.dy;
-      if (next < SNAP_FULL) next = SNAP_FULL + (next - SNAP_FULL) * 0.2;
-      currentY.current = next; // track live position
-      translateY.setValue(next);
-      const ratio = 1 - (next - SNAP_FULL) / (SNAP_CLOSED - SNAP_FULL);
-      overlayOpacity.setValue(Math.min(0.75, Math.max(0, ratio * 0.75)));
-    },
-    onPanResponderRelease: (_: GestureResponderEvent, gs) => {
-      if (gs.vy > 0.5 || gs.dy > 100) { handleClose(); return; }
-      snapTo(SNAP_FULL);
-    },
-    onPanResponderTerminate: () => snapTo(snapTarget.current),
-  })).current;
-
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollAtTop.current = e.nativeEvent.contentOffset.y <= 2;
-  }, []);
+  }, [onClose]);
 
   if (showChat) {
     return (
@@ -835,125 +726,89 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
     );
   }
 
-  if (!visible) return null;
-
   return (
-    <Modal transparent visible animationType="none" onRequestClose={handleClose} statusBarTranslucent>
-      {/* Dim overlay */}
-      <Animated.View style={[ds.overlay, {opacity: overlayOpacity}]} pointerEvents="box-none">
-        <TouchableOpacity style={{flex:1}} activeOpacity={1} onPress={handleClose} />
-      </Animated.View>
+    <View style={ds.fullscreen}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      {/* Sheet */}
-      <Animated.View style={[ds.sheet, {transform:[{translateY}]}]}>
-
-        {/* Drag zone: pill + header. This whole block handles pan gestures. */}
-        <View {...panResponder.panHandlers} style={ds.dragZone}>
-          {/* Pill */}
-          <View style={ds.pillWrap}>
-            <View style={ds.pill} />
+      {/* Header */}
+      <View style={ds.header}>
+        <TouchableOpacity style={ds.avatarWrap} onPress={() => setShowChat(true)} activeOpacity={0.8}>
+          <View style={ds.avatarCircle}>
+            {avatarSource
+              ? <Image source={{uri: avatarSource}} style={ds.avatar} />
+              : <View style={ds.avatarPlaceholder}><Text style={ds.avatarPlaceholderTxt}>👤</Text></View>
+            }
           </View>
-
-          {/* Header row: avatar LEFT (centered), clock+msg RIGHT */}
-          <View style={ds.headerRow}>
-            {/* Avatar — left, vertically centered */}
-            <TouchableOpacity style={ds.avatarWrap}
-              onPress={() => setShowChat(true)}
-              activeOpacity={0.8}>
-              <View style={ds.avatarCircle}>
-                {avatarSource ? (
-                  <Image source={{uri: avatarSource}} style={ds.avatar} />
-                ) : (
-                  <View style={ds.avatarPlaceholder}><Text style={ds.avatarPlaceholderTxt}>👤</Text></View>
-                )}
-              </View>
-            </TouchableOpacity>
-
-            {/* Clock + message — right side */}
-            <View style={ds.headerRight}>
-              <View style={ds.clockBox}><Clock /></View>
-              <View style={ds.msgBox}>
-                <Text style={ds.msgText} numberOfLines={3}>{assistantMsg}</Text>
-              </View>
-            </View>
-          </View>
+        </TouchableOpacity>
+        <View style={ds.headerCenter}>
+          <Clock />
+          <Text style={ds.msgText} numberOfLines={2}>{assistantMsg}</Text>
         </View>
+        <TouchableOpacity style={ds.closeBtn} onPress={onClose} activeOpacity={0.7}>
+          <Text style={ds.closeTxt}>✕</Text>
+        </TouchableOpacity>
+      </View>
 
-        <ScrollView
-          ref={scrollRef}
-          style={ds.scroll}
-          contentContainerStyle={ds.scrollContent}
-          showsVerticalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={onScroll}
-          keyboardShouldPersistTaps="handled"
-          scrollEnabled={scrollEnabled}
-        >
-          {activeTool ? (
-            <View>
-              {activeTool==='weather'   && <WeatherTool />}
-              {activeTool==='money'     && <MoneyTool />}
-              {activeTool==='todo'      && <TodoTool />}
-              {activeTool==='countdown' && <CountdownTool />}
+      {/* Content */}
+      <ScrollView
+        style={ds.scroll}
+        contentContainerStyle={ds.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {activeTool ? (
+          <View>
+            {activeTool==='weather'   && <WeatherTool />}
+            {activeTool==='money'     && <MoneyTool />}
+            {activeTool==='todo'      && <TodoTool />}
+            {activeTool==='countdown' && <CountdownTool />}
+          </View>
+        ) : (
+          <View style={ds.grid}>
+            <View style={ds.gridRow}>
+              <ToolCard icon="🌤️" label="Weather"       onPress={() => setActiveTool('weather')} />
+              <ToolCard icon="💱" label="Money Exchange" onPress={() => setActiveTool('money')} />
             </View>
-          ) : (
-            <View style={ds.grid}>
-              <View style={ds.gridRow}>
-                <ToolCard icon="🌤️" label="Weather"       onPress={() => { setActiveTool('weather');   snapTo(SNAP_FULL); }} />
-                <ToolCard icon="💱" label="Money Exchange" onPress={() => { setActiveTool('money');     snapTo(SNAP_FULL); }} />
-              </View>
-              <View style={ds.gridRow}>
-                <ToolCard icon="📝" label="To Do"       preview={todoPrev} onPress={() => { setActiveTool('todo');      snapTo(SNAP_FULL); }} />
-                <ToolCard icon="⏳" label="Countdown"   preview={cdPrev}   onPress={() => { setActiveTool('countdown'); snapTo(SNAP_FULL); }} />
-              </View>
+            <View style={ds.gridRow}>
+              <ToolCard icon="📝" label="To Do"       preview={todoPrev} onPress={() => setActiveTool('todo')} />
+              <ToolCard icon="⏳" label="Countdown"   preview={cdPrev}   onPress={() => setActiveTool('countdown')} />
             </View>
-          )}
-        </ScrollView>
-
-        {/* Sticky Back button — only shown when a tool is active */}
-        {activeTool && (
-          <View style={ds.backBarWrap}>
-            <TouchableOpacity style={ds.backBtn} onPress={() => setActiveTool(null)} activeOpacity={0.7}>
-              <Text style={ds.backTxt}>Back</Text>
-            </TouchableOpacity>
           </View>
         )}
-      </Animated.View>
-    </Modal>
+      </ScrollView>
+
+      {/* Sticky Back */}
+      {activeTool && (
+        <View style={ds.backBarWrap}>
+          <TouchableOpacity style={ds.backBtn} onPress={() => setActiveTool(null)} activeOpacity={0.7}>
+            <Text style={ds.backTxt}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
   );
 });
 
 const ds = StyleSheet.create({
-  overlay:     { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#000' },
-  sheet:       { position:'absolute', left:0, right:0, height:SCREEN_H, backgroundColor:'#0a0a0a', borderTopLeftRadius:SHEET_RADIUS, borderTopRightRadius:SHEET_RADIUS, borderWidth:1, borderColor:'#1e1e1e', borderBottomWidth:0, elevation:24 },
-
-  // dragZone wraps pill + header and is the PanResponder target
-  dragZone:    { paddingHorizontal:20, paddingBottom:16 },
-  pillWrap:    { alignItems:'center', paddingTop:12, paddingBottom:14 },
-  pill:        { width:40, height:4, borderRadius:2, backgroundColor:'#3a3a3a' },
-
-  // Header: avatar left, clock+msg right
-  headerRow:   { flexDirection:'row', alignItems:'center', gap:14 },
-  avatarWrap:  { position:'relative', flexShrink:0 },
-  avatarCircle:{ width:74, height:74, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a' },
-  avatar:      { width:'100%', height:'100%' },
-
-  // Right side: clock on top, message below
-  headerRight: { flex:1, gap:8 },
-  clockBox:    { backgroundColor:'#0e1a2e', borderRadius:12, paddingHorizontal:14, paddingVertical:8, borderWidth:1, borderColor:'#1a3a6a', alignItems:'center' },
-  clockText:   { color:'#5ba3f5', fontSize:22, fontWeight:'300', letterSpacing:3, fontVariant:['tabular-nums'] as any },
-  msgBox:      { backgroundColor:'#0e2a1e', borderRadius:12, paddingHorizontal:14, paddingVertical:8, borderWidth:1, borderColor:'#1a4a2e' },
-  msgText:     { color:'#7dd4a8', fontSize:12, lineHeight:18 },
-
-  scroll:      { flex:1 },
-  scrollContent:{ paddingHorizontal:20, paddingBottom:40 },
-  grid:        { gap:10 },
-  gridRow:     { flexDirection:'row', gap:10 },
-  backBarWrap: { paddingHorizontal:20, paddingTop:10, paddingBottom:24, borderTopWidth:1, borderTopColor:'#1a1a1a', backgroundColor:'#0a0a0a' },
-  backBtn:     { paddingVertical:13, borderRadius:12, backgroundColor:'#1c1c1c', alignItems:'center' },
-  backTxt:     { color:'#fff', fontSize:15, fontWeight:'400' },
-  avatarPlaceholder:  { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#1a1a1a' },
-  avatarPlaceholderTxt:{ fontSize:28 },
+  fullscreen:    { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#000', zIndex:1000 },
+  header:        { flexDirection:'row', alignItems:'center', gap:12, paddingHorizontal:16, paddingTop: STATUS_BAR_H + 8, paddingBottom:14, borderBottomWidth:1, borderBottomColor:'#1a1a1a' },
+  avatarWrap:    { flexShrink:0 },
+  avatarCircle:  { width:44, height:44, borderRadius:22, overflow:'hidden', backgroundColor:'#1c1c1e' },
+  avatar:        { width:'100%', height:'100%' },
+  avatarPlaceholder:   { flex:1, justifyContent:'center', alignItems:'center' },
+  avatarPlaceholderTxt:{ fontSize:22 },
+  headerCenter:  { flex:1, gap:2 },
+  clockText:     { color:'#fff', fontSize:20, fontWeight:'300', letterSpacing:3, fontVariant:['tabular-nums'] as any },
+  msgText:       { color:'#8e8e93', fontSize:12, lineHeight:17 },
+  closeBtn:      { width:32, height:32, borderRadius:16, backgroundColor:'#1c1c1e', justifyContent:'center', alignItems:'center' },
+  closeTxt:      { color:'#8e8e93', fontSize:14 },
+  scroll:        { flex:1 },
+  scrollContent: { paddingHorizontal:20, paddingTop:20, paddingBottom:40 },
+  grid:          { gap:10 },
+  gridRow:       { flexDirection:'row', gap:10 },
+  backBarWrap:   { paddingHorizontal:20, paddingTop:10, paddingBottom:24, borderTopWidth:1, borderTopColor:'#1a1a1a', backgroundColor:'#000' },
+  backBtn:       { paddingVertical:13, borderRadius:12, backgroundColor:'#1c1c1e', alignItems:'center' },
+  backTxt:       { color:'#fff', fontSize:15, fontWeight:'400' },
 });
 
 export default DashboardPopup;
