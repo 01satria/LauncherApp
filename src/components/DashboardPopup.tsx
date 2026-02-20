@@ -266,13 +266,38 @@ const WeatherTool = memo(() => {
       const gd  = await geo.json();
       if (!gd.results?.length) { setError('Location not found.'); setLoading(false); return; }
       const { latitude, longitude, name, country } = gd.results[0];
-      const wr  = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&timezone=auto`);
+      const wr  = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&hourly=temperature_2m,weathercode,precipitation_probability&forecast_days=2&timezone=auto`);
       const wd  = await wr.json();
       const code = wd.current.weathercode;
       const cityLabel = `${name}, ${country}`;
+
+      // Build hourly forecast for +1, +3, +6, +8, +10 hours from now
+      const OFFSETS = [1, 3, 6, 8, 10];
+      const times: string[]  = wd.hourly.time;
+      const temps: number[]  = wd.hourly.temperature_2m;
+      const codes: number[]  = wd.hourly.weathercode;
+      const pops:  number[]  = wd.hourly.precipitation_probability;
+
+      // Find index of the current hour in hourly array
+      const nowDate = new Date();
+      nowDate.setMinutes(0, 0, 0);
+      const nowStr = nowDate.toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
+      const baseIdx = times.findIndex(t => t.startsWith(nowStr));
+      const safeBase = baseIdx >= 0 ? baseIdx : 0;
+
+      const forecast = OFFSETS.map(offset => {
+        const idx = safeBase + offset;
+        if (idx >= times.length) return null;
+        const h = new Date(times[idx]);
+        const label = `${h.getHours().toString().padStart(2,'0')}:00`;
+        return { label, offset: `+${offset}h`, temp: Math.round(temps[idx]),
+          icon: weatherIcon(codes[idx]), desc: weatherDesc(codes[idx]), pop: pops[idx] ?? 0 };
+      }).filter(Boolean);
+
       setWeather({ city: cityLabel, temp: Math.round(wd.current.temperature_2m),
         desc: weatherDesc(code), wind: Math.round(wd.current.windspeed_10m),
-        humidity: wd.current.relativehumidity_2m, icon: weatherIcon(code), rawQuery: query });
+        humidity: wd.current.relativehumidity_2m, icon: weatherIcon(code),
+        rawQuery: query, forecast });
     } catch { setError('Failed to fetch weather.'); }
     setLoading(false);
   }, [location]);
@@ -345,6 +370,25 @@ const WeatherTool = memo(() => {
           )}
         </View>
       )}
+
+      {/* Hourly forecast strip */}
+      {weather?.forecast?.length > 0 && (
+        <View style={ws.forecastWrap}>
+          <Text style={ws.forecastTitle}>Prediksi Cuaca</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ws.forecastScroll}>
+            {weather.forecast.map((f: any) => (
+              <View key={f.offset} style={ws.forecastItem}>
+                <Text style={ws.forecastOffset}>{f.offset}</Text>
+                <Text style={ws.forecastTime}>{f.label}</Text>
+                <Text style={ws.forecastIcon}>{f.icon}</Text>
+                <Text style={ws.forecastTemp}>{f.temp}°</Text>
+                <Text style={ws.forecastDesc} numberOfLines={2}>{f.desc}</Text>
+                {f.pop > 0 && <Text style={ws.forecastPopTxt}>💧{f.pop}%</Text>}
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 });
@@ -369,6 +413,17 @@ const ws = StyleSheet.create({
   savedItemTxt:   { color:'#cde', fontSize:13 },
   savedDeleteBtn: { paddingVertical:10, paddingHorizontal:14 },
   savedDeleteTxt: { color:'#c55', fontSize:13, fontWeight:'700' },
+  // Hourly forecast
+  forecastWrap:   { marginTop:14, backgroundColor:'#0a1520', borderRadius:14, paddingTop:12, paddingBottom:8, borderWidth:1, borderColor:'#1a2a3a' },
+  forecastTitle:  { color:'#8ab4d4', fontSize:11, fontWeight:'700', textTransform:'uppercase', letterSpacing:0.8, paddingHorizontal:14, marginBottom:10 },
+  forecastScroll: { paddingHorizontal:10, gap:8 },
+  forecastItem:   { alignItems:'center', backgroundColor:'#0f1923', borderRadius:12, paddingVertical:10, paddingHorizontal:10, width:68, borderWidth:1, borderColor:'#1e2e3e' },
+  forecastOffset: { color:'#5bc8f5', fontSize:11, fontWeight:'700' },
+  forecastTime:   { color:'#667', fontSize:10, marginBottom:4 },
+  forecastIcon:   { fontSize:22, marginVertical:2 },
+  forecastTemp:   { color:'#fff', fontSize:16, fontWeight:'300', marginTop:2 },
+  forecastDesc:   { color:'#778', fontSize:9, textAlign:'center', marginTop:3, lineHeight:12 },
+  forecastPopTxt: { color:'#5bc8f5', fontSize:10, marginTop:4 },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -844,8 +899,8 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           {/* Tool grid or active tool */}
           {activeTool ? (
             <View>
-              <TouchableOpacity style={ds.backBtn} onPress={() => setActiveTool(null)} activeOpacity={0.7}>
-                <Text style={ds.backTxt}>← Back</Text>
+              <TouchableOpacity style={ds.backBtn} onPress={() => setActiveTool(null)} activeOpacity={0.6} hitSlop={{top:10,left:10,bottom:10,right:10}}>
+                <Text style={ds.backTxt}>◀</Text>
               </TouchableOpacity>
               {activeTool==='weather'   && <WeatherTool />}
               {activeTool==='money'     && <MoneyTool />}
@@ -896,8 +951,8 @@ const ds = StyleSheet.create({
   scrollContent:{ paddingHorizontal:20, paddingBottom:40 },
   grid:        { gap:10 },
   gridRow:     { flexDirection:'row', gap:10 },
-  backBtn:     { marginBottom:14 },
-  backTxt:           { color:'#27ae60', fontSize:14, fontWeight:'600' },
+  backBtn:     { alignSelf:'flex-start', marginBottom:10 },
+  backTxt:     { color:'#fff', fontSize:18, lineHeight:22 },
   avatarPlaceholder:  { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#1a1a1a' },
   avatarPlaceholderTxt:{ fontSize:28 },
 });
