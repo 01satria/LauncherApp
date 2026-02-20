@@ -145,20 +145,20 @@ const AppActionModal = memo(({
 });
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#0d0d0d', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32 },
-  handleContainer: { alignItems: 'center', paddingTop: 12, paddingBottom: 12 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#3a3a3a' },
-  header: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: '700', color: '#fff', textAlign: 'center' },
-  subtitle: { fontSize: 13, color: '#555', marginTop: 4, textAlign: 'center' },
-  btnGroup: { paddingHorizontal: 20, paddingTop: 20, gap: 10 },
-  actionBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 1, backgroundColor: '#131313' },
-  btnGreen: { borderColor: '#11a34e' },
-  btnRed: { borderColor: '#c0392b' },
-  btnPurple: { borderColor: '#8e44ad' },
-  btnOrange: { borderColor: '#e67e22' },
-  actionBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold', letterSpacing: 0.5 },
+  overlay:        { flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'flex-end' },
+  sheet:          { backgroundColor:'#1c1c1e', borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:34 },
+  handleContainer:{ alignItems:'center', paddingTop:10, paddingBottom:8 },
+  handle:         { width:36, height:4, borderRadius:2, backgroundColor:'#3a3a3c' },
+  header:         { paddingHorizontal:20, paddingTop:6, paddingBottom:16, borderBottomWidth:1, borderBottomColor:'#2c2c2e', alignItems:'center' },
+  title:          { fontSize:17, fontWeight:'600', color:'#fff', textAlign:'center' },
+  subtitle:       { fontSize:13, color:'#8e8e93', marginTop:4, textAlign:'center' },
+  btnGroup:       { paddingHorizontal:16, paddingTop:16, gap:8 },
+  actionBtn:      { paddingVertical:15, borderRadius:12, alignItems:'center', justifyContent:'center', backgroundColor:'#2c2c2e' },
+  btnGreen:       { backgroundColor:'#1c3a28' },
+  btnRed:         { backgroundColor:'#3a1c1c' },
+  btnPurple:      { backgroundColor:'#2a1c3a' },
+  btnOrange:      { backgroundColor:'#3a2a1c' },
+  actionBtnText:  { color:'#fff', fontSize:15, fontWeight:'500' },
 });
 
 export default AppActionModal;

@@ -362,43 +362,29 @@ const WeatherTool = memo(() => {
           {/* Save button */}
           {canSave && (
             <TouchableOpacity style={ws.saveBtn} onPress={() => addCurrentLocation(weather.rawQuery)} activeOpacity={0.7}>
-              <Text style={ws.saveBtnTxt}>+ Save location</Text>
+              <Text style={ws.saveBtnTxt}>+ Simpan Lokasi</Text>
             </TouchableOpacity>
           )}
           {alreadySaved && (
-            <Text style={ws.savedBadge}>✓ Saved</Text>
+            <Text style={ws.savedBadge}>✓ Tersimpan</Text>
           )}
           {!canSave && !alreadySaved && savedLocations.length >= MAX_WEATHER_LOCATIONS && (
-            <Text style={ws.savedBadge}>⚠ Max {MAX_WEATHER_LOCATIONS} locations</Text>
+            <Text style={ws.savedBadge}>⚠ Maks. {MAX_WEATHER_LOCATIONS} lokasi</Text>
           )}
         </View>
       )}
 
       {/* Full-day hourly forecast */}
-      {weather?.forecast?.length > 0 && (
+      {weather?.forecast?.filter((f: any) => !f.isPast).length > 0 && (
         <View style={ws.forecastWrap}>
-          <View style={ws.forecastHeader}>
-            <Text style={ws.forecastTitle}>Today's Forecast</Text>
-            <Text style={ws.forecastSub}>{weather.forecast.length} hours</Text>
-          </View>
+          <Text style={ws.forecastTitle}>Today's Forecast</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ws.forecastScroll}>
-            {weather.forecast.map((f: any) => (
-              <View key={f.label} style={[
-                ws.forecastItem,
-                f.isNow  && ws.forecastItemNow,
-                f.isPast && ws.forecastItemPast,
-              ]}>
-                {f.isNow && <View style={ws.forecastNowDot} />}
-                <Text style={[ws.forecastTime, f.isNow && ws.forecastTimeNow, f.isPast && ws.forecastTimePast]}>{f.label}</Text>
-                <Text style={[ws.forecastIcon, f.isPast && ws.forecastIconPast]}>{f.icon}</Text>
-                <Text style={[ws.forecastTemp, f.isNow && ws.forecastTempFirst, f.isPast && ws.forecastTempPast]}>{f.temp}°</Text>
-                <Text style={[ws.forecastDesc, f.isPast && ws.forecastDescPast]} numberOfLines={2}>{f.desc}</Text>
-                <View style={ws.forecastPopRow}>
-                  {f.pop > 0
-                    ? <Text style={[ws.forecastPopTxt, f.isPast && ws.forecastPopPast]}>💧{f.pop}%</Text>
-                    : <Text style={ws.forecastNoPop}>—</Text>
-                  }
-                </View>
+            {weather.forecast.filter((f: any) => !f.isPast).map((f: any) => (
+              <View key={f.label} style={[ws.forecastItem, f.isNow && ws.forecastItemNow]}>
+                <Text style={[ws.forecastTime, f.isNow && ws.forecastTimeNow]}>{f.label}</Text>
+                <Text style={ws.forecastIcon}>{f.icon}</Text>
+                <Text style={[ws.forecastTemp, f.isNow && ws.forecastTempNow]}>{f.temp}°</Text>
+                {f.pop > 0 && <Text style={ws.forecastPopTxt}>💧{f.pop}%</Text>}
               </View>
             ))}
           </ScrollView>
@@ -415,43 +401,31 @@ const ws = StyleSheet.create({
   desc:           { color:'#aaa', fontSize:14, marginTop:2 },
   detailRow:      { flexDirection:'row', gap:24, marginTop:12 },
   detail:         { color:'#8ab4d4', fontSize:13 },
-  saveBtn:        { marginTop:14, backgroundColor:'#1a3a4a', borderRadius:10, paddingVertical:7, paddingHorizontal:20 },
-  saveBtnTxt:     { color:'#5bc8f5', fontSize:13, fontWeight:'600' },
-  savedBadge:     { marginTop:12, color:'#5bc8f5', fontSize:12 },
+  saveBtn:        { marginTop:14, backgroundColor:'#2a2a2a', borderRadius:10, paddingVertical:9, paddingHorizontal:20 },
+  saveBtnTxt:     { color:'#fff', fontSize:14, fontWeight:'500' },
+  savedBadge:     { marginTop:12, color:'#888', fontSize:12 },
   savedToggle:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                    backgroundColor:'#0f1923', borderRadius:10, paddingVertical:9, paddingHorizontal:14, marginTop:10 },
-  savedToggleTxt: { color:'#8ab4d4', fontSize:13, fontWeight:'600' },
-  savedToggleArrow:{ color:'#8ab4d4', fontSize:11 },
-  savedList:      { backgroundColor:'#0a1520', borderRadius:10, marginTop:4, overflow:'hidden' },
-  savedItem:      { flexDirection:'row', alignItems:'center', borderBottomWidth:1, borderBottomColor:'#1a2a35' },
-  savedItemBtn:   { flex:1, paddingVertical:10, paddingHorizontal:14 },
-  savedItemTxt:   { color:'#cde', fontSize:13 },
-  savedDeleteBtn: { paddingVertical:10, paddingHorizontal:14 },
-  savedDeleteTxt: { color:'#c55', fontSize:13, fontWeight:'700' },
+                    backgroundColor:'#1c1c1c', borderRadius:10, paddingVertical:10, paddingHorizontal:14, marginTop:10 },
+  savedToggleTxt: { color:'#ccc', fontSize:14, fontWeight:'500' },
+  savedToggleArrow:{ color:'#666', fontSize:11 },
+  savedList:      { backgroundColor:'#1c1c1c', borderRadius:10, marginTop:4, overflow:'hidden' },
+  savedItem:      { flexDirection:'row', alignItems:'center', borderBottomWidth:1, borderBottomColor:'#2a2a2a' },
+  savedItemBtn:   { flex:1, paddingVertical:11, paddingHorizontal:14 },
+  savedItemTxt:   { color:'#ddd', fontSize:14 },
+  savedDeleteBtn: { paddingVertical:11, paddingHorizontal:14 },
+  savedDeleteTxt: { color:'#ff453a', fontSize:14, fontWeight:'500' },
   // Full-day hourly forecast
-  forecastWrap:      { marginTop:14, backgroundColor:'#06101a', borderRadius:16, paddingTop:14, paddingBottom:12, borderWidth:1, borderColor:'#1a2e42' },
-  forecastHeader:    { flexDirection:'row', alignItems:'baseline', justifyContent:'space-between', paddingHorizontal:16, marginBottom:12 },
-  forecastTitle:     { color:'#c8dff0', fontSize:12, fontWeight:'700', letterSpacing:0.5 },
-  forecastSub:       { color:'#3a5570', fontSize:10 },
-  forecastScroll:    { paddingHorizontal:12, gap:7 },
-  forecastItem:      { alignItems:'center', backgroundColor:'#0d1e2e', borderRadius:14, paddingTop:14, paddingBottom:10, paddingHorizontal:9, width:68, borderWidth:1, borderColor:'#1a2e42' },
-  forecastItemNow:   { backgroundColor:'#0e2a40', borderColor:'#2a6a9a', borderWidth:1.5 },
-  forecastItemPast:  { opacity:0.38 },
-  forecastNowDot:    { width:5, height:5, borderRadius:3, backgroundColor:'#5bc8f5', position:'absolute', top:7 },
-  forecastTime:      { color:'#3a5a78', fontSize:10, fontWeight:'500', marginBottom:6 },
-  forecastTimeNow:   { color:'#5bc8f5', fontWeight:'700' },
-  forecastTimePast:  { color:'#2a3a4a' },
-  forecastIcon:      { fontSize:22, marginBottom:5 },
-  forecastIconPast:  { opacity:0.5 },
-  forecastTemp:      { color:'#a0bdd0', fontSize:14, fontWeight:'400', marginBottom:4 },
-  forecastTempFirst: { color:'#fff', fontWeight:'700', fontSize:15 },
-  forecastTempPast:  { color:'#3a4a58' },
-  forecastDesc:      { color:'#3a5570', fontSize:9, textAlign:'center', lineHeight:12, minHeight:24 },
-  forecastDescPast:  { color:'#253040' },
-  forecastPopRow:    { marginTop:5, height:14, justifyContent:'center' },
-  forecastPopTxt:    { color:'#5bc8f5', fontSize:9, fontWeight:'600' },
-  forecastPopPast:   { color:'#2a4050' },
-  forecastNoPop:     { color:'#1e2e3c', fontSize:9 },
+  forecastWrap:    { marginTop:14, backgroundColor:'#141414', borderRadius:16, paddingTop:12, paddingBottom:10 },
+  forecastTitle:   { color:'#888', fontSize:11, fontWeight:'600', letterSpacing:0.5, paddingHorizontal:14, marginBottom:10, textTransform:'uppercase' },
+  forecastScroll:  { paddingHorizontal:10, gap:6 },
+  forecastItem:    { alignItems:'center', backgroundColor:'#1c1c1c', borderRadius:12, paddingVertical:10, paddingHorizontal:8, width:60 },
+  forecastItemNow: { backgroundColor:'#2a2a2a', borderWidth:1, borderColor:'#444' },
+  forecastTime:    { color:'#666', fontSize:10, marginBottom:5 },
+  forecastTimeNow: { color:'#fff', fontWeight:'700' },
+  forecastIcon:    { fontSize:20, marginBottom:4 },
+  forecastTemp:    { color:'#ccc', fontSize:14, fontWeight:'400' },
+  forecastTempNow: { color:'#fff', fontWeight:'700' },
+  forecastPopTxt:  { color:'#888', fontSize:9, marginTop:3 },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -518,14 +492,14 @@ const MoneyTool = memo(() => {
   );
 });
 const ms = StyleSheet.create({
-  chip:       { paddingHorizontal:12, paddingVertical:6, borderRadius:20, backgroundColor:'#1e1e1e', marginRight:6, borderWidth:1, borderColor:'#333' },
-  chipActive: { backgroundColor:'#1a3a2a', borderColor:'#27ae60' },
-  chipTxt:    { color:'#aaa', fontSize:12, fontWeight:'600' },
-  chipTxtActive:{ color:'#27ae60' },
-  resultCard: { backgroundColor:'#0f1a14', borderRadius:14, padding:16, marginTop:12, borderWidth:1, borderColor:'#1c3a26' },
-  resultMain: { color:'#ccc', fontSize:15 },
-  resultVal:  { color:'#27ae60', fontWeight:'700' },
-  rateLine:   { color:'#555', fontSize:12, marginTop:6 },
+  chip:         { paddingHorizontal:13, paddingVertical:7, borderRadius:8, backgroundColor:'#1c1c1c', marginRight:6 },
+  chipActive:   { backgroundColor:'#3a3a3a' },
+  chipTxt:      { color:'#888', fontSize:13, fontWeight:'500' },
+  chipTxtActive:{ color:'#fff' },
+  resultCard:   { backgroundColor:'#1c1c1c', borderRadius:12, padding:16, marginTop:12 },
+  resultMain:   { color:'#ccc', fontSize:15 },
+  resultVal:    { color:'#fff', fontWeight:'600' },
+  rateLine:     { color:'#555', fontSize:12, marginTop:6 },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -583,14 +557,14 @@ const TodoTool = memo(() => {
   );
 });
 const tod = StyleSheet.create({
-  item:     { flexDirection:'row', alignItems:'center', paddingVertical:12, borderBottomWidth:1, borderBottomColor:'#1a1a1a', gap:10 },
+  item:     { flexDirection:'row', alignItems:'center', paddingVertical:12, borderBottomWidth:1, borderBottomColor:'#222', gap:10 },
   checkWrap:{ padding:2 },
-  check:    { width:22, height:22, borderRadius:11, borderWidth:2, borderColor:'#27ae60', justifyContent:'center', alignItems:'center' },
-  checkDone:{ backgroundColor:'#27ae60' },
-  checkMark:{ color:'#fff', fontSize:12, fontWeight:'700' },
-  text:     { flex:1, color:'#ddd', fontSize:14 },
-  textDone: { color:'#555', textDecorationLine:'line-through' },
-  del:      { color:'#555', fontSize:16, paddingHorizontal:4 },
+  check:    { width:22, height:22, borderRadius:11, borderWidth:1.5, borderColor:'#555', justifyContent:'center', alignItems:'center' },
+  checkDone:{ backgroundColor:'#fff', borderColor:'#fff' },
+  checkMark:{ color:'#000', fontSize:12, fontWeight:'700' },
+  text:     { flex:1, color:'#ddd', fontSize:15 },
+  textDone: { color:'#444', textDecorationLine:'line-through' },
+  del:      { color:'#444', fontSize:16, paddingHorizontal:4 },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -679,29 +653,29 @@ const CountdownTool = memo(() => {
   );
 });
 const cdst = StyleSheet.create({
-  dateBtn:   { flexDirection:'row', alignItems:'center', backgroundColor:'#1a1a1a', borderRadius:12, paddingHorizontal:14, paddingVertical:12, borderWidth:1, borderColor:'#2a2a2a', gap:8 },
+  dateBtn:    { flexDirection:'row', alignItems:'center', backgroundColor:'#1c1c1c', borderRadius:10, paddingHorizontal:14, paddingVertical:12, gap:8 },
   dateBtnIcon:{ fontSize:18 },
-  dateBtnTxt:{ color:'#fff', fontSize:14 },
-  item:      { flexDirection:'row', alignItems:'center', paddingVertical:12, borderBottomWidth:1, borderBottomColor:'#1a1a1a', gap:10, marginTop:4 },
-  name:      { color:'#ddd', fontSize:14, fontWeight:'600' },
-  dateStr:   { color:'#555', fontSize:11, marginTop:2 },
-  pill:      { backgroundColor:'#1a3a2a', borderRadius:10, paddingHorizontal:10, paddingVertical:4 },
-  pillPast:  { backgroundColor:'#2a0a0a' },
-  days:      { color:'#27ae60', fontSize:13, fontWeight:'700' },
-  daysPast:  { color:'#e05' },
+  dateBtnTxt: { color:'#fff', fontSize:15 },
+  item:       { flexDirection:'row', alignItems:'center', paddingVertical:12, borderBottomWidth:1, borderBottomColor:'#222', gap:10, marginTop:4 },
+  name:       { color:'#ddd', fontSize:15, fontWeight:'500' },
+  dateStr:    { color:'#555', fontSize:11, marginTop:2 },
+  pill:       { backgroundColor:'#2a2a2a', borderRadius:8, paddingHorizontal:10, paddingVertical:4 },
+  pillPast:   { backgroundColor:'#2a1a1a' },
+  days:       { color:'#fff', fontSize:13, fontWeight:'600' },
+  daysPast:   { color:'#ff453a' },
 });
 
 // ─── Shared tool styles ───────────────────────────────────────────────────────
 const ts = StyleSheet.create({
   container:{ paddingBottom:20 },
-  title:    { color:'#fff', fontSize:17, fontWeight:'700', marginBottom:14 },
+  title:    { color:'#fff', fontSize:17, fontWeight:'600', marginBottom:14 },
   row:      { flexDirection:'row', gap:8, alignItems:'center' },
-  input:    { flex:1, height:42, backgroundColor:'#1a1a1a', borderRadius:12, paddingHorizontal:14, color:'#fff', fontSize:14, borderWidth:1, borderColor:'#2a2a2a' },
-  btn:      { backgroundColor:'#27ae60', borderRadius:12, paddingHorizontal:16, paddingVertical:11 },
-  btnTxt:   { color:'#fff', fontSize:13, fontWeight:'700' },
-  label:    { color:'#666', fontSize:11, fontWeight:'600', marginBottom:6, marginTop:10, textTransform:'uppercase', letterSpacing:0.5 },
+  input:    { flex:1, height:44, backgroundColor:'#1c1c1c', borderRadius:10, paddingHorizontal:14, color:'#fff', fontSize:15 },
+  btn:      { backgroundColor:'#2a2a2a', borderRadius:10, paddingHorizontal:16, paddingVertical:12 },
+  btnTxt:   { color:'#fff', fontSize:15, fontWeight:'500' },
+  label:    { color:'#666', fontSize:12, fontWeight:'500', marginBottom:6, marginTop:10, textTransform:'uppercase', letterSpacing:0.4 },
   info:     { color:'#555', fontSize:13, textAlign:'center', marginTop:20 },
-  error:    { color:'#e05', fontSize:13, marginTop:10, textAlign:'center' },
+  error:    { color:'#ff453a', fontSize:13, marginTop:10, textAlign:'center' },
 });
 
 // ─── Clock ─────────────────────────────────────────────────────────────────────
@@ -722,9 +696,9 @@ const ToolCard = memo(({ icon, label, onPress, preview }: {
   </TouchableOpacity>
 ));
 const card = StyleSheet.create({
-  wrap:   { flex:1, backgroundColor:'#111', borderRadius:16, padding:14, borderWidth:1, borderColor:'#222', minHeight:92, justifyContent:'center' },
-  icon:   { fontSize:26, marginBottom:4 },
-  label:  { color:'#ddd', fontSize:12, fontWeight:'700' },
+  wrap:   { flex:1, backgroundColor:'#1c1c1c', borderRadius:14, padding:14, minHeight:88, justifyContent:'center' },
+  icon:   { fontSize:24, marginBottom:6 },
+  label:  { color:'#ddd', fontSize:13, fontWeight:'500' },
   preview:{ color:'#555', fontSize:10, marginTop:4, lineHeight:14 },
 });
 
@@ -983,9 +957,9 @@ const ds = StyleSheet.create({
   scrollContent:{ paddingHorizontal:20, paddingBottom:40 },
   grid:        { gap:10 },
   gridRow:     { flexDirection:'row', gap:10 },
-  backBarWrap: { paddingHorizontal:20, paddingVertical:12, borderTopWidth:1, borderTopColor:'#1a1a1a', backgroundColor:'#0a0a0a' },
-  backBtn:     { paddingVertical:13, borderRadius:12, backgroundColor:'#1a1a1a', borderWidth:1, borderColor:'#ffffff33', borderStyle:'dashed', alignItems:'center' },
-  backTxt:     { color:'#fff', fontSize:13, fontWeight:'600', letterSpacing:0.3 },
+  backBarWrap: { paddingHorizontal:20, paddingTop:10, paddingBottom:24, borderTopWidth:1, borderTopColor:'#1a1a1a', backgroundColor:'#0a0a0a' },
+  backBtn:     { paddingVertical:13, borderRadius:12, backgroundColor:'#1c1c1c', borderWidth:1, borderColor:'#333', borderStyle:'dashed', alignItems:'center' },
+  backTxt:     { color:'#fff', fontSize:15, fontWeight:'400' },
   avatarPlaceholder:  { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#1a1a1a' },
   avatarPlaceholderTxt:{ fontSize:28 },
 });
