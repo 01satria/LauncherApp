@@ -10,6 +10,8 @@ import {
   CUSTOM_SHOW_NAMES_PATH,
   CUSTOM_NOTIF_DISMISSED_PATH,
   CUSTOM_LAYOUT_MODE_PATH,
+  CUSTOM_TODO_PATH,
+  CUSTOM_COUNTDOWN_PATH,
 } from '../constants';
 
 export const initializeStorage = async () => {
@@ -146,11 +148,28 @@ export const checkNotificationStatus = async (): Promise<boolean> => {
   }
 };
 
-// export const getNotificationMessage = (userName: string): string => {
-//   const h = new Date().getHours();
-//   if (h >= 22 || h < 4) return `It's late, ${userName}. Put the phone down and get some rest! 😠 Your health comes first.`;
-//   if (h >= 4 && h < 11) return `Good morning, ${userName}! ☀️ Rise and conquer the day. I'm always cheering for you! 😘`;
-//   if (h >= 11 && h < 15) return `Take a break! 😠 Have you had lunch yet, ${userName}? Don't skip meals! 🍔`;
-//   if (h >= 15 && h < 20) return `You must be tired by now, ${userName}.. ☕ Go ahead and take a breather, okay? 🤗`;
-//   return `All done for the day? 🌙 Time to wind down and relax, ${userName}. You deserve it. 🥰`;
-// };
+export const saveTodos = async (todos: any[]) => {
+  await RNFS.writeFile(CUSTOM_TODO_PATH, JSON.stringify(todos), 'utf8');
+};
+
+export const loadTodos = async (): Promise<any[]> => {
+  try {
+    const exists = await RNFS.exists(CUSTOM_TODO_PATH);
+    if (!exists) return [];
+    const data = await RNFS.readFile(CUSTOM_TODO_PATH, 'utf8');
+    return JSON.parse(data);
+  } catch { return []; }
+};
+
+export const saveCountdowns = async (countdowns: any[]) => {
+  await RNFS.writeFile(CUSTOM_COUNTDOWN_PATH, JSON.stringify(countdowns), 'utf8');
+};
+
+export const loadCountdowns = async (): Promise<any[]> => {
+  try {
+    const exists = await RNFS.exists(CUSTOM_COUNTDOWN_PATH);
+    if (!exists) return [];
+    const data = await RNFS.readFile(CUSTOM_COUNTDOWN_PATH, 'utf8');
+    return JSON.parse(data);
+  } catch { return []; }
+};

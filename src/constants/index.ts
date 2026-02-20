@@ -18,7 +18,9 @@ export const CUSTOM_SHOW_HIDDEN_PATH = `${CUSTOM_AVATAR_DIR}/show_hidden.txt`;
 export const CUSTOM_DOCK_PATH = `${CUSTOM_AVATAR_DIR}/dock.json`;
 export const CUSTOM_SHOW_NAMES_PATH = `${CUSTOM_AVATAR_DIR}/show_names.txt`;
 export const CUSTOM_NOTIF_DISMISSED_PATH = `${CUSTOM_AVATAR_DIR}/notif_dismissed.txt`;
-export const CUSTOM_LAYOUT_MODE_PATH = `${CUSTOM_AVATAR_DIR}/layout_mode.txt`;
+export const CUSTOM_LAYOUT_MODE_PATH  = `${CUSTOM_AVATAR_DIR}/layout_mode.txt`;
+export const CUSTOM_TODO_PATH         = `${CUSTOM_AVATAR_DIR}/todos.json`;
+export const CUSTOM_COUNTDOWN_PATH    = `${CUSTOM_AVATAR_DIR}/countdowns.json`;
 
 // Default values
 // Empty fallback — app uses local avatar if set, shows blank circle otherwise (no network fetch)

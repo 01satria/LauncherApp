@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import RNFS from 'react-native-fs';
 import AssistantPopup from './AssistantPopup';
-import { getCurrentTimePeriod } from '../utils/storage';
+import { getCurrentTimePeriod, saveTodos, loadTodos, saveCountdowns, loadCountdowns } from '../utils/storage';
 import { DEFAULT_ASSISTANT_AVATAR } from '../constants';
 
 const STATUS_BAR_H = StatusBar.currentHeight || 24;
@@ -487,8 +487,16 @@ const TodoTool = memo(() => {
   const [todos, setTodos] = useState<TodoItem[]>(() => [..._todos]);
   const [input, setInput] = useState('');
 
+  // Load from disk on first mount
+  useEffect(() => {
+    loadTodos().then(saved => {
+      if (saved.length > 0) { _todos = saved; setTodos(saved); _todoListener?.(); }
+    });
+  }, []);
+
   const sync = useCallback((next: TodoItem[]) => {
     _todos = next; setTodos(next); _todoListener?.();
+    saveTodos(next).catch(() => {});
   }, []);
 
   const addTodo = useCallback(() => {
@@ -566,8 +574,16 @@ const CountdownTool = memo(() => {
   const [, setTick] = useState(0);
   useEffect(() => { const id = setInterval(() => setTick(t => t+1), 60_000); return () => clearInterval(id); }, []);
 
+  // Load from disk on first mount
+  useEffect(() => {
+    loadCountdowns().then(saved => {
+      if (saved.length > 0) { _countdowns = saved; setCountdowns(saved); _cdListener?.(); }
+    });
+  }, []);
+
   const syncCd = useCallback((next: CountdownItem[]) => {
     _countdowns = next; setCountdowns(next); _cdListener?.();
+    saveCountdowns(next).catch(() => {});
   }, []);
 
   const add = useCallback(() => {
