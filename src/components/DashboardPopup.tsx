@@ -271,28 +271,31 @@ const WeatherTool = memo(() => {
       const code = wd.current.weathercode;
       const cityLabel = `${name}, ${country}`;
 
-      // Build hourly forecast for +1, +3, +6, +8, +10 hours from now
-      const OFFSETS = [1, 3, 6, 8, 10];
+      // Build full-day hourly forecast for today (00:00 – 23:00)
       const times: string[]  = wd.hourly.time;
       const temps: number[]  = wd.hourly.temperature_2m;
       const codes: number[]  = wd.hourly.weathercode;
       const pops:  number[]  = wd.hourly.precipitation_probability;
 
-      // Find index of the current hour in hourly array
       const nowDate = new Date();
-      nowDate.setMinutes(0, 0, 0);
-      const nowStr = nowDate.toISOString().slice(0, 13); // "YYYY-MM-DDTHH"
-      const baseIdx = times.findIndex(t => t.startsWith(nowStr));
-      const safeBase = baseIdx >= 0 ? baseIdx : 0;
+      const todayStr = nowDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+      const currentHour = nowDate.getHours();
 
-      const forecast = OFFSETS.map(offset => {
-        const idx = safeBase + offset;
-        if (idx >= times.length) return null;
-        const h = new Date(times[idx]);
-        const label = `${h.getHours().toString().padStart(2,'0')}:00`;
-        return { label, offset: `+${offset}h`, temp: Math.round(temps[idx]),
-          icon: weatherIcon(codes[idx]), desc: weatherDesc(codes[idx]), pop: pops[idx] ?? 0 };
-      }).filter(Boolean);
+      const forecast = times.reduce((acc: any[], t, idx) => {
+        if (!t.startsWith(todayStr)) return acc;
+        const h = parseInt(t.slice(11, 13), 10);
+        const isNow = h === currentHour;
+        acc.push({
+          label:  `${h.toString().padStart(2,'0')}:00`,
+          temp:   Math.round(temps[idx]),
+          icon:   weatherIcon(codes[idx]),
+          desc:   weatherDesc(codes[idx]),
+          pop:    pops[idx] ?? 0,
+          isPast: h < currentHour,
+          isNow,
+        });
+        return acc;
+      }, []);
 
       setWeather({ city: cityLabel, temp: Math.round(wd.current.temperature_2m),
         desc: weatherDesc(code), wind: Math.round(wd.current.windspeed_10m),
@@ -371,30 +374,31 @@ const WeatherTool = memo(() => {
         </View>
       )}
 
-      {/* Hourly forecast strip */}
+      {/* Full-day hourly forecast */}
       {weather?.forecast?.length > 0 && (
         <View style={ws.forecastWrap}>
           <View style={ws.forecastHeader}>
-            <Text style={ws.forecastTitle}>⏱ Hourly Forecast</Text>
-            <Text style={ws.forecastSub}>from now</Text>
+            <Text style={ws.forecastTitle}>Today's Forecast</Text>
+            <Text style={ws.forecastSub}>{weather.forecast.length} hours</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ws.forecastScroll}>
-            {weather.forecast.map((f: any, idx: number) => (
-              <View key={f.offset} style={[ws.forecastItem, idx === 0 && ws.forecastItemFirst]}>
-                <Text style={[ws.forecastOffset, idx === 0 && ws.forecastOffsetFirst]}>{f.offset}</Text>
-                <Text style={ws.forecastTime}>{f.label}</Text>
-                <Text style={ws.forecastIcon}>{f.icon}</Text>
-                <Text style={[ws.forecastTemp, idx === 0 && ws.forecastTempFirst]}>{f.temp}°C</Text>
-                <Text style={ws.forecastDesc} numberOfLines={2}>{f.desc}</Text>
-                {f.pop > 0 ? (
-                  <View style={ws.forecastPopRow}>
-                    <Text style={ws.forecastPopTxt}>💧 {f.pop}%</Text>
-                  </View>
-                ) : (
-                  <View style={ws.forecastPopRow}>
-                    <Text style={ws.forecastNoPop}>—</Text>
-                  </View>
-                )}
+            {weather.forecast.map((f: any) => (
+              <View key={f.label} style={[
+                ws.forecastItem,
+                f.isNow  && ws.forecastItemNow,
+                f.isPast && ws.forecastItemPast,
+              ]}>
+                {f.isNow && <View style={ws.forecastNowDot} />}
+                <Text style={[ws.forecastTime, f.isNow && ws.forecastTimeNow, f.isPast && ws.forecastTimePast]}>{f.label}</Text>
+                <Text style={[ws.forecastIcon, f.isPast && ws.forecastIconPast]}>{f.icon}</Text>
+                <Text style={[ws.forecastTemp, f.isNow && ws.forecastTempFirst, f.isPast && ws.forecastTempPast]}>{f.temp}°</Text>
+                <Text style={[ws.forecastDesc, f.isPast && ws.forecastDescPast]} numberOfLines={2}>{f.desc}</Text>
+                <View style={ws.forecastPopRow}>
+                  {f.pop > 0
+                    ? <Text style={[ws.forecastPopTxt, f.isPast && ws.forecastPopPast]}>💧{f.pop}%</Text>
+                    : <Text style={ws.forecastNoPop}>—</Text>
+                  }
+                </View>
               </View>
             ))}
           </ScrollView>
@@ -424,24 +428,30 @@ const ws = StyleSheet.create({
   savedItemTxt:   { color:'#cde', fontSize:13 },
   savedDeleteBtn: { paddingVertical:10, paddingHorizontal:14 },
   savedDeleteTxt: { color:'#c55', fontSize:13, fontWeight:'700' },
-  // Hourly forecast
-  forecastWrap:        { marginTop:14, backgroundColor:'#06101a', borderRadius:16, paddingTop:14, paddingBottom:12, borderWidth:1, borderColor:'#1a2e42' },
-  forecastHeader:      { flexDirection:'row', alignItems:'baseline', justifyContent:'space-between', paddingHorizontal:16, marginBottom:12 },
-  forecastTitle:       { color:'#c8dff0', fontSize:12, fontWeight:'700', letterSpacing:0.5 },
-  forecastSub:         { color:'#3a5570', fontSize:10 },
-  forecastScroll:      { paddingHorizontal:12, gap:8 },
-  forecastItem:        { alignItems:'center', backgroundColor:'#0d1e2e', borderRadius:14, paddingVertical:12, paddingHorizontal:10, width:76, borderWidth:1, borderColor:'#1a2e42' },
-  forecastItemFirst:   { backgroundColor:'#0e2a40', borderColor:'#2a5a80' },
-  forecastOffset:      { color:'#4a8ab0', fontSize:11, fontWeight:'700', marginBottom:1 },
-  forecastOffsetFirst: { color:'#5bc8f5' },
-  forecastTime:        { color:'#3a5570', fontSize:10, marginBottom:6 },
-  forecastIcon:        { fontSize:24, marginBottom:4 },
-  forecastTemp:        { color:'#b0cde0', fontSize:15, fontWeight:'400', marginBottom:4 },
-  forecastTempFirst:   { color:'#fff', fontWeight:'600' },
-  forecastDesc:        { color:'#4a6a80', fontSize:9, textAlign:'center', lineHeight:13, minHeight:26 },
-  forecastPopRow:      { marginTop:5, height:16, justifyContent:'center' },
-  forecastPopTxt:      { color:'#5bc8f5', fontSize:9, fontWeight:'600' },
-  forecastNoPop:       { color:'#2a3a4a', fontSize:9 },
+  // Full-day hourly forecast
+  forecastWrap:      { marginTop:14, backgroundColor:'#06101a', borderRadius:16, paddingTop:14, paddingBottom:12, borderWidth:1, borderColor:'#1a2e42' },
+  forecastHeader:    { flexDirection:'row', alignItems:'baseline', justifyContent:'space-between', paddingHorizontal:16, marginBottom:12 },
+  forecastTitle:     { color:'#c8dff0', fontSize:12, fontWeight:'700', letterSpacing:0.5 },
+  forecastSub:       { color:'#3a5570', fontSize:10 },
+  forecastScroll:    { paddingHorizontal:12, gap:7 },
+  forecastItem:      { alignItems:'center', backgroundColor:'#0d1e2e', borderRadius:14, paddingTop:14, paddingBottom:10, paddingHorizontal:9, width:68, borderWidth:1, borderColor:'#1a2e42' },
+  forecastItemNow:   { backgroundColor:'#0e2a40', borderColor:'#2a6a9a', borderWidth:1.5 },
+  forecastItemPast:  { opacity:0.38 },
+  forecastNowDot:    { width:5, height:5, borderRadius:3, backgroundColor:'#5bc8f5', position:'absolute', top:7 },
+  forecastTime:      { color:'#3a5a78', fontSize:10, fontWeight:'500', marginBottom:6 },
+  forecastTimeNow:   { color:'#5bc8f5', fontWeight:'700' },
+  forecastTimePast:  { color:'#2a3a4a' },
+  forecastIcon:      { fontSize:22, marginBottom:5 },
+  forecastIconPast:  { opacity:0.5 },
+  forecastTemp:      { color:'#a0bdd0', fontSize:14, fontWeight:'400', marginBottom:4 },
+  forecastTempFirst: { color:'#fff', fontWeight:'700', fontSize:15 },
+  forecastTempPast:  { color:'#3a4a58' },
+  forecastDesc:      { color:'#3a5570', fontSize:9, textAlign:'center', lineHeight:12, minHeight:24 },
+  forecastDescPast:  { color:'#253040' },
+  forecastPopRow:    { marginTop:5, height:14, justifyContent:'center' },
+  forecastPopTxt:    { color:'#5bc8f5', fontSize:9, fontWeight:'600' },
+  forecastPopPast:   { color:'#2a4050' },
+  forecastNoPop:     { color:'#1e2e3c', fontSize:9 },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -913,17 +923,12 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           keyboardShouldPersistTaps="handled"
           scrollEnabled={scrollEnabled}
         >
-
-          {/* Tool grid or active tool */}
           {activeTool ? (
             <View>
               {activeTool==='weather'   && <WeatherTool />}
               {activeTool==='money'     && <MoneyTool />}
               {activeTool==='todo'      && <TodoTool />}
               {activeTool==='countdown' && <CountdownTool />}
-              <TouchableOpacity style={ds.backBtn} onPress={() => setActiveTool(null)} activeOpacity={0.7}>
-                <Text style={ds.backTxt}>← Back</Text>
-              </TouchableOpacity>
             </View>
           ) : (
             <View style={ds.grid}>
@@ -938,6 +943,15 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
             </View>
           )}
         </ScrollView>
+
+        {/* Sticky Back button — only shown when a tool is active */}
+        {activeTool && (
+          <View style={ds.backBarWrap}>
+            <TouchableOpacity style={ds.backBtn} onPress={() => setActiveTool(null)} activeOpacity={0.7}>
+              <Text style={ds.backTxt}>Back</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </Animated.View>
     </Modal>
   );
@@ -969,7 +983,8 @@ const ds = StyleSheet.create({
   scrollContent:{ paddingHorizontal:20, paddingBottom:40 },
   grid:        { gap:10 },
   gridRow:     { flexDirection:'row', gap:10 },
-  backBtn:     { marginTop:18, marginBottom:6, paddingVertical:13, borderRadius:12, backgroundColor:'#1a1a1a', borderWidth:1, borderColor:'#ffffff55', borderStyle:'dashed', alignItems:'center' },
+  backBarWrap: { paddingHorizontal:20, paddingVertical:12, borderTopWidth:1, borderTopColor:'#1a1a1a', backgroundColor:'#0a0a0a' },
+  backBtn:     { paddingVertical:13, borderRadius:12, backgroundColor:'#1a1a1a', borderWidth:1, borderColor:'#ffffff33', borderStyle:'dashed', alignItems:'center' },
   backTxt:     { color:'#fff', fontSize:13, fontWeight:'600', letterSpacing:0.3 },
   avatarPlaceholder:  { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#1a1a1a' },
   avatarPlaceholderTxt:{ fontSize:28 },
