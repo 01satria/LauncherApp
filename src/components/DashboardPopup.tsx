@@ -359,7 +359,7 @@ const WeatherTool = memo(() => {
           {/* Save button */}
           {canSave && (
             <TouchableOpacity style={ws.saveBtn} onPress={() => addCurrentLocation(weather.rawQuery)} activeOpacity={0.7}>
-              <Text style={ws.saveBtnTxt}>+ Save Location</Text>
+              <Text style={ws.saveBtnTxt}>+ Save location</Text>
             </TouchableOpacity>
           )}
           {alreadySaved && (
@@ -374,16 +374,27 @@ const WeatherTool = memo(() => {
       {/* Hourly forecast strip */}
       {weather?.forecast?.length > 0 && (
         <View style={ws.forecastWrap}>
-          <Text style={ws.forecastTitle}>Prediksi Cuaca</Text>
+          <View style={ws.forecastHeader}>
+            <Text style={ws.forecastTitle}>⏱ Hourly Forecast</Text>
+            <Text style={ws.forecastSub}>from now</Text>
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ws.forecastScroll}>
-            {weather.forecast.map((f: any) => (
-              <View key={f.offset} style={ws.forecastItem}>
-                <Text style={ws.forecastOffset}>{f.offset}</Text>
+            {weather.forecast.map((f: any, idx: number) => (
+              <View key={f.offset} style={[ws.forecastItem, idx === 0 && ws.forecastItemFirst]}>
+                <Text style={[ws.forecastOffset, idx === 0 && ws.forecastOffsetFirst]}>{f.offset}</Text>
                 <Text style={ws.forecastTime}>{f.label}</Text>
                 <Text style={ws.forecastIcon}>{f.icon}</Text>
-                <Text style={ws.forecastTemp}>{f.temp}°</Text>
+                <Text style={[ws.forecastTemp, idx === 0 && ws.forecastTempFirst]}>{f.temp}°C</Text>
                 <Text style={ws.forecastDesc} numberOfLines={2}>{f.desc}</Text>
-                {f.pop > 0 && <Text style={ws.forecastPopTxt}>💧{f.pop}%</Text>}
+                {f.pop > 0 ? (
+                  <View style={ws.forecastPopRow}>
+                    <Text style={ws.forecastPopTxt}>💧 {f.pop}%</Text>
+                  </View>
+                ) : (
+                  <View style={ws.forecastPopRow}>
+                    <Text style={ws.forecastNoPop}>—</Text>
+                  </View>
+                )}
               </View>
             ))}
           </ScrollView>
@@ -414,16 +425,23 @@ const ws = StyleSheet.create({
   savedDeleteBtn: { paddingVertical:10, paddingHorizontal:14 },
   savedDeleteTxt: { color:'#c55', fontSize:13, fontWeight:'700' },
   // Hourly forecast
-  forecastWrap:   { marginTop:14, backgroundColor:'#0a1520', borderRadius:14, paddingTop:12, paddingBottom:8, borderWidth:1, borderColor:'#1a2a3a' },
-  forecastTitle:  { color:'#8ab4d4', fontSize:11, fontWeight:'700', textTransform:'uppercase', letterSpacing:0.8, paddingHorizontal:14, marginBottom:10 },
-  forecastScroll: { paddingHorizontal:10, gap:8 },
-  forecastItem:   { alignItems:'center', backgroundColor:'#0f1923', borderRadius:12, paddingVertical:10, paddingHorizontal:10, width:68, borderWidth:1, borderColor:'#1e2e3e' },
-  forecastOffset: { color:'#5bc8f5', fontSize:11, fontWeight:'700' },
-  forecastTime:   { color:'#667', fontSize:10, marginBottom:4 },
-  forecastIcon:   { fontSize:22, marginVertical:2 },
-  forecastTemp:   { color:'#fff', fontSize:16, fontWeight:'300', marginTop:2 },
-  forecastDesc:   { color:'#778', fontSize:9, textAlign:'center', marginTop:3, lineHeight:12 },
-  forecastPopTxt: { color:'#5bc8f5', fontSize:10, marginTop:4 },
+  forecastWrap:        { marginTop:14, backgroundColor:'#06101a', borderRadius:16, paddingTop:14, paddingBottom:12, borderWidth:1, borderColor:'#1a2e42' },
+  forecastHeader:      { flexDirection:'row', alignItems:'baseline', justifyContent:'space-between', paddingHorizontal:16, marginBottom:12 },
+  forecastTitle:       { color:'#c8dff0', fontSize:12, fontWeight:'700', letterSpacing:0.5 },
+  forecastSub:         { color:'#3a5570', fontSize:10 },
+  forecastScroll:      { paddingHorizontal:12, gap:8 },
+  forecastItem:        { alignItems:'center', backgroundColor:'#0d1e2e', borderRadius:14, paddingVertical:12, paddingHorizontal:10, width:76, borderWidth:1, borderColor:'#1a2e42' },
+  forecastItemFirst:   { backgroundColor:'#0e2a40', borderColor:'#2a5a80' },
+  forecastOffset:      { color:'#4a8ab0', fontSize:11, fontWeight:'700', marginBottom:1 },
+  forecastOffsetFirst: { color:'#5bc8f5' },
+  forecastTime:        { color:'#3a5570', fontSize:10, marginBottom:6 },
+  forecastIcon:        { fontSize:24, marginBottom:4 },
+  forecastTemp:        { color:'#b0cde0', fontSize:15, fontWeight:'400', marginBottom:4 },
+  forecastTempFirst:   { color:'#fff', fontWeight:'600' },
+  forecastDesc:        { color:'#4a6a80', fontSize:9, textAlign:'center', lineHeight:13, minHeight:26 },
+  forecastPopRow:      { marginTop:5, height:16, justifyContent:'center' },
+  forecastPopTxt:      { color:'#5bc8f5', fontSize:9, fontWeight:'600' },
+  forecastNoPop:       { color:'#2a3a4a', fontSize:9 },
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -899,13 +917,13 @@ const DashboardPopup = memo(({ onClose, userName, assistantName, avatarSource }:
           {/* Tool grid or active tool */}
           {activeTool ? (
             <View>
-              <TouchableOpacity style={ds.backBtn} onPress={() => setActiveTool(null)} activeOpacity={0.6} hitSlop={{top:10,left:10,bottom:10,right:10}}>
-                <Text style={ds.backTxt}>◀</Text>
-              </TouchableOpacity>
               {activeTool==='weather'   && <WeatherTool />}
               {activeTool==='money'     && <MoneyTool />}
               {activeTool==='todo'      && <TodoTool />}
               {activeTool==='countdown' && <CountdownTool />}
+              <TouchableOpacity style={ds.backBtn} onPress={() => setActiveTool(null)} activeOpacity={0.7}>
+                <Text style={ds.backTxt}>← Back</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={ds.grid}>
@@ -951,8 +969,8 @@ const ds = StyleSheet.create({
   scrollContent:{ paddingHorizontal:20, paddingBottom:40 },
   grid:        { gap:10 },
   gridRow:     { flexDirection:'row', gap:10 },
-  backBtn:     { alignSelf:'flex-start', marginBottom:10 },
-  backTxt:     { color:'#fff', fontSize:18, lineHeight:22 },
+  backBtn:     { marginTop:18, marginBottom:6, paddingVertical:13, borderRadius:12, backgroundColor:'#1a1a1a', borderWidth:1, borderColor:'#ffffff55', borderStyle:'dashed', alignItems:'center' },
+  backTxt:     { color:'#fff', fontSize:13, fontWeight:'600', letterSpacing:0.3 },
   avatarPlaceholder:  { flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#1a1a1a' },
   avatarPlaceholderTxt:{ fontSize:28 },
 });
