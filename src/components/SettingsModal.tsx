@@ -40,8 +40,8 @@ const SettingsModal = memo(({
     return () => sub.remove();
   }, [visible, onClose]);
 
-  const dragY    = useRef(new Animated.Value(0)).current;
-  const slideAnim    = useRef(new Animated.Value(layoutMode === 'grid' ? 0 : 1)).current;
+  const dragY = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(layoutMode === 'grid' ? 0 : 1)).current;
   const [selectorHalf, setSelectorHalf] = useState(160);
 
   const switchMode = (mode: 'grid' | 'list') => {
@@ -160,7 +160,7 @@ const SettingsModal = memo(({
                 style={[styles.modeIndicator, {
                   transform: [{
                     translateX: slideAnim.interpolate({
-                      inputRange:  [0, 1],
+                      inputRange: [0, 1],
                       outputRange: [0, selectorHalf],
                     }),
                   }],
@@ -225,15 +225,14 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: 20, marginTop: 20 },
   label: { fontSize: 14, fontWeight: '600', color: '#aaa', marginBottom: 8 },
   input: { backgroundColor: '#1a1a1a', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: '#fff', fontSize: 16, borderWidth: 1, borderColor: '#2a2a2a' },
-  modeSelector:        { flexDirection:'row', backgroundColor:'#2c2c2e', borderRadius:10, padding:3, position:'relative' },
-  modeIndicator:       { position:'absolute', top:3, bottom:3, width:'49%', backgroundColor:'#3a3a3c', borderRadius:8 },
-  modeBtn:             { flex:1, paddingVertical:10, borderRadius:8, alignItems:'center', justifyContent:'center', zIndex:1 },
-  modeBtnLeft:         { marginRight:2 },
-  modeBtnRight:        { marginLeft:2 },
-  modeBtnActive:       {},
-  modeBtnText:         { fontSize:14, fontWeight:'500', color:'#8e8e93' },
-  modeBtnTextActive:   { color:'#fff', fontWeight:'600' },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
+  modeSelector: { flexDirection: 'row', backgroundColor: '#2c2c2e', borderRadius: 10, padding: 3, position: 'relative' },
+  modeIndicator: { position: 'absolute', top: 3, bottom: 3, left: '1.5%', width: '48%', backgroundColor: '#3a3a3c', borderRadius: 8 },
+  modeBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  modeBtnLeft: { marginRight: 2 },
+  modeBtnRight: { marginLeft: 2 },
+  modeBtnActive: {},
+  modeBtnText: { fontSize: 14, fontWeight: '500', color: '#8e8e93' },
+  modeBtnTextActive: { color: '#fff', fontWeight: '600' }, toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1a1a1a' },
   toggleLabel: { fontSize: 16, color: '#fff' },
   photoBtn: { marginHorizontal: 20, marginTop: 20, paddingVertical: 14, borderRadius: 12, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#2ed373', borderStyle: 'dashed', alignItems: 'center' },
   photoBtnText: { fontSize: 16, fontWeight: '600', color: '#ffffff' },
