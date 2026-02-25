@@ -8,6 +8,8 @@
 [![Version](https://img.shields.io/badge/Version-1.5-green?style=flat)](https://github.com/01satria/)
 [![FPS](https://img.shields.io/badge/FPS-60%20Locked-blue?style=flat)](README.md)
 
+
+[New Launcher App V2 Has Launch 🚀](https://github.com/01satria/LauncherAppv2)
 ---
 
 ## ✨ Features
