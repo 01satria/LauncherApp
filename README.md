@@ -11,7 +11,7 @@
 
 [New Launcher App V2 Has Launch 🚀](https://github.com/01satria/LauncherAppv2)
 ---
-
+![preview](public/image/image.jpg)
 ## ✨ Features
 
 | Category | Highlights |
