@@ -29,14 +29,14 @@
     <td align="center" width="340" bgcolor="#0f1f2e">
       <br/>
       🌤️<br/>
-      <b><code>01</code> — Intelligence+ Pill Bar</b><br/><br/>
+      <b><code>01</code> Intelligence+ Pill Bar</b><br/><br/>
       A single adaptive bar that surfaces what matters. Weather in the morning, calendar at noon, focus timers during work, and wind-down prompts at night. No clutter. No guessing.
       <br/><br/>
     </td>
     <td align="center" width="340" bgcolor="#1a0f2e">
       <br/>
       🔥<br/>
-      <b><code>02</code> — Habit Heatmap</b><br/><br/>
+      <b><code>02</code> Habit Heatmap</b><br/><br/>
       Track your streaks with a contribution heatmap right on the home screen. Mark habits done directly from the Pill Bar. No app switching, no friction.
       <br/><br/>
     </td>
@@ -45,14 +45,14 @@
     <td align="center" width="340" bgcolor="#1a2e0f">
       <br/>
       💰<br/>
-      <b><code>03</code> — Money Manager</b><br/><br/>
+      <b><code>03</code> Money Manager</b><br/><br/>
       Income and expense widgets that appear only when relevant. Financial clarity without ever leaving your home screen.
       <br/><br/>
     </td>
     <td align="center" width="340" bgcolor="#2e1a0f">
       <br/>
       🗂️<br/>
-      <b><code>04</code> — Adaptive App Drawer</b><br/><br/>
+      <b><code>04</code> Adaptive App Drawer</b><br/><br/>
       List mode for speed. Grid mode for beauty. Dynamic search finds any app instantly, exactly as your mind expects.
       <br/><br/>
     </td>
