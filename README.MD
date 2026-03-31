@@ -24,47 +24,59 @@
 
 <div align="center">
 
-#### `01` — Intelligence+ Pill Bar
+<table><tr><td align="center" width="680" bgcolor="#1a1a1a">
+<br/>
 
-</div>
+### `01` — Intelligence+ Pill Bar
 
 A single adaptive bar that surfaces what matters — weather in the morning, your calendar at noon, focus timers during work, and wind-down prompts at night. No clutter. No guessing.
 
 <br/>
+</td></tr></table>
 
-<div align="center">
+<br/>
 
-#### `02` — Habit Heatmap
+<table><tr><td align="center" width="680" bgcolor="#1a1a1a">
+<br/>
 
-</div>
+### `02` — Habit Heatmap
 
 Track your streaks with a contribution heatmap right on the home screen. Mark habits done directly from the Pill Bar — no app-switching, no friction.
 
 <br/>
+</td></tr></table>
 
-<div align="center">
+<br/>
 
-#### `03` — Money Manager
+<table><tr><td align="center" width="680" bgcolor="#1a1a1a">
+<br/>
 
-</div>
+### `03` — Money Manager
 
 Income and expense widgets that appear only when relevant. Financial clarity without ever leaving your home screen.
 
 <br/>
+</td></tr></table>
 
-<div align="center">
+<br/>
 
-#### `04` — Adaptive App Drawer
+<table><tr><td align="center" width="680" bgcolor="#1a1a1a">
+<br/>
 
-</div>
+### `04` — Adaptive App Drawer
 
 List mode for speed. Grid mode for beauty. Dynamic search finds any app instantly — exactly as your mind expects.
+
+<br/>
+</td></tr></table>
+
+</div>
 
 ---
 
 <div align="center">
 
-### Design
+## Design
 
 `Dot-Matrix Typography` &nbsp;·&nbsp; `True OLED Black` &nbsp;·&nbsp; `Essential Iconography`
 
@@ -76,7 +88,7 @@ List mode for speed. Grid mode for beauty. Dynamic search finds any app instantl
 
 <div align="center">
 
-### Contribute
+## Contribute
 
 </div>
 
@@ -100,5 +112,6 @@ List mode for speed. Grid mode for beauty. Dynamic search finds any app instantl
 
 Crafted with quiet passion by [01satria](https://github.com/01satria)
 
+🌑
 
 </div>
