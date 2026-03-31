@@ -24,7 +24,7 @@
 
 <div align="center">
 
-### `01` — Intelligence+ Pill Bar
+#### `01` — Intelligence+ Pill Bar
 
 </div>
 
@@ -34,7 +34,7 @@ A single adaptive bar that surfaces what matters — weather in the morning, you
 
 <div align="center">
 
-### `02` — Habit Heatmap
+#### `02` — Habit Heatmap
 
 </div>
 
@@ -44,7 +44,7 @@ Track your streaks with a contribution heatmap right on the home screen. Mark ha
 
 <div align="center">
 
-### `03` — Money Manager
+#### `03` — Money Manager
 
 </div>
 
@@ -54,7 +54,7 @@ Income and expense widgets that appear only when relevant. Financial clarity wit
 
 <div align="center">
 
-### `04` — Adaptive App Drawer
+#### `04` — Adaptive App Drawer
 
 </div>
 
@@ -76,7 +76,7 @@ List mode for speed. Grid mode for beauty. Dynamic search finds any app instantl
 
 <div align="center">
 
-## Contribute
+### Contribute
 
 </div>
 
@@ -100,6 +100,5 @@ List mode for speed. Grid mode for beauty. Dynamic search finds any app instantl
 
 Crafted with quiet passion by [01satria](https://github.com/01satria)
 
-🌑
 
 </div>
