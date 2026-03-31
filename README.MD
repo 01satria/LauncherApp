@@ -80,12 +80,15 @@
 ### 🤝 Contribute
 
 </div>
-```
-01  Fork the repository
+<pre>
+01  Fork the repository 🍴
 02  git checkout -b feature/your-idea
-03  git commit -m 'Add something beautiful'
-04  Push and open a Pull Request
-```
+03  git commit -m 'Add something beautiful ✨'
+04  Push and open a Pull Request 🚀
+</pre>
+
+</div>
+
 
 ---
 
