@@ -16,7 +16,7 @@
 
 ![Android](https://img.shields.io/badge/🤖_Android-8.0%2B-0a1f3a?style=flat-square&logoColor=white)
 ![License](https://img.shields.io/badge/⚖️_License-MIT-1a0a2e?style=flat-square)
-![Style](https://img.shields.io/badge/◉_Style-OneUI&Origin_OS-2e0a0a?style=flat-square)
+![Style](https://img.shields.io/badge/◉_Style-OneUI_Origin_OS-2e0a0a?style=flat-square)
 ![Open Source](https://img.shields.io/badge/🌿_Open-Source-0a1f1a?style=flat-square)
 
 <br/>
