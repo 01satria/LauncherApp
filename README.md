@@ -4,7 +4,7 @@
 
 <img src="public/image/ic_launcher.png" width="96" alt="Flow Launcher icon" />
 
-# Minimal Flow Launcher - *BETA*
+# Minimal Flow Launcher - **BETA**
 
 *A home screen built around clarity.*
 *Inspired by the quiet elegance of OneUI and Origin OS.*
