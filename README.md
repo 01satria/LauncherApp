@@ -19,8 +19,6 @@
 ![License](https://img.shields.io/badge/⚖️_License-MIT-1a0a2e?style=flat-square)
 ![Style](https://img.shields.io/badge/◉_Style-OneUI_&_Origin_OS-2e0a0a?style=flat-square)
 ![No Ads](https://img.shields.io/badge/🌿_No-Ads-0a1f1a?style=flat-square)
-
-<br/>
 <div align="center">
 
 <a href="https://github.com/01satria/LauncherAppv3/releases/tag/1.1BETA">
