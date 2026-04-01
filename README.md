@@ -17,9 +17,7 @@
 *A home screen built around clarity.*
 <br/>
 *Inspired by the quiet elegance of OneUI and Origin OS.*
-<br/>
-<br/>
-<br/>
+
 <div align="center">
 
 <a href="https://github.com/01satria/LauncherAppv3/releases/tag/1.1BETA">
