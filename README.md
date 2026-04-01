@@ -6,20 +6,19 @@
 
 # Minimal Flow Launcher - **BETA**
 
-*A home screen built around clarity.*
-<br/>
-*Inspired by the quiet elegance of OneUI and Origin OS.*
-<br/>
-
-<img src="public/image/image.png" alt="preview" width="700" height="400" />
-
-<br/>
-
 ![Android](https://img.shields.io/badge/🤖_Android-6.0%2B-0a1f3a?style=flat-square&logoColor=white)
 ![License](https://img.shields.io/badge/⚖️_License-MIT-1a0a2e?style=flat-square)
 ![Style](https://img.shields.io/badge/◉_Style-OneUI_&_Origin_OS-2e0a0a?style=flat-square)
 ![No Ads](https://img.shields.io/badge/🌿_No-Ads-0a1f1a?style=flat-square)
 <div align="center">
+
+<img src="public/image/image.png" alt="preview" width="700" height="400" />
+*A home screen built around clarity.*
+<br/>
+*Inspired by the quiet elegance of OneUI and Origin OS.*
+<br/>
+<br/>
+
 
 <a href="https://github.com/01satria/LauncherAppv3/releases/tag/1.1BETA">
   <img src="https://img.shields.io/badge/Download%20Now-000000?style=for-the-badge&logo=android&logoColor=white&color=FF4D94" alt="Download">
