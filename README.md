@@ -67,6 +67,22 @@
       <br/><br/>
     </td>
   </tr>
+  <tr>
+    <td align="center" width="340" bgcolor="#2e1a2e">
+      <br/>
+      🎨<br/>
+      <b><code>05</code> Thematic Color Palettes</b><br/><br/>
+      Fully dynamic, aesthetic-driven color tokens. Personalize the entire launcher interface with beautifully crafted palettes to perfectly match your vibe.
+      <br/><br/>
+    </td>
+    <td align="center" width="340" bgcolor="#1a2e2e">
+      <br/>
+      ⚡<br/>
+      <b><code>06</code> Fluid & Efficient</b><br/><br/>
+      Built with a highly optimized core. Low memory footprint, smooth animations, and entirely free of distractions or ads.
+      <br/><br/>
+    </td>
+  </tr>
 </table>
 
 </div>
@@ -98,7 +114,6 @@
 </pre>
 
 </div>
-
 
 ---
 
