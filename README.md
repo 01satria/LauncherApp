@@ -108,13 +108,12 @@
 03  git commit -m 'Add something beautiful ✨'
 04  Push and open a Pull Request 🚀
 </pre>
-
 </div>
 
 ---
 
 <div align="center">
- *"Simplicity is the ultimate sophistication."* ✦ Leonardo da Vinci
+`Simplicity is the ultimate sophistication` ✦ Leonardo da Vinci
 
 <br/>
 </div>
