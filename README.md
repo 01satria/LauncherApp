@@ -78,7 +78,7 @@
     <td align="center" width="340" bgcolor="#1a2e2e">
       <br/>
       🖼<br/>
-      <b><code>08</code> Depth Homepage</b><br/><br/>
+      <b><code>08</code> Depth Wallpaper</b><br/><br/>
     </td>
   </tr>
 </table>
@@ -91,7 +91,7 @@
 
 ### ✦ Design
 
-🔡 `Dot Matrix Typography` &nbsp;·&nbsp; ⬛ `OLED Black` &nbsp;·&nbsp; ✦ `Essential Iconography` &nbsp;·&nbsp; 🖼 `Depth Wallpaper`
+🔡 `Dot Matrix Typography` &nbsp;·&nbsp; ⬛ `OLED Black` &nbsp;·&nbsp; ✦ `Essential Iconography` &nbsp;·&nbsp; 🖼 `Intuitive`
 
 *Every element earns its place or disappears.*
 
