@@ -17,4 +17,4 @@ currently being supported with security updates.
 |  < 0.5  | :x:                |
 
 ## Reporting a Vulnerability
-See on [security](https://github.com/01satria/LauncherAppv3/security)
+See on [security](https://github.com/01satria/launcher/security)
