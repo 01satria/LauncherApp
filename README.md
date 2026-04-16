@@ -59,7 +59,7 @@
       <br/>
       🗂️<br/>
       <b><code>04</code> Adaptive App Drawer</b><br/><br/>
-      List mode for speed. Grid mode for beauty. Dynamic search finds any app instantly, exactly as your mind expects.
+      List mode for speed. Dynamic search finds any app instantly, exactly as your mind expects.
       <br/><br/>
     </td>
   </tr>
