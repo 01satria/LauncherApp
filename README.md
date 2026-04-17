@@ -132,6 +132,8 @@
 | Exchange Rate Currency | Pending | | |
 | Motivation Word | Backlog | | |
 
+<img src="public/image/devflow.svg" width="96" alt="Flow process" />
+
 📋 Backlog &nbsp;·&nbsp; ⏳ Pending &nbsp;·&nbsp; ⏸️ Deferred &nbsp;·&nbsp; 🔨 In Progress &nbsp;·&nbsp; 🧪 Testing &nbsp;·&nbsp; 👀 Review &nbsp;·&nbsp; ✅ Done
 </div>
 
