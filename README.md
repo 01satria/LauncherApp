@@ -132,17 +132,16 @@
 
 | Feature                  | Status       | Release | Reject |
 |------------------------|--------------|-----------|----------|
-| Auto Receipt Scanner | Review | | 🔘 |
-| Hide Status Bar | Review | | 🔘 |
-| Widget Integration | Review | | 🔘 |
-| Senior Mode | Pending | | |
-| Kids Mode | Pending | | |
-| Liquid Glass Effect | Fix Bug | | |
-| AI Integration | Backlog | | |
+| Auto Receipt Scanner | Done | | 🔘 |
+| Hide Status Bar | Done | | 🔘 |
+| Widget Integration | Done | | 🔘 |
+| Senior Mode | Backlog | | |
+| Kids Mode | Backlog | | |
+| Liquid Glass Effect | Done | | 🔘 |
+| AI Integration | Done | 🔘 | |
 | Prayer Time | Done | 🔘 | |
 | Football League Info | Backlog | | |
-| Exchange Rate Currency | Pending | | |
-| Motivation Word | Backlog | | |
+| Exchange Rate Currency | Done | 🔘 | |
 
 <img src="public/image/devflow.svg" width="400" alt="Flow process" />
 
