@@ -18,7 +18,7 @@
 <br/>
 <div align="center">
 
-<a href="https://github.com/01satria/LauncherApp/releases/tag/1.6Beta">
+<a href="https://github.com/01satria/LauncherApp/releases/tag/1.9build1">
   <img src="https://img.shields.io/badge/Download%20Now-000000?style=for-the-badge&logo=android&logoColor=white&color=006169" alt="Download">
 </a>
 
