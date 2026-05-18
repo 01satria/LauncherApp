@@ -1,5 +1,6 @@
 <!-- github.com/01satria -->
 # Security Policy
+https://seecloudys.notion.site/Privacy-policy-35f4b0f5360e8092af32c7f3ffa91e25?pvs=74
 
 ## Supported Versions
 
