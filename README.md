@@ -116,6 +116,7 @@
 | Senior Mode | Backlog | | |
 | Kids Mode | Backlog | | |
 | Football League Info | Backlog | | |
+| Separate Glass Dock Toogle | Backlog | | |
 
 
 <img src="public/image/devflow.svg" width="400" alt="Flow process" />
