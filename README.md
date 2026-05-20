@@ -164,6 +164,9 @@ Google Play Protect may flag this APK as an unrecognized app because it is not d
 <i>Simplicity is the ultimate sophistication</i> ✦ Leonardo da Vinci
 
 <br/>
+<br/>
+<br/>
+
 
 <a href="https://seecloudys.notion.site/Privacy-policy-35f4b0f5360e8092af32c7f3ffa91e25?source=copy_link">
   <img src="https://img.shields.io/badge/Term%20of%20Service-000000?style=for-the-badge&logo=notion&logoColor=white&color=006169" alt="Term of Service">
