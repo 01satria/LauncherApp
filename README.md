@@ -21,6 +21,13 @@
 <a href="https://github.com/01satria/LauncherApp/releases/tag/1.9build1">
   <img src="https://img.shields.io/badge/Download%20Now-000000?style=for-the-badge&logo=android&logoColor=white&color=006169" alt="Download">
 </a>
+<br/>
+<a href="https://seecloudys.notion.site/Privacy-policy-35f4b0f5360e8092af32c7f3ffa91e25?source=copy_link">
+  <img src="https://img.shields.io/badge/Term%20of%20Service-000000?style=for-the-badge&logo=notion&logoColor=white&color=006169" alt="Term of Service">
+</a>
+<a href="https://seecloudys.notion.site/Privacy-policy-35f4b0f5360e8092af32c7f3ffa91e25?source=copy_link">
+  <img src="https://img.shields.io/badge/Privacy%20Policy-000000?style=for-the-badge&logo=notion&logoColor=white&color=006169" alt="Privacy Policy">
+</a>
 
 </div>
 </div>
