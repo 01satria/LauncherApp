@@ -29,7 +29,7 @@
 
 <div align="center">
   
-### 🔎 Feature
+### 🔎 Features
 
 <table>
   <tr>
