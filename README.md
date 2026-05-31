@@ -118,6 +118,7 @@
 | Football League Info | Backlog | | |
 | Separate Glass Dock Toogle | Backlog | | |
 | Support theming of Bottomsheetbox | In-Progress | | |
+| Arrange Widget Stack | Backlog | | |
 
 
 <img src="public/image/devflow.svg" width="400" alt="Flow process" />
