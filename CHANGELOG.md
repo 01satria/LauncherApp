@@ -2,8 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.9] - 2026-05-18
+## [2.0] - 2026-05-31
 ### Added
+- Rebranded the launcher application name from "Flow Launcher" to "Cirro" across all system strings and onboarding views.
+- Re-architected update check framework to use Google Apps Script Web App integrated with the Google Spreadsheet backend, avoiding raw CSV 401 authorization issues.
+- Implemented manual redirect tracking (HTTP 302/307) in the update check network engine to robustly support Apps Script redirect structures.
+- Added browser redirection support for non-APK update URLs (such as release tag pages) inside the manual update settings and the home page briefing update card.
+- Re-enabled automated daily update checking on launcher startup.
+- Configured native adaptive icon configuration (`ic_launcher.xml` and `ic_launcher_round.xml`) using a solid black background layer to prevent launchers from wrapping legacy PNG assets in white circle borders.
+- Renamed release workflow output APK files inside the GitHub Actions pipeline to `Cirro-${VERSION}-${architecture}.apk`.
+
+### Changed
+- Refactored dock and home app drawer labels to dynamically sync their text colors with the active theme's palette instead of using hardcoded white text.
+- Re-engineered the liquid glass effect on the dock and home tray using canvas displacement shaders to prevent UI crashes across all Android versions.
+- Removed touch ripple feedback effects from the Money Manager and Exchange Rate widget stack layouts to preserve clean minimalist interfaces.
+
+### Fixed
+- Fixed a compilation-breaking XML parse error caused by duplicate `android:focusable` attributes in `layout_widget_money_currency.xml`.
+
+## [1.9] - 2026-05-19
+### Added
+- Engineered an edge-to-edge album cover art frame on the left of the expanded music pill, with a dynamic horizontal transparent-to-surface gradient overlay that fades the art smoothly into the card background.
+- Re-architected `ButtonHelper` to support automatic proportional padding, center-gravity text alignment, and dynamic theme-based 3D micro-borders using background luminance calculations.
+- Replaced raw text emojis in the widget gallery chips with clean, programmatically tinted Lucide vector drawables (`calendar`, `wallet`, `hourglass`, etc.) that support recursive custom typography styling.
+- Coupled Pill Island queue processing directly with briefing feed widget visibility, saving background processing power when a card is disabled or deleted.
+- Enabled dynamic alpha opacity syncing on all tool backgrounds (Habits, Currency, Money, Pomodoro, etc.) to elegantly reveal the system wallpaper.
+- Implemented deliberate high-fidelity gesture physics for minimized Card Pill swipe-up gestures, incorporating real-time velocity (speed and distance) calculations to prevent accidental triggers.
+- Fully synchronized card pill shadow layers in perfect lockstep during swipe dragging and pop transitions to eliminate lag, stutters, and stuck visual states.
+- Optimized card pill GPU and RAM memory consumption by removing redundant hardware-layer allocations during animations.
 - Engineered springy, high-fidelity rubber-band physics for minimized Card Pill swipe-up gestures.
 - Designed complete launcher OS process restart/kill sequence for absolute RAM reclamation and background task termination upon force refresh.
 - Resolved a critical feed widget logic bug where deleted or deactivated widgets were forcibly restored on launcher updates.
@@ -49,6 +75,9 @@ All notable changes to this project will be documented in this file.
 - Added automatic exit and save mechanism for widget edit mode when transitioning to the homepage.
 
 ### Changed
+- Standardized cancel buttons within `DialogHelper` using `ButtonHelper` to share identical heights, touch feedback, and responsive ripples.
+- Modified all custom BottomSheet dialogs to respect layout adjustment flags (`fitsSystemWindows`, `SOFT_INPUT_ADJUST_RESIZE`) and dynamically match navigation bar backgrounds to theme surface colors.
+- Replaced legacy background tints on permission controls and FAB buttons with standard unified Pill Button configurations.
 - Refactored Onboarding license key formatting and Settings license modals to leverage the unified formatter.
 - Removed the old static Settings widget and layout from the feed.
 - Simplified Weather widget layout: removed redundant descriptions, only keeping the sunset time.
@@ -67,6 +96,8 @@ All notable changes to this project will be documented in this file.
 - Prevented scroll view conflicts during active widget dragging.
 
 ### Fixed
+- Removed colliding widthAnimators in `HomeFragment.kt` to let the liquid-bounce spring animation system govern card morphs exclusively.
+- Resolved vertical typography cutoff and off-center alignment in styled buttons by setting `includeFontPadding = false` recursively on all Styled Text Views.
 - Fixed a layout bug in the Tasks widget where list items collapsed or cropped.
 - Fixed critical AI connection failures by removing deprecated model parameters and migrating endpoint connections to model-less routes.
 
