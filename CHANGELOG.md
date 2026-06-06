@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1] - 2026-06-06
+### Added
+- Standardized bottom bar UI architecture across all screens (Exchange Rate, Settings, etc.) ensuring proper spacing, z-indexing, and non-transparent backgrounds.
+- Implemented bouncy micro-animations on navigation buttons within the Exchange Rate bottom bar for a more tactile feel.
+- Implemented a global gesture back navigation system (swipe from the right edge) mimicking "One Hand Operation+" with smooth transparent page transitions for all sub-activities.
+- Enabled pull-to-refresh functionality on the Exchange Rate (Currency Converter) screen.
+- Engineered a zero-dependency daily Premium License verification system that runs silently in the background via Google Apps Script.
+- Configured automated "Lite Mode" fallback mechanism that forces a complete app restart and locks premium features immediately upon subscription expiry.
+
+### Changed
+- Unified typography scaling so that nominal currency amounts in Wallet and Exchange Rate screens share the exact same text sizes.
+- Redesigned the Settings blocks (cards) to use solid surface colors mapped tightly to the active color palette, improving contrast over transparent backgrounds.
+- Refined the task pill list: tasks now support the 'Enter' key for multi-line inputs, enforce a maximum width matching the event blocks, and display a dynamic checkmark icon when completed.
+- Scaled down the "Start Focus" button in the Pomodoro widget to perfectly align with the dimensions of standard bottom bar buttons.
+- Redesigned the Exchange Rate UI to display a comprehensive list of all currency rates by default, relocating the conversion input seamlessly into the bottom bar.
+- Standardized all "last update" timestamps across the application to use a consistent relative time format (e.g., "last update 21m ago").
+- Unified all pull-to-refresh loading animations across the app to match the premium styling of the RSS News page.
+- Removed all physical "Back" buttons from the bottom bars across all sub-activities in favor of the new gesture navigation system.
+- Restructured Money Manager and My Report (Habits) screens to enforce a strict bottom bar architecture for consistent navigation layout.
+- Migrated the Week/Month/Year period selector tabs in My Report from the top header into the bottom navigation bar.
+
+### Fixed
+- Fixed visual glitches and CPU spikes in the 3D Liquid Glass effect when navigating back to the home screen by adding smart caching for the system wallpaper bitmap.
+- Fixed layout parsing errors caused by duplicated `android:clipToPadding` attributes in `activity_screentime_ios.xml` and `activity_weather.xml`.
+- Ensured scrolling content safely passes behind bottom bars without getting clipped or hidden across the app, preserving layout integrity in all immersive modes.
+- Fixed a layout bug in Money Manager where the bottom bar detached from the screen edge and hovered above the navigation bar due to duplicated inset padding.
+- Fixed abrupt content clipping at the bottom of the My Report screen by dynamically calculating the bottom bar height and applying it to the scrollable view's bottom padding.
+- Resolved inaccurate initial centering of the active Month Selector in the Money Manager bottom bar by precisely calculating dynamic scroll offsets.
+
 ## [2.0] - 2026-05-31
 ### Added
 - Rebranded the launcher application name from "Flow Launcher" to "Cirro" across all system strings and onboarding views.
@@ -10,6 +39,7 @@ All notable changes to this project will be documented in this file.
 - Added browser redirection support for non-APK update URLs (such as release tag pages) inside the manual update settings and the home page briefing update card.
 - Re-enabled automated daily update checking on launcher startup.
 - Configured native adaptive icon configuration (`ic_launcher.xml` and `ic_launcher_round.xml`) using a solid black background layer to prevent launchers from wrapping legacy PNG assets in white circle borders.
+- Added native system wallpaper support for the 3D Liquid Glass effect when depth effect is disabled, featuring single-pass background loading (anti-freeze) and vector/live wallpaper canvas drawing fallback rendering.
 - Renamed release workflow output APK files inside the GitHub Actions pipeline to `Cirro-${VERSION}-${architecture}.apk`.
 
 ### Changed
@@ -19,6 +49,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Fixed a compilation-breaking XML parse error caused by duplicate `android:focusable` attributes in `layout_widget_money_currency.xml`.
+- Fixed bottom sheet dialog view hierarchy styling to recursively theme all internal components (EditText, CompoundButton, SeekBar, ProgressBar, ImageView icons, TextViews, and divider lines) to perfectly match the active custom theme color palette and typography, optimized for low RAM consumption and crash-proof execution.
+- Fixed briefing feed widget stack PageTransformer to completely fade out background card containers (specifically their 3D glass and colored background shapes) when stacked behind the active card, resolving layout overlapping and bleed-through issues during vertical swipes.
 
 ## [1.9] - 2026-05-19
 ### Added
