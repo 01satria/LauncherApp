@@ -7,19 +7,16 @@
 
 <br/>
 
-
-<br/>
-<div align="center">
 <a href="https://github.com/01satria/LauncherApp/releases/tag/2.1"><img src="https://img.shields.io/badge/Download%20Now-000000?style=for-the-badge&logo=android&logoColor=white&color=006169" alt="Download"></a>&nbsp;&nbsp;
 <a href="https://seecloudys.notion.site/Terms-of-Service-35f4b0f5360e8090906dcd69bc628a8a?source=copy_link"><img src="https://img.shields.io/badge/Term%20of%20Service-000000?style=for-the-badge&logo=notion&logoColor=white&color=9E2C1E" alt="Term of Service"></a>&nbsp;&nbsp;
 <a href="https://seecloudys.notion.site/Privacy-policy-35f4b0f5360e8092af32c7f3ffa91e25?source=copy_link"><img src="https://img.shields.io/badge/Privacy%20Policy-000000?style=for-the-badge&logo=notion&logoColor=white&color=9E2C1E" alt="Privacy Policy"></a>
-</div>
+
 </div>
 
 ---
 
 <div align="center">
-  
+
 ### 🔎 Features
 
 <table>
@@ -67,20 +64,15 @@
     </td>
     <td align="center" width="340" bgcolor="#1a2e2e">
       <br/>
-      🖼<br/>
+      🖼️<br/>
       <b><code>08</code> Depth Wallpaper</b><br/><br/>
     </td>
   </tr>
   <tr>
-    <td align="center" width="340" bgcolor="#2e1a2e">
+    <td align="center" width="340" bgcolor="#2e1a2e" colspan="2">
       <br/>
       🕌<br/>
       <b><code>09</code> Prayer Time</b><br/><br/>
-    </td>
-    <td align="center" width="340" bgcolor="#1a2e2e">
-      <br/>
-      <br/>
-      <b><code></code></b><br/><br/>
     </td>
   </tr>
 </table>
@@ -93,67 +85,77 @@
 
 ### 🤝 Contribute
 
-</div>
-<pre>
-01  Fork the repository 🍴
-02  git checkout -b feature/your-idea
-03  git commit -m 'Add something beautiful ✨'
-04  Push and open a Pull Request 🚀
-</pre>
+<table>
+<tr><td>
+
+```bash
+# 1 — Fork the repository
+# 2 — Create your feature branch
+git checkout -b feature/your-idea
+
+# 3 — Commit something beautiful
+git commit -m "Add something beautiful ✨"
+
+# 4 — Push it and open a Pull Request
+git push origin feature/your-idea
+```
+
+</td></tr>
+</table>
+
 </div>
 
 ---
 
 <div align="center">
 
-### 🔃 Upcoming features
+### 🔃 Upcoming Features
 
-| Feature                  | Status       | Release | Reject |
-|------------------------|--------------|-----------|----------|
-| Senior Mode | Backlog | | |
-| Kids Mode | Backlog | | |
-| Football League Info | Backlog | | |
-| Separate Glass Dock Toogle | Backlog | | |
-| Support theming of Bottomsheetbox | In-Progress | | |
-| Arranged Widget Stack | Backlog | | |
+| Feature | Status |
+|---|:---:|
+| Support theming of Bottom Sheet | 🚧 In Progress |
+| Senior Mode | 📋 Backlog |
+| Kids Mode | 📋 Backlog |
+| Football League Info | 📋 Backlog |
+| Separate Glass Dock Toggle | 📋 Backlog |
+| Arranged Widget Stack | 📋 Backlog |
 
+<br/>
 
 <img src="public/image/devflow.svg" width="400" alt="Flow process" />
 
 </div>
 
 ---
+
 ### ⚠️ Google Play Protect Warning
+
 Google Play Protect may flag this APK as an unrecognized app because it is not distributed through the Google Play Store. Rest assured, this app is **completely safe**. If you encounter any issues during your first installation, please follow these steps:
 
-1. **Temporarily Disable Play Protect**  
+1. **Temporarily Disable Play Protect**
    You may need to pause or temporarily turn off Google Play Protect to allow the initial installation to proceed smoothly.
 
-2. **Bypass the Warning**  
+2. **Bypass the Warning**
    If the security warning appears, tap on **More details**, then select **Install anyway**.
 
-3. **Scan for Viruses (Optional)**  
+3. **Scan for Viruses (Optional)**
    If you are concerned about malware, you can safely re-enable Google Play Protect after the installation is successful and run a scan to verify the app's safety yourself.
-
 
 ### 🔒 Privacy & Security Guarantee
 
- This application **does not** collect, extract, share, or misuse any of your personal data. It is built purely for its intended functionality with the utmost respect for your device's security and your privacy.
+This application **does not** collect, extract, share, or misuse any of your personal data. It is built purely for its intended functionality with the utmost respect for your device's security and your privacy.
 
 ---
+
 <div align="center">
+
 <i>Simplicity is the ultimate sophistication</i> ✦ Leonardo da Vinci
 
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-
-<br/>
-
+<br/><br/>
 
 <p align="center">
   <i>© 2026 see.cloudys Team — All rights reserved</i><br/>
   <sub>Private Launcher • Not for redistribution • Release</sub>
 </p>
+
+</div>
